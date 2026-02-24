@@ -1,15 +1,21 @@
-import { supabase } from './supabaseClient';
+export async function verifyWorldIDProof(proofData: any) {
+  const response = await fetch(
+    "https://vtjqfzpfehfofamhowjz.supabase.co/functions/v1/bright-handler",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(proofData),
+    }
+  );
 
-export async function verifyWorldIDProof(proof: any) {
-  const user = supabase.auth.user();
-  if (!user) throw new Error('Usuario no autenticado');
+  const result = await response.json();
 
-  const { data, error } = await supabase
-    .rpc('verify_world_id_proof', {
-      p_user_id: user.id,
-      p_proof: proof,
-    });
+  if (!response.ok) {
+    console.error("Error verificando:", result);
+    throw new Error("World ID verification failed");
+  }
 
-  if (error) throw error;
-  return data; // { is_valid, message }
+  return result;
 }
