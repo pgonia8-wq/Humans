@@ -20,7 +20,7 @@ const App: React.FC = () => {
     localStorage.setItem("retryCount", retryCount.toString());
   }, [retryCount]);
 
-  // AUTO-RETRY seguro cada 6 segundos si está stuck
+  // Polling automático / retry cada 6 segundos si está stuck
   useEffect(() => {
     let interval: NodeJS.Timer;
     if (
@@ -36,7 +36,7 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [status, verified]);
 
-  // Verificación cuando status llegue a "found"
+  // Verificación Orb cuando status llegue a "found"
   useEffect(() => {
     if (status !== "found" || !walletAddress || verified) return;
 
@@ -82,7 +82,11 @@ const App: React.FC = () => {
     doVerify();
   }, [status, walletAddress, verified, verifyOrb]);
 
-  // Pantalla de carga
+  // -------------------------
+  // Renderizado de UI
+  // -------------------------
+
+  // Cargando / verificando
   if (
     !status ||
     status === "initializing" ||
@@ -96,11 +100,23 @@ const App: React.FC = () => {
         Status: {status || "esperando"}<br />
         Wallet: {walletAddress || "sin wallet"}<br />
         Verificando: {verifying ? "Sí" : "No"}
+        {/* Panel de debug dentro de carga */}
+        <DebugPanel
+          status={status}
+          walletAddress={walletAddress}
+          verifying={verifying}
+          verified={verified}
+          backendResult={backendResult}
+          lastAction={lastAction}
+          lastPayload={lastPayload}
+          retryCount={retryCount}
+          isRetrying={isRetrying}
+        />
       </div>
     );
   }
 
-  // Error o no detectado
+  // Error o wallet no detectada
   if (!walletAddress || status === "not-installed" || status === "timeout" || status === "error") {
     return (
       <div className="w-screen h-screen flex flex-col items-center justify-center bg-black text-white text-center p-6 gap-6">
@@ -127,6 +143,18 @@ const App: React.FC = () => {
             Reintentar detección
           </button>
         )}
+        {/* Panel de debug */}
+        <DebugPanel
+          status={status}
+          walletAddress={walletAddress}
+          verifying={verifying}
+          verified={verified}
+          backendResult={backendResult}
+          lastAction={lastAction}
+          lastPayload={lastPayload}
+          retryCount={retryCount}
+          isRetrying={isRetrying}
+        />
       </div>
     );
   }
@@ -139,26 +167,67 @@ const App: React.FC = () => {
         <FeedPage wallet={walletAddress} />
       </main>
 
-      {/* 🔹 Panel de debug completo */}
-      <div className="fixed bottom-0 left-0 w-full bg-black bg-opacity-90 text-white p-2 text-xs z-50 flex flex-col gap-1 max-h-64 overflow-y-auto">
-        <div>Status: {status}</div>
-        <div>Wallet: {walletAddress}</div>
-        <div>Verificando Orb: {verifying ? "Sí" : "No"}</div>
-        <div>Verificado: {verified ? "✅ Sí" : "❌ No"}</div>
-        <div>Backend: {backendResult || "esperando..."}</div>
-        <div>Acción enviada: {lastAction || "-"}</div>
-        <div>
-          Payload Orb (truncado):
-          {lastPayload
-            ? " " +
-              JSON.stringify(lastPayload)
-                .replace(/\s/g, "")
-                .slice(0, 200) + "..."
-            : "-"}
-        </div>
-      </div>
+      {/* Panel de debug siempre visible */}
+      <DebugPanel
+        status={status}
+        walletAddress={walletAddress}
+        verifying={verifying}
+        verified={verified}
+        backendResult={backendResult}
+        lastAction={lastAction}
+        lastPayload={lastPayload}
+        retryCount={retryCount}
+        isRetrying={isRetrying}
+      />
     </div>
   );
 };
+
+// -------------------------
+// Componente DebugPanel seguro
+// -------------------------
+interface DebugPanelProps {
+  status: string | null;
+  walletAddress: string | null;
+  verifying: boolean;
+  verified: boolean;
+  backendResult: string | null;
+  lastAction: string | null;
+  lastPayload: any;
+  retryCount: number;
+  isRetrying: boolean;
+}
+
+const DebugPanel: React.FC<DebugPanelProps> = ({
+  status,
+  walletAddress,
+  verifying,
+  verified,
+  backendResult,
+  lastAction,
+  lastPayload,
+  retryCount,
+  isRetrying,
+}) => (
+  <div className="fixed bottom-0 left-0 w-full bg-black bg-opacity-90 text-white p-2 text-xs z-50 flex flex-col gap-1 max-h-64 overflow-y-auto">
+    <div>Status: {status}</div>
+    <div>Wallet: {walletAddress || "sin wallet"}</div>
+    <div>Verificando Orb: {verifying ? "Sí" : "No"}</div>
+    <div>Verificado: {verified ? "✅ Sí" : "❌ No"}</div>
+    <div>Backend: {backendResult || "esperando..."}</div>
+    <div>Acción enviada: {lastAction || "-"}</div>
+    <div>
+      Payload Orb (truncado):
+      {lastPayload
+        ? " " +
+          JSON.stringify(lastPayload)
+            .replace(/\s/g, "")
+            .slice(0, 200) + "..."
+        : "-"}
+    </div>
+    <div>Retry count: {retryCount}</div>
+    <div>Retrying: {isRetrying ? "Sí" : "No"}</div>
+  </div>
+);
 
 export default App;
