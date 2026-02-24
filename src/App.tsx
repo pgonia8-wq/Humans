@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import FeedPage from "./pages/FeedPage";
-import { useMiniKitUser } from "./lib/useMiniKitUser";
 import { MiniKit } from "@worldcoin/minikit-js";
 
 const App: React.FC = () => {
@@ -23,12 +22,14 @@ const App: React.FC = () => {
   }, [retryCount]);
 
   // -----------------------------
-  // Inicialización MiniKit con delay
+  // Inicialización MiniKit con delay 9s
   // -----------------------------
   useEffect(() => {
     const init = async () => {
-      // Espera 2 segundos para que el bridge de World App cargue
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Espera 9 segundos para asegurar que el bridge de World App cargue
+      await new Promise((resolve) => setTimeout(resolve, 9000));
+
+      console.log("MiniKit.isInstalled():", MiniKit.isInstalled());
 
       if (!MiniKit.isInstalled()) {
         setStatus("not-installed");
