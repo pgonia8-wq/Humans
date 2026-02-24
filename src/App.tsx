@@ -7,39 +7,61 @@ const App: React.FC = () => {
   const { walletAddress, status, verifyOrb, proof, isVerifying } = useMiniKitUser();
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
+
+  // Contador persistente con localStorage (no se resetea al reload)
+  const [retryCount, setRetryCount] = useState(() => {
+    const saved = localStorage.getItem('retryCount');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+
+  // Guardar contador en localStorage cada vez que cambia
+  useEffect(() => {
+    localStorage.setItem('retryCount', retryCount.toString());
+  }, [retryCount]);
+
+  // Timeout para detectar atascado (20 segundos)
   const [loadTimeout, setLoadTimeout] = useState(false);
 
   // Logs de debug detallados
   useEffect(() => {
-    console.log('🔍 MiniKit.isInstalled desde App:', MiniKit.isInstalled?.() ?? 'no disponible');
+    console.log('🔍 MiniKit.isInstalled:', MiniKit.isInstalled?.() ?? 'no disponible');
     console.log('🔍 Status actual:', status ?? 'sin-status');
-    console.log('🔍 Wallet address:', walletAddress ?? 'sin-wallet');
+    console.log('🔍 Wallet:', walletAddress ?? 'sin-wallet');
     console.log('🔍 isVerifying:', isVerifying);
     console.log('🔍 verified:', verified);
-    console.log('🔍 Intentos de retry:', retryCount);
+    console.log('🔍 Intentos totales:', retryCount);
   }, [status, walletAddress, isVerifying, verified, retryCount]);
 
-  // Timeout de 20 segundos para detectar si está atascado en carga
+  // Timeout visual de 20 segundos
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoadTimeout(true);
-    }, 20000); // 20 segundos
-
+    const timer = setTimeout(() => setLoadTimeout(true), 20000);
     return () => clearTimeout(timer);
   }, []);
 
-  // Verificación solo cuando status sea "found"
+  // AUTO-RETRY cada 6 segundos mientras esté en initializing / polling
+  useEffect(() => {
+    if (status === "initializing" || status === "polling") {
+      const interval = setInterval(() => {
+        setRetryCount(c => c + 1);
+        MiniKit.install();
+        console.log('Auto-retry MiniKit.install() - intento:', retryCount + 1);
+      }, 6000); // cada 6 segundos (ajusta si quieres más rápido, ej: 4000)
+
+      return () => clearInterval(interval);
+    }
+  }, [status, retryCount]);
+
+  // Verificación cuando llegue a "found"
   useEffect(() => {
     if (status !== "found" || !walletAddress || verified) {
-      console.log('⏳ Esperando status "found"... actual:', status);
+      console.log('⏳ Esperando "found"... actual:', status);
       return;
     }
 
     const doVerify = async () => {
       setVerifying(true);
       try {
-        console.log("🚀 Iniciando verificación Orb - wallet:", walletAddress);
+        console.log("🚀 Verificando Orb - wallet:", walletAddress);
         const orbProof = await verifyOrb("verify_user", walletAddress);
 
         const res = await fetch("/api/verify", {
@@ -52,19 +74,17 @@ const App: React.FC = () => {
           }),
         });
 
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const result = await res.json();
         if (result.success) {
           setVerified(true);
-          console.log("✅ Verificación exitosa");
+          console.log("✅ Éxito");
         } else {
-          console.error("❌ Backend rechazó el proof:", result);
+          console.error("❌ Backend rechazó:", result);
         }
       } catch (err) {
-        console.error("❌ Error completo en verificación:", err);
+        console.error("❌ Error verificación:", err);
       } finally {
         setVerifying(false);
       }
@@ -73,23 +93,23 @@ const App: React.FC = () => {
     doVerify();
   }, [status, walletAddress, verified, verifyOrb]);
 
-  // Pantalla de carga / inicializando / polling / verifying
+  // Pantalla de carga con timeout
   if (!status || status === "initializing" || status === "polling" || isVerifying || verifying) {
     if (loadTimeout) {
       return (
         <div className="w-screen h-screen flex flex-col items-center justify-center bg-black text-white text-center p-6 gap-6">
           <div className="text-xl font-bold">Cargando World ID... (tomando mucho tiempo)</div>
-          <div>Status: {status || 'esperando bridge'}</div>
-          <div>Intentos: {retryCount}</div>
+          <div>Status: {status || 'esperando'}</div>
+          <div>Intentos auto/manual: {retryCount}</div>
           <button
             onClick={() => {
               setRetryCount(c => c + 1);
-              setLoadTimeout(false); // resetea timeout
-              window.location.reload();
+              setLoadTimeout(false);
+              MiniKit.install();
             }}
-            className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg active:scale-95 transition-transform"
+            className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg active:scale-95"
           >
-            Reintentar ahora
+            Reintentar manual
           </button>
         </div>
       );
@@ -98,13 +118,13 @@ const App: React.FC = () => {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-black text-white text-center p-6">
         Cargando World ID...<br />
-        Status: {status || 'esperando bridge'}<br />
+        Status: {status || 'esperando'}<br />
         Intentos: {retryCount}
       </div>
     );
   }
 
-  // Error / no detectado / timeout / not-installed
+  // Error / no detectado
   if (!walletAddress || status === "not-installed" || status === "timeout" || status === "error") {
     return (
       <div className="w-screen h-screen flex flex-col items-center justify-center bg-black text-white text-center p-6 gap-6">
@@ -113,16 +133,16 @@ const App: React.FC = () => {
           y con World ID verificado.
         </div>
         <div className="text-sm text-gray-400">
-          Status detectado: {status || 'desconocido'}<br />
-          Intentos de retry: {retryCount}
+          Status: {status || 'desconocido'}<br />
+          Intentos totales: {retryCount}
         </div>
         <button
           onClick={() => {
             setRetryCount(c => c + 1);
             setLoadTimeout(false);
-            window.location.reload();
+            MiniKit.install();
           }}
-          className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg active:scale-95 transition-transform"
+          className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg active:scale-95"
         >
           Reintentar detección
         </button>
@@ -130,7 +150,7 @@ const App: React.FC = () => {
     );
   }
 
-  // Verificando después de wallet detectada
+  // Verificando
   if (!verified) {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-black text-white text-center p-6">
@@ -140,7 +160,7 @@ const App: React.FC = () => {
     );
   }
 
-  // Pantalla principal (éxito)
+  // Pantalla principal
   return (
     <div className="w-screen h-screen bg-black text-white flex flex-col">
       <header className="p-4 text-xl font-bold text-center">Human Feed</header>
