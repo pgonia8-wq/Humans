@@ -278,36 +278,33 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         </button>
       </div>
 
-      {/* Avatar */}
-      <div className="absolute -bottom-12 left-6 w-24 h-24 z-10">
-        <img
-          src={profile.avatar_url || "/default-avatar.png"}
-          alt="Tu avatar"
-          className="w-24 h-24 rounded-full border-4 border-gray-900 object-cover shadow-lg"
-          onError={(e) => ((e.target as HTMLImageElement).src = "/default-avatar.png")}
-        />
+      {/* Avatar fijo centrado en la parte superior */}
+<div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-28 h-28 z-20">
+  <img
+    src={profile.avatar_url || "/default-avatar.png"}
+    alt="Tu avatar"
+    className="w-28 h-28 rounded-full border-4 border-white object-cover shadow-lg"
+    onError={(e) => ((e.target as HTMLImageElement).src = "/default-avatar.png")}
+  />
 
-        <button
-          type="button"
-          onClick={() => avatarInputRef.current?.click()}
-          disabled={uploadingAvatar}
-          className={`absolute bottom-0 right-0 bg-purple-600 text-white text-xs px-3 py-1 rounded-full cursor-pointer hover:bg-purple-700 shadow transition-all flex items-center justify-center ${
-            uploadingAvatar ? "opacity-70 cursor-not-allowed" : ""
-          }`}
-        >
-          {uploadingAvatar ? "Subiendo..." : "Cambiar"}
-        </button>
+  {/* Lápiz para cambiar avatar */}
+  <div
+    onClick={() => avatarInputRef.current?.click()}
+    className="absolute bottom-0 right-0 bg-purple-600 rounded-full p-1.5 cursor-pointer hover:bg-purple-700 shadow-lg flex items-center justify-center"
+    title="Cambiar avatar"
+  >
+    ✏️
+  </div>
 
-        <input
-          ref={avatarInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleAvatarChange}
-          className="hidden"
-          disabled={uploadingAvatar}
-        />
-      </div>
-
+  <input
+    ref={avatarInputRef}
+    type="file"
+    accept="image/*"
+    onChange={handleAvatarChange}
+    className="hidden"
+    disabled={uploadingAvatar}
+  />
+</div>
       {/* Contenido principal */}
       <div className="flex-1 overflow-y-auto">
         <div className="pt-14 px-6 pb-6">
