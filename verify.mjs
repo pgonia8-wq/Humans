@@ -1,28 +1,54 @@
 export default async function handler(req, res) {
-  console.log("[BACKEND] Request recibido - Method:", req.method);
-  console.log("[BACKEND] Body recibido:", JSON.stringify(req.body, null, 2));
+  console.log("BODY RECEIVED:", req.body);
 
   if (req.method !== "POST") {
-    console.log("[BACKEND] Método no permitido:", req.method);
-    return res.status(405).json({ success: false, error: "Method not allowed" });
+    return res.status(405).json({ success: false });
   }
 
   const { action, max_age } = req.body || {};
 
   if (!action) {
-    console.log("[BACKEND] Falta action");
     return res.status(400).json({
       success: false,
       error: "Missing action",
     });
   }
 
-  // En modo managed de MiniKit dentro de World App, el proof ya se validó internamente en World App
-  // No necesitas llamar a ningún endpoint de Worldcoin aquí
-  // Solo confirma que la action es válida y responde success
+  try {
+    const response = await fetch(
+      "https://developer.worldcoin.org/api/v2/verify",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.RP_SIGNING_KEY}`,
+        },
+        body: JSON.stringify({
+          app_id: process.env.APP_ID,
+          action,
+          signal: "",
+          max_age: max_age || 7200,
+        }),
+      }
+    );
 
-  console.log("[BACKEND] Acción recibida y validada:", action);
-  console.log("[BACKEND] Verificación managed exitosa (MiniKit ya lo hizo)");
+    const data = await response.json();
+    console.log("WORLD RESPONSE:", data);
 
-  return res.status(200).json({ success: true });
-}
+    if (data.success) {
+      return res.status(200).json({ success: true });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: "World verification failed",
+        world_response: data,
+      });
+    }
+  } catch (err) {
+    console.error("SERVER ERROR:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Server error",
+    });
+  }
+        }
