@@ -1,98 +1,95 @@
-import { useEffect, useState } from "react";
-import { MiniKit } from "@worldcoin/minikit-js";
+import { useState } from "react";
+import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
+import HomePage from "./pages/HomePage";
+import ErrorBoundary from "./components/ErrorBoundary";
 
-export default function App() {
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    try {
-      MiniKit.install();
-      const installed = MiniKit.isInstalled();
-      console.log("MiniKit installed:", installed);
-      setIsInstalled(installed);
-    } catch (err) {
-      console.error("MiniKit install error:", err);
-    }
-  }, []);
+function App() {
+  const [verified, setVerified] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleVerify = async () => {
-    if (!MiniKit.isInstalled()) {
-      alert("MiniKit no está disponible");
-      return;
-    }
-
     try {
-      setLoading(true);
-      setMessage("Abriendo verificación...");
+      setError(null);
+      setMessage("Verificando con H…");
+
+      if (!MiniKit.isInstalled()) {
+        setError("World App no detectada");
+        return;
+      }
 
       const verifyRes = await MiniKit.commandsAsync.verify({
         action: "verify-user",
+        verification_level: VerificationLevel.Device,
       });
 
-      console.log("Verify response:", verifyRes);
-
-      const proof = verifyRes?.finalPayload;
-
-      if (!proof) {
-        throw new Error("No se recibió proof");
+      const finalPayload = verifyRes?.finalPayload;
+      if (!finalPayload || finalPayload.status !== "success") {
+        setError("Verificación cancelada o fallida");
+        return;
       }
 
-      const backendRes = await fetch("/api/verify", {
+      const proofData = finalPayload.proof;
+      if (!proofData) {
+        setError("No se encontró proof válido");
+        return;
+      }
+
+      const body = {
+        proof: proofData.proof,
+        merkle_root: proofData.merkle_root,
+        nullifier_hash: proofData.nullifier_hash,
+        verification_level: proofData.verification_level,
+        action: "verify-user",
+        max_age: 7200,
+      };
+
+      const res = await fetch("/api/verify", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ proof }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
+      const result = await res.json();
 
-      const backend = await backendRes.json();
-      console.log("Backend response:", backend);
-
-      if (backend.success) {
+      if (result.success) {
+        setVerified(true);
         setMessage("✅ Verificación exitosa");
       } else {
-        setMessage("❌ Backend rechazó la prueba");
+        setError("Backend rechazó la prueba: " + (result.error || ""));
       }
-
-    } catch (err) {
-      console.error("Verify error:", err);
-      setMessage("❌ Error durante verificación");
-    } finally {
-      setLoading(false);
+    } catch (err: any) {
+      setError("Error durante verificación: " + err.message);
     }
   };
 
   return (
-    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <h1>Human App</h1>
-
-      <p>
-        MiniKit instalado: {isInstalled ? "✅ Sí" : "❌ No"}
-      </p>
-
-      <button
-        onClick={handleVerify}
-        disabled={!isInstalled || loading}
-        style={{
-          padding: "12px 20px",
-          borderRadius: 8,
-          border: "none",
-          backgroundColor: "#000",
-          color: "#fff",
-          cursor: "pointer",
-          marginTop: 10
-        }}
-      >
-        {loading ? "Verificando..." : "Verificar con World ID"}
-      </button>
-
-      {message && (
-        <p style={{ marginTop: 20 }}>
-          {message}
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      {!verified ? (
+        <div className="bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center w-full max-w-md">
+          <img
+            src="/logo.png"
+            alt="Logo H"
+            className="w-40 h-40 rounded-full mb-6 shadow-lg object-cover"
+          />
+          <p className="text-black text-2xl font-bold mb-6 text-center">
+            Verificando con H…
+          </p>
+          <button
+            onClick={handleVerify}
+            className="px-8 py-3 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition"
+          >
+            Iniciar verificación
+          </button>
+          {message && <p className="mt-4 text-gray-700">{message}</p>}
+          {error && <p className="mt-2 text-red-600">{error}</p>}
+        </div>
+      ) : (
+        <ErrorBoundary>
+          <HomePage />
+        </ErrorBoundary>
       )}
     </div>
   );
 }
+
+export default App;
