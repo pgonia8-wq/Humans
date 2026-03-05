@@ -26,4 +26,4 @@ export async function verifyWorldIDProof(
   }
 
   return result;
-        }
+    }
