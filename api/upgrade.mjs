@@ -1,47 +1,44 @@
-export default async function handler(request) {
+export default async function handler(req, res) {
 
-  if (request.method !== "POST") {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      {
-        status: 405,
-        headers: { "Content-Type": "application/json" }
-      }
-    );
+  if (req.method !== "POST") {
+    res.statusCode = 405;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ error: "Method not allowed" }));
+    return;
   }
 
   try {
 
-    const body = await request.json();
-    const { plan } = body;
+    const chunks = [];
+
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+
+    const body = Buffer.concat(chunks).toString() || "{}";
+    const data = JSON.parse(body);
+
+    const { plan } = data;
 
     console.log("Upgrade request:", plan);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        plan: plan || null
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      }
-    );
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({
+      success: true,
+      plan: plan || null
+    }));
 
   } catch (err) {
 
     console.error("API ERROR:", err);
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: err.message
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
-    );
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({
+      success: false,
+      error: err.message
+    }));
 
   }
 
