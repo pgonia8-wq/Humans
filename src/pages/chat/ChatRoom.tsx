@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../../supabaseClient';
 
 const ChatRoom: React.FC<{ roomId: string }> = ({ roomId }) => {
   const [messages, setMessages] = useState<any[]>([]);
@@ -12,22 +12,34 @@ const ChatRoom: React.FC<{ roomId: string }> = ({ roomId }) => {
         .select('*')
         .eq('room_id', roomId)
         .order('created_at', { ascending: true });
+
       setMessages(data || []);
     };
+
     fetchMessages();
 
     const channel = supabase
       .channel('realtime-chat')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
-        if (payload.new.room_id === roomId) setMessages((prev) => [...prev, payload.new]);
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        (payload) => {
+          if (payload.new.room_id === roomId) {
+            setMessages((prev) => [...prev, payload.new]);
+          }
+        }
+      )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [roomId]);
 
   const sendMessage = async () => {
-    const user = supabase.auth.user();
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+
     if (!newMessage || !user) return;
 
     await supabase.from('chat_messages').insert({
@@ -35,6 +47,7 @@ const ChatRoom: React.FC<{ roomId: string }> = ({ roomId }) => {
       user_id: user.id,
       content: newMessage,
     });
+
     setNewMessage('');
   };
 
@@ -47,6 +60,7 @@ const ChatRoom: React.FC<{ roomId: string }> = ({ roomId }) => {
           </div>
         ))}
       </div>
+
       <div className="flex gap-2">
         <input
           type="text"
@@ -55,7 +69,10 @@ const ChatRoom: React.FC<{ roomId: string }> = ({ roomId }) => {
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
         />
-        <button onClick={sendMessage} className="px-4 py-1 bg-purple-500 text-white rounded">
+        <button
+          onClick={sendMessage}
+          className="px-4 py-1 bg-purple-500 text-white rounded"
+        >
           Enviar
         </button>
       </div>
