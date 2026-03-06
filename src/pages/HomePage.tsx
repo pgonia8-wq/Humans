@@ -105,11 +105,57 @@ const HomePage: React.FC = () => {
 
   const handleRefresh = () => fetchPosts(true);
 
-  const handleCreatePost = () => {
-    if (!newPostContent.trim()) return;
-    alert(`Post publicado con ${newPostContent.length} caracteres`);
-    setShowNewPostModal(false);
-    setNewPostContent('');
+  const handleCreatePost = async () => {
+    if (!newPostContent.trim()) {
+      alert("Escribe algo antes de publicar");
+      return;
+    }
+
+    console.log("[POST] Intentando publicar:", newPostContent);
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log("[POST] Auth result:", {
+      userId: user?.id || "NULL",
+      authError: authError ? authError.message : "No error"
+    });
+
+    if (authError || !user) {
+      alert("No estás logueado. Intenta cerrar y abrir la app.");
+      return;
+    }
+
+    console.log("[POST] Usuario OK, insertando con user_id:", user.id);
+
+    try {
+      const { data: inserted, error: insertError } = await supabase
+        .from('posts')
+        .insert({
+          user_id: user.id,
+          content: newPostContent.trim(),
+          timestamp: new Date().toISOString(),
+          // Si tu tabla tiene estas columnas obligatorias, descomenta y ajusta
+          // deleted_flag: false,
+          // visibility_score: 1,
+          // username: "tu_username" // si lo tienes en el perfil
+        })
+        .select();  // Devuelve lo insertado para debug
+
+      console.log("[POST] Resultado insert:", {
+        inserted: inserted ? inserted[0] : null,
+        insertError: insertError ? insertError.message : "No error"
+      });
+
+      if (insertError) throw insertError;
+
+      alert("¡Post publicado correctamente!");
+      setShowNewPostModal(false);
+      setNewPostContent('');
+      fetchPosts(true);  // Refresca feed
+
+    } catch (err: any) {
+      console.error("[POST] Error al publicar:", err);
+      alert("Error al publicar: " + (err.message || "Intenta de nuevo"));
+    }
   };
 
   return (
