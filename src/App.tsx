@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import HomePage from "./pages/HomePage";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { supabase } from "./supabaseClient";
 
 function App() {
   const [verified, setVerified] = useState(false);
@@ -46,7 +45,7 @@ function App() {
         return;
       }
 
-      const id = proofData.nullifier_hash;
+      const id = proofData.nullifier_hash;  // identificador único de World ID
 
       const body = {
         proof: proofData.proof,
