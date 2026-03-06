@@ -2,7 +2,6 @@ import { useState } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import HomePage from "./pages/HomePage";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { supabase } from "./supabaseClient";
 
 function App() {
   const [verified, setVerified] = useState(false);
@@ -55,22 +54,23 @@ function App() {
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
+      let result;
+      try {
+        result = await res.json();
+      } catch (jsonErr) {
         const text = await res.text();
-        throw new Error(`Error ${res.status}: ${text}`);
+        throw new Error(`Respuesta inválida del backend (${res.status}): ${text}`);
       }
-
-      const result = await res.json();
 
       if (result.success) {
         setVerified(true);
         setUserId(id);
         setMessage("✅ Verificación exitosa");
       } else {
-        setError("Backend rechazó la prueba: " + (result.error || ""));
+        setError("Backend rechazó la prueba: " + (result.error || "Respuesta desconocida"));
       }
     } catch (err: any) {
-      console.error("Error en verify:", err);
+      console.error("Error completo en verify:", err);
       setError("Error durante verificación: " + err.message);
     }
   };
