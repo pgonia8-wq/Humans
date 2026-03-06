@@ -5,7 +5,7 @@ import ActionButton from "../components/ActionButton";
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal.tsx";
 import { useUserBalance } from "../lib/useUserBalance";
-import { useMiniKitUser } from "../lib/useMiniKitUser";  // ← hook para wallet y verify
+import { useMiniKitUser } from "../lib/useMiniKitUser";
 
 interface Post {
   id: string;
@@ -41,7 +41,7 @@ const HomePage: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const { theme, accentColor } = useContext(ThemeContext);
-  const { wallet, verified, verifyUser } = useMiniKitUser();  // ← wallet y verifyUser
+  const { wallet, verifyUser } = useMiniKitUser();  // ← wallet y función verifyUser
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -76,10 +76,12 @@ const HomePage: React.FC = () => {
   }, [page, hasMore]);
 
   useEffect(() => {
-    // Carga userId desde wallet de MiniKit
+    // Set currentUserId con wallet cuando esté disponible
     if (wallet) {
       setCurrentUserId(wallet);
       console.log("[USER] currentUserId seteado con wallet:", wallet);
+    } else {
+      console.warn("[USER] Wallet no disponible aún");
     }
 
     fetchPosts(true);
@@ -106,7 +108,7 @@ const HomePage: React.FC = () => {
     }
 
     if (!currentUserId) {
-      alert("No se encontró tu wallet. Verifica con World ID primero o recarga la app.");
+      alert("No se encontró tu wallet. Pulsa 'Verificar Wallet' primero.");
       return;
     }
 
@@ -199,15 +201,21 @@ const HomePage: React.FC = () => {
         Tirar para refrescar
       </div>
 
-      {/* Botón temporal para forzar verify si no hay wallet */}
+      {/* Botón para forzar verify si no hay wallet */}
       {!currentUserId && (
-        <div className="text-center py-4">
+        <div className="text-center py-6">
           <button
-            onClick={() => verifyUser()}
-            className="px-6 py-3 bg-red-600 text-white rounded-full font-medium"
+            onClick={() => {
+              verifyUser();
+              console.log("[VERIFY] Botón Verificar Wallet pulsado");
+            }}
+            className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-full font-bold text-lg shadow-lg"
           >
             Verificar Wallet para publicar
           </button>
+          <p className="mt-2 text-gray-500 text-sm">
+            Necesitamos tu wallet para identificarte
+          </p>
         </div>
       )}
 
