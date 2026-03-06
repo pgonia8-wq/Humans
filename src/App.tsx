@@ -2,7 +2,6 @@ import { useState } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import HomePage from "./pages/HomePage";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { supabase } from "./supabaseClient";  // Asegúrate de que esta importación esté correcta
 
 function App() {
   const [verified, setVerified] = useState(false);
@@ -36,38 +35,39 @@ function App() {
         setError("No se encontró proof válido");
         return;
       }
-      // Sacamos el userId del nullifier_hash de World ID
+
+      // --- Variable temporal para World ID ---
       const id = proofData.nullifier_hash;
 
-// Creamos el body para enviar al backend
-const body = {
-  proof: proofData.proof,
-  merkle_root: proofData.merkle_root,
-  nullifier_hash: proofData.nullifier_hash,
-  verification_level: proofData.verification_level,
-  action: "verify-user",
-  max_age: 7200,
-  userId: id, // <- enviamos al backend
-};
+      // --- Enviamos al backend para registrar/verificar ---
+      const body = {
+        proof: proofData.proof,
+        merkle_root: proofData.merkle_root,
+        nullifier_hash: proofData.nullifier_hash,
+        verification_level: proofData.verification_level,
+        action: "verify-user",
+        max_age: 7200,
+        userId: id, // enviamos al backend
+      };
 
-// Llamamos al backend
-const res = await fetch("/api/verify", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(body),
-});
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-const result = await res.json();
+      const result = await res.json();
 
-if (result.success) {
-  setVerified(true);
-  setUserId(id); // <- guardamos el userId en estado
-  setMessage("✅ Verificación exitosa");
-} else {
-  setError("Backend rechazó la prueba: " + (result.error || ""));
+      if (result.success) {
+        setVerified(true);
+        setUserId(id); // estado global actualizado
+        setMessage("✅ Verificación exitosa");
+      } else {
+        setError("Backend rechazó la prueba: " + (result.error || ""));
+      }
+    } catch (err: any) {
+      setError("Error durante verificación: " + err.message);
     }
-
-      
   };
 
   return (
@@ -93,8 +93,8 @@ if (result.success) {
         </div>
       ) : (
         <ErrorBoundary>
-  <HomePage userId={userId} />
-</ErrorBoundary>
+          <HomePage userId={userId} />
+        </ErrorBoundary>
       )}
     </div>
   );
