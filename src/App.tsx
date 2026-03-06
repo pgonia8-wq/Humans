@@ -6,23 +6,19 @@ import { supabase } from "./supabaseClient";
 
 function App() {
   const [verified, setVerified] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
 
-  // 1️⃣ Detectar automáticamente si ya hay usuario logueado en World App
   useEffect(() => {
-    if (MiniKit.isInstalled()) {
-      const currentWallet = MiniKit.getWallet(); // Devuelve null si no hay wallet
-      if (currentWallet) {
-        setUserId(currentWallet);
-        setVerified(true);
-        setMessage("✅ Conectado automáticamente con World App");
-      }
+    // Carga userId de localStorage si ya verificado
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      setUserId(storedUserId);
+      setVerified(true);
     }
   }, []);
 
-  // 2️⃣ Manejar verificación manual solo si quieres reforzar
   const handleVerify = async () => {
     try {
       setError(null);
@@ -73,6 +69,7 @@ function App() {
       if (result.success) {
         setVerified(true);
         setUserId(id);
+        localStorage.setItem('userId', id);  // Persiste para no pedir verify de nuevo
         setMessage("✅ Verificación exitosa");
       } else {
         setError("Backend rechazó la prueba: " + (result.error || ""));
@@ -92,7 +89,7 @@ function App() {
             className="w-40 h-40 rounded-full mb-6 shadow-lg object-cover"
           />
           <p className="text-black text-2xl font-bold mb-6 text-center">
-            {message || "Verificando con H…"}
+            Verificando con H…
           </p>
           <button
             onClick={handleVerify}
@@ -100,6 +97,7 @@ function App() {
           >
             Iniciar verificación
           </button>
+          {message && <p className="mt-4 text-gray-700">{message}</p>}
           {error && <p className="mt-2 text-red-600">{error}</p>}
         </div>
       ) : (
