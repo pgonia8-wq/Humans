@@ -5,93 +5,103 @@ import ActionButton from "../components/ActionButton";
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal.tsx";
 import { useUserBalance } from "../lib/useUserBalance";
+import { useMiniKitUser } from "../lib/useMiniKitUser";  // ← importamos el hook
 
 interface Post {
-id: string;
-content?: string;
-timestamp: string;
-profile?: {
-username?: string;
-avatar_url?: string;
-is_premium?: boolean;
-tier?: 'free' | 'basic' | 'premium' | 'premium+';
-};
-user_id?: string;
-likes?: number;
-comments?: number;
-reposts?: number;
-edited_at?: string;
-is_exclusive?: boolean;
-[key: string]: any;
+  id: string;
+  content?: string;
+  timestamp: string;
+  profile?: {
+    username?: string;
+    avatar_url?: string;
+    is_premium?: boolean;
+    tier?: 'free' | 'basic' | 'premium' | 'premium+';
+  };
+  user_id?: string;
+  likes?: number;
+  comments?: number;
+  reposts?: number;
+  edited_at?: string;
+  is_exclusive?: boolean;
+  [key: string]: any;
 }
 
 const PAGE_SIZE = 5;
 
-const HomePage = (props: { userId: string | null }) => {
-  const { userId } = props;
+const HomePage: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<number>(0);
   const [hasMore, setHasMore] = useState<boolean>(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userTier, setUserTier] = useState<'free' | 'basic' | 'premium' | 'premium+'>('free');
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  const { theme } = useContext(ThemeContext);
+  const { theme, accentColor } = useContext(ThemeContext);
+  const { wallet } = useMiniKitUser();  // ← wallet address de MiniKit
 
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // ✅ Corregido: usamos userId prop para todo
-  const currentUserId = userId;
 
   const maxChars = userTier === 'premium+' ? 10000 : userTier === 'premium' ? 4000 : 280;
 
   const fetchPosts = useCallback(async (reset = false) => {
     if (!hasMore && !reset) return;
+    try {
+      setLoading(true);
+      const from = reset ? 0 : page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-    if (!currentUserId) {  
-      console.warn("[FETCH POSTS] No hay userId definido, no se cargarán posts");  
-      setPosts([]);  
-      setLoading(false);  
-      return;  
-    }  
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .order("timestamp", { ascending: false })
+        .range(from, to);
 
-    try {  
-      setLoading(true);  
-      const from = reset ? 0 : page * PAGE_SIZE;  
-      const to = from + PAGE_SIZE - 1;  
+      if (error) throw error;
 
-      const { data, error } = await supabase  
-        .from("posts")  
-        .select("*")  
-        .eq("user_id", currentUserId)  
-        .order("timestamp", { ascending: false })  
-        .range(from, to);  
-
-      if (error) throw error;  
-
-      const newPosts = data || [];  
-      setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));  
-      setHasMore(newPosts.length === PAGE_SIZE);  
-
-      if (reset) setPage(1);  
-      else setPage((prev) => prev + 1);  
-
-    } catch (err: any) {  
-      console.error("[FETCH POSTS] Error al cargar posts:", err);  
-      setError(err.message);  
-    } finally {  
-      setLoading(false);  
+      const newPosts = data || [];
+      setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
+      setHasMore(newPosts.length === PAGE_SIZE);
+      if (reset) setPage(1);
+      else setPage((prev) => prev + 1);
+    } catch (err: any) {
+      console.error("Error fetching posts:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-
-  }, [page, hasMore, currentUserId]);
+  }, [page, hasMore]);
 
   useEffect(() => {
-    if (!currentUserId) return;
-    fetchPosts(true);
-  }, [fetchPosts, currentUserId]);
+    const fetchUserData = async () => {
+      // Intenta Supabase Auth (por si acaso)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+        console.log("[USER] User ID desde Supabase Auth:", user.id);
+      } else if (wallet) {
+        setCurrentUserId(wallet);  // ← wallet address como ID principal
+        console.log("[USER] User ID desde MiniKit wallet:", wallet);
+      }
+
+      // Carga tier si tienes columna en users
+      if (currentUserId) {
+        const { data: profile } = await supabase
+          .from('users')  // o 'profiles' si usas esa tabla
+          .select('tier')
+          .eq('user_id', currentUserId)
+          .single();
+
+        setUserTier(profile?.tier || 'free');
+      }
+
+      fetchPosts(true);
+    };
+    fetchUserData();
+  }, [fetchPosts, wallet]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -113,33 +123,38 @@ const HomePage = (props: { userId: string | null }) => {
       return;
     }
 
-    if (!currentUserId) {  
-      alert("No se encontró tu ID de usuario. Verifica con World ID primero o recarga la app.");  
-      return;  
-    }  
+    if (!currentUserId) {
+      alert("No se encontró tu ID de usuario. Verifica con World ID primero o recarga la app.");
+      return;
+    }
 
-    try {  
-      const { data, error } = await supabase  
-        .from("posts")  
-        .insert({  
-          user_id: currentUserId,  
-          content: newPostContent.trim(),  
-          timestamp: new Date().toISOString(),  
-          deleted_flag: false,  
-          visibility_score: 1  
-        });  
+    console.log("[POST] Publicando con currentUserId:", currentUserId);
 
-      if (error) throw error;  
+    try {
+      const { data: inserted, error: insertError } = await supabase
+        .from('posts')
+        .insert({
+          user_id: currentUserId,
+          content: newPostContent.trim(),
+          timestamp: new Date().toISOString(),
+          deleted_flag: false,
+          visibility_score: 1
+        })
+        .select();
 
-      setShowNewPostModal(false);  
-      setNewPostContent('');  
-      fetchPosts(true);  
+      console.log("[POST] Resultado insert:", { inserted, insertError });
 
-      alert("Post creado con éxito");  
+      if (insertError) throw insertError;
 
-    } catch (err: any) {  
-      alert("Error al crear post: " + err.message);  
-    }  
+      alert("¡Post publicado correctamente!");
+      setShowNewPostModal(false);
+      setNewPostContent('');
+      fetchPosts(true);
+
+    } catch (err: any) {
+      console.error("[POST] Error al publicar:", err);
+      alert("Error al publicar: " + (err.message || "Intenta de nuevo"));
+    }
   };
 
   return (
