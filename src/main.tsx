@@ -6,6 +6,7 @@ import { MiniKitProvider } from '@worldcoin/minikit-js/minikit-provider'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 
 import { ThemeProvider } from './lib/ThemeContext'
+import HomePage from './pages/HomePage.tsx'
 import ChatPage from './pages/chat/ChatPage.tsx'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -14,9 +15,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<App />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/chat" element={<ChatPage />} />
-            <Route path="*" element={<App />} />
+            <Route path="*" element={<HomePage />} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>
