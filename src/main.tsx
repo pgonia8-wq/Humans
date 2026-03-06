@@ -15,9 +15,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<App />} />  {/* ← Cambiado: ahora usa App.tsx */}
             <Route path="/chat" element={<ChatPage />} />
-            <Route path="*" element={<HomePage />} />
+            <Route path="*" element={<App />} />  {/* ← Cambiado: también App.tsx */}
           </Routes>
         </BrowserRouter>
       </ThemeProvider>
