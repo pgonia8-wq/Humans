@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { useUserBalance } from "../lib/useUserBalance";
 import { useFollow } from "../lib/useFollow";
@@ -10,148 +10,206 @@ interface PostCardProps {
 }
 
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
-  const { balance, boost } = useUserBalance(currentUserId);
+  const { balance } = useUserBalance(currentUserId);
   const { theme, accentColor } = useContext(ThemeContext);
+
   const { isFollowing, toggleFollow, loading: followLoading } =
     useFollow(currentUserId, post.user_id);
 
-  const [tipAmount, setTipAmount] = useState<number>(0);
+  const [tipAmount, setTipAmount] = useState<number | "">("");
+  const [likes, setLikes] = useState<number>(post.likes || 0);
+  const [liked, setLiked] = useState(false);
+
+  const [reposts, setReposts] = useState<number>(post.reposts || 0);
+
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [commentText, setCommentText] = useState("");
+
+  useEffect(() => {
+    const checkLike = async () => {
+      if (!currentUserId) return;
+
+      const { data } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("post_id", post.id)
+        .eq("user_id", currentUserId)
+        .single();
+
+      if (data) setLiked(true);
+    };
+
+    checkLike();
+  }, [currentUserId, post.id]);
+
+  const handleLike = async () => {
+    if (!currentUserId) return;
+
+    if (liked) {
+      await supabase
+        .from("likes")
+        .delete()
+        .eq("post_id", post.id)
+        .eq("user_id", currentUserId);
+
+      setLikes((prev) => prev - 1);
+      setLiked(false);
+    } else {
+      await supabase.from("likes").insert({
+        post_id: post.id,
+        user_id: currentUserId,
+      });
+
+      setLikes((prev) => prev + 1);
+      setLiked(true);
+
+      await supabase.from("notifications").insert({
+        user_id: post.user_id,
+        from_user: currentUserId,
+        type: "like",
+        post_id: post.id,
+      });
+    }
+  };
+
+  const handleRepost = async () => {
+    if (!currentUserId) return;
+
+    await supabase.from("reposts").insert({
+      post_id: post.id,
+      user_id: currentUserId,
+    });
+
+    setReposts((prev) => prev + 1);
+
+    await supabase.from("notifications").insert({
+      user_id: post.user_id,
+      from_user: currentUserId,
+      type: "repost",
+      post_id: post.id,
+    });
+
+    alert("Repost enviado");
+  };
+
+  const handleComment = async () => {
+    if (!currentUserId || !commentText.trim()) return;
+
+    await supabase.from("comments").insert({
+      post_id: post.id,
+      user_id: currentUserId,
+      content: commentText,
+    });
+
+    await supabase.from("notifications").insert({
+      user_id: post.user_id,
+      from_user: currentUserId,
+      type: "comment",
+      post_id: post.id,
+    });
+
+    setCommentText("");
+    setShowCommentModal(false);
+  };
 
   const handleTip = async () => {
-    if (!currentUserId) return alert("Debes iniciar sesión");
+    if (!currentUserId || !tipAmount) return;
 
-    if (tipAmount < 0.5) {
-      return alert("El tip mínimo es 0.5 WLD");
-    }
-
-    if (tipAmount > balance) {
-      return alert("No tienes suficiente WLD");
-    }
-
-    const { error } = await supabase.rpc("transfer_tip", {
+    await supabase.rpc("transfer_tip", {
       from_user_id: currentUserId,
       to_user_id: post.user_id,
       tip_amount: tipAmount,
     });
 
-    if (error) {
-      console.error(error);
-      return alert("Error enviando tip");
-    }
+    await supabase.from("notifications").insert({
+      user_id: post.user_id,
+      from_user: currentUserId,
+      type: "tip",
+      post_id: post.id,
+    });
 
-    alert(`Tip enviado: ${tipAmount} WLD (92% usuario / 8% app)`);
-
-    setTipAmount(0);
+    alert(`Tip enviado: ${tipAmount} WLD`);
+    setTipAmount("");
   };
 
   const handleBoost = async () => {
     const boostCost = 5;
 
-    if (!currentUserId || balance < boostCost) {
+    if (!currentUserId || balance < boostCost)
       return alert("No tienes suficiente WLD");
-    }
 
-    const { error } = await supabase
+    await supabase
       .from("user_balances")
       .update({ wld_balance: balance - boostCost })
       .eq("user_id", currentUserId);
 
-    if (error) {
-      console.error(error);
-      return alert("Error aplicando boost");
-    }
-
-    alert("Post potenciado con Boost 🚀");
+    alert("Post potenciado 🚀");
   };
-
-  const username = post.profile?.username || "Anon";
-  const avatar =
-    post.profile?.avatar_url || "/default-avatar.png";
 
   return (
     <div
-      className={`rounded-2xl border backdrop-blur-md p-4 space-y-4 transition-all duration-200 shadow-md hover:shadow-lg ${
+      className={`p-4 rounded-2xl border border-white/10 space-y-3 shadow-lg ${
         theme === "dark"
-          ? "bg-gray-900/70 border-white/10 text-white"
-          : "bg-white border-black/10 text-black"
+          ? "bg-gray-900 text-white"
+          : "bg-gray-100 text-black"
       }`}
       style={{ borderColor: accentColor }}
     >
       {/* HEADER */}
       <div className="flex justify-between items-center">
-
-        <div className="flex items-center gap-3">
-
-          {/* Avatar */}
-          <img
-            src={avatar}
-            alt="avatar"
-            className="w-10 h-10 rounded-full object-cover border border-white/10"
-          />
-
-          {/* Username */}
-          <div className="flex flex-col leading-tight">
-            <span className="font-semibold text-sm">
-              {username}
-            </span>
-
-            {post.timestamp && (
-              <span className="text-xs text-gray-400">
-                {new Date(post.timestamp).toLocaleString()}
-              </span>
-            )}
-          </div>
+        <div className="font-bold text-sm">
+          {post.profile?.username || "Anon"}
         </div>
 
-        {/* FOLLOW */}
         {currentUserId && currentUserId !== post.user_id && (
           <button
             onClick={toggleFollow}
             disabled={followLoading}
-            className="px-3 py-1 rounded-full text-xs font-semibold transition hover:opacity-90"
+            className="px-3 py-1 rounded-full text-xs font-semibold transition"
             style={{
-              backgroundColor: isFollowing
-                ? "#444"
-                : accentColor,
+              backgroundColor: isFollowing ? "#444" : accentColor,
               color: "white",
             }}
           >
-            {followLoading
-              ? "..."
-              : isFollowing
-              ? "Siguiendo"
-              : "Seguir"}
+            {followLoading ? "..." : isFollowing ? "Siguiendo" : "Seguir"}
           </button>
         )}
       </div>
 
-      {/* CONTENT */}
-      <div className="text-[15px] leading-relaxed whitespace-pre-wrap">
-        {post.content}
+      {/* CONTENIDO */}
+      <div className="text-sm leading-relaxed">{post.content}</div>
+
+      {/* ACCIONES */}
+      <div className="flex gap-4 text-sm text-gray-400 pt-2">
+        <button onClick={handleLike}>
+          {liked ? "❤️" : "🤍"} {likes}
+        </button>
+
+        <button onClick={() => setShowCommentModal(true)}>
+          💬 {post.comments || 0}
+        </button>
+
+        <button onClick={handleRepost}>
+          🔁 {reposts}
+        </button>
       </div>
 
       {/* TIP + BOOST */}
-      <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-white/10">
-
+      <div className="flex gap-2 pt-2">
         <input
           type="number"
-          min={0.5}
           step={0.1}
-          value={tipAmount || ""}
+          value={tipAmount}
           onChange={(e) =>
-            setTipAmount(Number(e.target.value))
+            setTipAmount(e.target.value ? parseFloat(e.target.value) : "")
           }
-          className={`w-24 px-2 py-1 rounded-lg text-sm outline-none ${
-            theme === "dark"
-              ? "bg-black border border-gray-700 text-white"
-              : "bg-gray-100 border border-gray-300 text-black"
-          }`}
-          placeholder="Tip WLD"
+          className="w-20 px-2 py-1 rounded text-black"
+          placeholder="Tip"
         />
 
         <button
           onClick={handleTip}
-          className="px-3 py-1 rounded-lg text-sm font-medium text-white shadow-sm hover:opacity-90 transition"
+          className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: accentColor }}
         >
           Tip
@@ -159,18 +217,44 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
         <button
           onClick={handleBoost}
-          className="px-3 py-1 rounded-lg text-sm font-medium text-white shadow-sm hover:opacity-90 transition"
+          className="px-3 py-1 rounded text-white"
           style={{ backgroundColor: accentColor }}
         >
           Boost
         </button>
-
       </div>
 
-      {/* BALANCE */}
-      <div className="text-xs text-gray-400">
-        Balance: {balance.toFixed(2)} WLD
-      </div>
+      {/* MODAL COMMENT */}
+      {showCommentModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-white/10">
+            <h2 className="text-lg font-bold mb-3">Comentar</h2>
+
+            <textarea
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 min-h-[100px] text-white"
+              placeholder="Escribe tu comentario..."
+            />
+
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => setShowCommentModal(false)}
+                className="px-4 py-2 bg-gray-700 rounded-full"
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={handleComment}
+                className="px-4 py-2 bg-purple-600 rounded-full"
+              >
+                Publicar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
