@@ -53,435 +53,217 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeTab, setActiveTab] = useState<"posts" | "responses" | "likes">("posts");
   const [bioLength, setBioLength] = useState(0);
-  const { theme, setTheme } = useContext(ThemeContext);
-
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-
-  // Persistencia de tema
-  useEffect(() => {
-    const storedTheme = localStorage.getItem("theme");
-    if (storedTheme && storedTheme !== theme) {
-      setTheme(storedTheme as "dark" | "light");
-    }
-  }, []);
+  const { theme, accentColor } = useContext(ThemeContext);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    localStorage.setItem("theme", theme);
-  }, [theme]);
+    if (!currentUserId) return setLoading(false);
 
-  const handleUpgrade = async (tier: "premium" | "premium+") => {
-    if (!currentUserId) return;
-    try {
-      const res = await fetch("/api/upgrade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: currentUserId,
-          tier,
-          transactionId: "tx-test-001",
-        }),
-      });
-      const data = await res.json();
-      console.log("Upgrade response:", data);
-      if (data.success) {
-        showToast(`Upgrade exitoso: ${tier}`, "success");
-        setProfile(prev => ({ ...prev, tier }));
-      } else {
-        showToast(`Error en upgrade: ${data.error}`, "error");
-      }
-    } catch (err: any) {
-      console.error("Error conectando con API upgrade:", err);
-      showToast("No se pudo conectar con la API de upgrade", "error");
-    }
-  };
-
-  // Función de retry simple
-  const fetchWithRetry = async (fn: () => Promise<any>, retries = 2, delay = 400) => {
-    try {
-      return await fn();
-    } catch (err) {
-      if (retries > 0) {
-        await new Promise(r => setTimeout(r, delay));
-        return fetchWithRetry(fn, retries - 1, delay);
-      } else {
-        throw err;
-      }
-    }
-  };
-
-  useEffect(() => {
-    const loadOrCreateProfile = async () => {
-      setLoading(true);
-      setError(null);
-
-      if (!currentUserId) {
-        setProfile({ ...emptyProfile, id: "guest", username: "invitado" });
-        setLoading(false);
-        return;
-      }
-
+    const fetchProfile = async () => {
       try {
-        const { data, error: fetchError } = await fetchWithRetry(() =>
-          supabase.from("profiles").select("*").eq("id", currentUserId).single()
-        );
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", currentUserId)
+          .single();
 
-        if (fetchError && fetchError.code !== "PGRST116") {
-          throw fetchError;
-        }
-
-        if (data) {
-          setProfile(data);
-          setBioLength(data.bio?.length || 0);
-        } else {
-          const newProfile = {
-            id: currentUserId,
-            name: "",
-            username: `user_${currentUserId.slice(0, 8)}`,
-            avatar_url: "",
-            tier: "free" as const,
-            bio: "",
-            created_at: new Date().toISOString(),
-            birthdate: "",
-            city: "",
-            country: "",
-            posts_count: 0,
-            followers_count: 0,
-            following_count: 0,
-          };
-          const { error: upsertError } = await fetchWithRetry(() =>
-            supabase.from("profiles").upsert(newProfile)
-          );
-          if (upsertError) throw upsertError;
-          setProfile(newProfile);
-        }
+        if (error) throw error;
+        setProfile(data || emptyProfile);
+        setBioLength(data?.bio.length || 0);
       } catch (err: any) {
-        console.error("Error cargando/creando perfil:", err);
-        setError("No pudimos cargar tu perfil. Intenta más tarde.");
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    loadOrCreateProfile();
+    fetchProfile();
   }, [currentUserId]);
-
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const handleSave = async () => {
     if (!currentUserId) return;
+
     setSaving(true);
     try {
-      const { error } = await fetchWithRetry(() =>
-        supabase.from("profiles").upsert({
-          id: currentUserId,
+      const { error } = await supabase
+        .from("profiles")
+        .update({
           name: profile.name,
+          username: profile.username,
           bio: profile.bio,
           birthdate: profile.birthdate,
           city: profile.city,
           country: profile.country,
-          avatar_url: profile.avatar_url,
         })
-      );
+        .eq("id", currentUserId);
+
       if (error) throw error;
-      showToast("Perfil guardado correctamente ✅");
-      onClose();
+      setToast({ message: "Perfil guardado correctamente", type: "success" });
     } catch (err: any) {
-      showToast("Error al guardar: " + err.message, "error");
+      setError(err.message);
+      setToast({ message: "Error al guardar perfil", type: "error" });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !currentUserId) return;
-    if (!file.type.startsWith("image/")) {
-      showToast("Solo se permiten imágenes (JPG, PNG, etc.)", "error");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("La imagen es muy grande (máximo 5 MB)", "error");
-      return;
-    }
+    if (!file) return;
 
     setUploadingAvatar(true);
-    const timestamp = Date.now();
-    const fileName = `${currentUserId}/avatar-${timestamp}`;
-
     try {
-      const { error: uploadError } = await supabase.storage
+      const { data, error } = await supabase.storage
         .from("avatars")
-        .upload(fileName, file, { upsert: true });
-      if (uploadError) throw uploadError;
+        .upload(`\( {currentUserId}/ \){file.name}`, file);
 
-      const { data: urlData } = supabase.storage
+      if (error) throw error;
+
+      const { publicURL } = supabase.storage
         .from("avatars")
-        .getPublicUrl(fileName);
-      if (!urlData?.publicUrl) throw new Error("No se pudo obtener URL del avatar");
+        .getPublicUrl(data.path);
 
-      const newAvatarUrl = `${urlData.publicUrl}?t=${timestamp}`;
+      if (publicURL) {
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({ avatar_url: publicURL })
+          .eq("id", currentUserId);
 
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: newAvatarUrl })
-        .eq("id", currentUserId);
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
 
-      setProfile(prev => ({ ...prev, avatar_url: newAvatarUrl }));
-      showToast("Avatar actualizado correctamente");
+        setProfile((prev) => ({ ...prev, avatar_url: publicURL }));
+      }
     } catch (err: any) {
-      console.error("Error en avatar:", err);
-      showToast("No se pudo subir o asociar la imagen: " + err.message, "error");
+      setError(err.message);
     } finally {
       setUploadingAvatar(false);
     }
   };
 
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-  };
-
-  const joinedDate = profile.created_at
-    ? new Date(profile.created_at).toLocaleDateString("es-MX", {
-        month: "long",
-        year: "numeric",
-      })
-    : "—";
-
-  const isPremium = profile.tier === "premium" || profile.tier === "premium+";
-
-  const modalBg = theme === "dark" ? "bg-gray-900 text-white" : "bg-white text-black";
-  const headerGradient = theme === "dark" ? "from-indigo-600 to-purple-600" : "from-indigo-500 to-purple-500";
-  const inputBg = theme === "dark" ? "bg-gray-800" : "bg-gray-200 text-black";
-  const borderColor = theme === "dark" ? "border-white/20" : "border-gray-300";
-  const textGray = theme === "dark" ? "text-gray-400" : "text-gray-600";
-  const tabActive = theme === "dark" ? "text-purple-400 border-purple-400" : "text-purple-600 border-purple-600";
-  const tabInactive = theme === "dark" ? "text-gray-400 hover:text-gray-300" : "text-gray-600 hover:text-gray-800";
-  const buttonGreen = theme === "dark" ? "bg-green-600 hover:bg-green-700" : "bg-green-500 hover:bg-green-600";
-  const buttonRed = theme === "dark" ? "bg-red-600/80 hover:bg-red-700" : "bg-red-500 hover:bg-red-600";
-
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="text-white text-xl animate-pulse">Cargando perfil...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-gray-800 p-8 rounded-2xl text-center max-w-sm">
-          <p className="text-red-400 mb-4">{error}</p>
-          <button onClick={onClose} className="px-6 py-3 bg-purple-600 rounded-xl text-white">
-            Cerrar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={`fixed inset-0 bg-black/80 flex flex-col z-50 ${modalBg}`}>
-      {toast && (
-        <div
-          className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-lg z-50 animate-fade-in-out ${
-            toast.type === "success" ? "bg-green-600" : "bg-red-600"
-          } text-white`}
-        >
-          {toast.message}
-        </div>
-      )}
-
-      <div className={`relative bg-gradient-to-r ${headerGradient} h-32 flex-shrink-0`}>
-        <button
-          onClick={onClose}
-          aria-label="Cerrar perfil"
-          className="absolute top-4 right-16 text-white text-3xl font-light hover:text-gray-200 z-10"
-        >
-          ×
-        </button>
-
-        <button
-          onClick={toggleTheme}
-          aria-label="Alternar tema"
-          className="absolute top-4 right-4 text-white text-2xl hover:text-yellow-300 transition-colors z-10"
-        >
-          {theme === "dark" ? "☀️" : "🌙"}
-        </button>
-      </div>
-
-      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-28 h-28 z-20">
-        <img
-          src={profile.avatar_url || "/default-avatar.png"}
-          alt="Tu avatar"
-          className="w-28 h-28 rounded-full border-4 border-white object-cover shadow-lg"
-          onError={(e) => ((e.target as HTMLImageElement).src = "/default-avatar.png")}
-        />
-        <div
-          onClick={() => avatarInputRef.current?.click()}
-          className="absolute bottom-0 right-0 bg-purple-600 rounded-full p-1.5 cursor-pointer hover:bg-purple-700 shadow-lg flex items-center justify-center"
-          title="Cambiar avatar"
-        >
-          ✏️
-        </div>
-        <input
-          ref={avatarInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleAvatarChange}
-          className="hidden"
-          disabled={uploadingAvatar}
-        />
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="pt-14 px-6 pb-6">
-          <input
-            value={profile.name}
-            onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-            className={`bg-transparent text-2xl font-bold w-full focus:outline-none ${textGray}`}
-            placeholder="Tu nombre"
-            maxLength={50}
-          />
-          <p className={textGray + " mt-1"}>@{profile.username || "sin_username"}</p>
-
-          {isPremium && (
-            <div className="inline-block mt-2 px-4 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black text-xs font-bold rounded-full">
-              PREMIUM
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2">
+      <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10 space-y-4">
+        {loading ? (
+          <p>Cargando perfil...</p>
+        ) : error ? (
+          <p className="text-red-500">{error}</p>
+        ) : (
+          <>
+            <h2 className="text-xl font-bold text-white">Tu Perfil</h2>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <img
+                  src={profile.avatar_url || "/default-avatar.png"}
+                  alt="Avatar"
+                  className="w-20 h-20 rounded-full object-cover"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 bg-purple-600 p-1 rounded-full"
+                >
+                  📷
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                  accept="image/*"
+                />
+              </div>
+              <div>
+                <p className="text-white font-bold">{profile.name || "Tu nombre"}</p>
+                <p className="text-gray-400">@{profile.username || "invitado"}</p>
+              </div>
             </div>
-          )}
 
-          <textarea
-            value={profile.bio}
-            onChange={(e) => {
-              const val = e.target.value.slice(0, 160);
-              setProfile({ ...profile, bio: val });
-              setBioLength(val.length);
-            }}
-            placeholder="Escribe tu bio..."
-            maxLength={160}
-            className={`mt-4 w-full ${inputBg} text-white p-4 rounded-2xl resize-none h-28 focus:outline-none focus:ring-2 focus:ring-purple-500`}
-          />
-          <div className={`text-right text-xs ${textGray} mt-1`}>{bioLength}/160</div>
-
-          <div className="flex gap-6 mt-6 text-sm">
-            <div>
-              <span className="font-bold text-white">{profile.following_count}</span>{" "}
-              <span className={textGray}>Siguiendo</span>
-            </div>
-            <div>
-              <span className="font-bold text-white">{profile.followers_count}</span>{" "}
-              <span className={textGray}>Seguidores</span>
-            </div>
-            <div className={textGray}>
-              Se unió en <span className="text-white">{joinedDate}</span>
-            </div>
-          </div>
-
-          <div className={`mt-5 flex flex-wrap gap-4 text-sm ${textGray}`}>
-            {(profile.city || profile.country) && (
-              <div>📍 {profile.city}{profile.country ? `, ${profile.country}` : ""}</div>
-            )}
-            {profile.birthdate && (
-              <div>🎂 {new Date(profile.birthdate).toLocaleDateString("es-MX")}</div>
-            )}
-          </div>
-        </div>
-
-        <div className={`flex border-b ${borderColor} sticky top-0 ${modalBg} z-10`}>
-          {(["posts", "responses", "likes"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-4 text-sm font-medium transition-colors ${
-                activeTab === tab ? tabActive : tabInactive
-              }`}
-            >
-              {tab === "posts" ? "Posts" : tab === "responses" ? "Respuestas" : "Likes"}
-            </button>
-          ))}
-        </div>
-
-        <div className="p-6">
-          {activeTab === "posts" && (
-            <p className={`text-center py-10 ${textGray}`}>Tus posts aparecerán aquí</p>
-          )}
-          {activeTab === "responses" && (
-            <p className={`text-center py-10 ${textGray}`}>Tus respuestas aparecerán aquí</p>
-          )}
-          {activeTab === "likes" && (
-            <p className={`text-center py-10 ${textGray}`}>Posts que te gustaron aparecerán aquí</p>
-          )}
-        </div>
-
-        <div className={`p-6 border-t ${borderColor} space-y-5`}>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={`block text-xs ${textGray} mb-1`}>Nacimiento</label>
-              <input
-                type="date"
-                value={profile.birthdate}
-                onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
-                className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
-              />
-            </div>
-            <div>
-              <label className={`block text-xs ${textGray} mb-1`}>Ciudad</label>
-              <input
-                type="text"
-                placeholder="Ciudad"
-                value={profile.city}
-                onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={`block text-xs ${textGray} mb-1`}>País</label>
             <input
-              type="text"
-              placeholder="País"
+              value={profile.name}
+              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+              placeholder="Tu nombre"
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
+            />
+
+            <input
+              value={profile.username}
+              onChange={(e) => setProfile({ ...profile, username: e.target.value })}
+              placeholder="@username"
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
+            />
+
+            <textarea
+              value={profile.bio}
+              onChange={(e) => {
+                if (e.target.value.length <= 160) {
+                  setProfile({ ...profile, bio: e.target.value });
+                  setBioLength(e.target.value.length);
+                }
+              }}
+              placeholder="Escribe tu bio..."
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white min-h-[80px]"
+            />
+            <p className="text-gray-500 text-sm text-right">{bioLength}/160</p>
+
+            <input
+              type="date"
+              value={profile.birthdate}
+              onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
+            />
+
+            <input
+              value={profile.city}
+              onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+              placeholder="Ciudad"
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
+            />
+
+            <input
               value={profile.country}
               onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-              className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
+              placeholder="País"
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
-          </div>
-        </div>
-      </div>
 
-      <div className={`border-t ${borderColor} p-4 flex gap-3 flex-shrink-0`}>
-        {showUpgradeButton && (
-          <button
-            onClick={() => handleUpgrade("premium")}
-            className={`flex-1 py-3.5 rounded-xl text-white font-semibold ${buttonGreen}`}
-          >
-            Subir a Premium
-          </button>
+            <div className="flex justify-between text-gray-400">
+              <p>0 Siguiendo</p>
+              <p>0 Seguidores</p>
+              <p>Se unió en -</p>
+            </div>
+
+            <div className="border-t border-gray-700 pt-4">
+              <div className="flex justify-around text-gray-400 text-sm">
+                <button onClick={() => setActiveTab("posts")}>Posts</button>
+                <button onClick={() => setActiveTab("responses")}>Respuestas</button>
+                <button onClick={() => setActiveTab("likes")}>Likes</button>
+              </div>
+              {/* Tabs content would go here, but truncated */}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-3 bg-green-600 text-white rounded-full font-medium"
+              >
+                {saving ? "Guardando..." : "Guardar"}
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 bg-red-600 text-white rounded-full font-medium"
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
         )}
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`flex-1 py-3.5 rounded-xl text-white font-semibold ${buttonGreen} ${saving ? "opacity-60 cursor-not-allowed" : ""}`}
-        >
-          {saving ? "Guardando..." : "Guardar"}
-        </button>
-
-        <button
-          onClick={onClose}
-          className={`flex-1 py-3.5 rounded-xl text-white font-semibold ${buttonRed}`}
-        >
-          Cancelar
-        </button>
+        {toast && (
+          <p className={toast.type === "success" ? "text-green-500" : "text-red-500"}>
+            {toast.message}
+          </p>
+        )}
       </div>
-    </div> 
+    </div>
   );
 };
 
