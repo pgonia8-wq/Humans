@@ -53,7 +53,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeTab, setActiveTab] = useState<"posts" | "responses" | "likes">("posts");
   const [bioLength, setBioLength] = useState(0);
-  const { theme, accentColor } = useContext(ThemeContext);
+  const { theme, setTheme, accentColor } = useContext(ThemeContext);  // ← restaurado para switch theme
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -70,6 +70,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         if (error) throw error;
         setProfile(data || emptyProfile);
         setBioLength(data?.bio.length || 0);
+
+        // Autocompletar username con userId (nullifier_hash) si no existe
+        if (!data?.username && currentUserId) {
+          const autoUsername = `@${currentUserId.slice(0, 10)}`; // ej. @0x123abc...
+          setProfile((prev) => ({ ...prev, username: autoUsername }));
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -119,19 +125,19 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
       if (error) throw error;
 
-      const { publicURL } = supabase.storage
+      const { data: publicURLData } = supabase.storage
         .from("avatars")
         .getPublicUrl(data.path);
 
-      if (publicURL) {
+      if (publicURLData.publicUrl) {
         const { error: updateError } = await supabase
           .from("profiles")
-          .update({ avatar_url: publicURL })
+          .update({ avatar_url: publicURLData.publicUrl })
           .eq("id", currentUserId);
 
         if (updateError) throw updateError;
 
-        setProfile((prev) => ({ ...prev, avatar_url: publicURL }));
+        setProfile((prev) => ({ ...prev, avatar_url: publicURLData.publicUrl }));
       }
     } catch (err: any) {
       setError(err.message);
@@ -141,7 +147,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2 overflow-y-auto">  {/* ← restaurado scroll con overflow-y-auto */}
       <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10 space-y-4">
         {loading ? (
           <p>Cargando perfil...</p>
@@ -161,7 +167,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute bottom-0 right-0 bg-purple-600 p-1 rounded-full"
                 >
-                  📷
+                  ✏️  {/* ← restaurado lápiz ✏️ para edición de avatar */}
                 </button>
                 <input
                   type="file"
@@ -173,21 +179,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
               <div>
                 <p className="text-white font-bold">{profile.name || "Tu nombre"}</p>
-                <p className="text-gray-400">@{profile.username || "invitado"}</p>
+                <input
+                  value={`@${currentUserId ? currentUserId.slice(0, 10) : "invitado"}`}
+                  disabled  // ← no editable, autocompletado con userId (nullifier_hash)
+                  className="bg-transparent text-gray-400 cursor-not-allowed outline-none"
+                />
               </div>
+            </div>
+
+            {/* Switch theme claro/oscuro restaurado */}
+            <div className="flex justify-between items-center">
+              <label className="text-gray-400">Tema</label>
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="px-4 py-2 bg-gray-700 text-white rounded-full"
+              >
+                {theme === "dark" ? "Claro ☀️" : "Oscuro 🌙"}
+              </button>
             </div>
 
             <input
               value={profile.name}
               onChange={(e) => setProfile({ ...profile, name: e.target.value })}
               placeholder="Tu nombre"
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
-
-            <input
-              value={profile.username}
-              onChange={(e) => setProfile({ ...profile, username: e.target.value })}
-              placeholder="@username"
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
 
@@ -201,6 +215,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               }}
               placeholder="Escribe tu bio..."
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white min-h-[80px]"
+              maxLength={160}  // ← límite reforzado
             />
             <p className="text-gray-500 text-sm text-right">{bioLength}/160</p>
 
