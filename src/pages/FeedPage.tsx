@@ -21,6 +21,7 @@ interface FeedPageProps {
 
 const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserId, userTier }) => {
   const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<"premium" | "premium+" | null>(null);
   const [loadingUpgrade, setLoadingUpgrade] = useState(false);
 
   const handleUpgrade = async (tier: "premium" | "premium+") => {
@@ -28,7 +29,7 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
 
     setLoadingUpgrade(true);
     try {
-      const transactionId = crypto.randomUUID(); // MiniKit Wallet manejará la real
+      const transactionId = crypto.randomUUID(); // MiniKit Wallet manejará la transacción real
       const res = await fetch("/api/upgrade.mjs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -38,6 +39,7 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
       if (!data.success) throw new Error(data.error || "Error al procesar upgrade");
 
       alert(`¡Upgrade a ${tier} exitoso! Precio: ${data.price} USD`);
+      setSelectedTier(null);
       setShowUpgradeOptions(false);
     } catch (err: any) {
       console.error("Upgrade error:", err);
@@ -45,6 +47,54 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
     } finally {
       setLoadingUpgrade(false);
     }
+  };
+
+  // Beneficios según tier
+  const tierBenefits = {
+    premium: [
+      "Boost 5 veces por semana",
+      "Recibir tips",
+      "1 WLD por referido registrado",
+    ],
+    "premium+": [
+      "Boost ilimitado",
+      "Recibir tips",
+      "Mayor visibilidad de posts",
+      "Bonificaciones extra por engagement",
+    ],
+  };
+
+  // Modal tipo slice
+  const renderBenefitsModal = () => {
+    if (!selectedTier) return null;
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+        <div className="bg-gray-900 w-full max-w-md p-6 rounded-t-2xl">
+          <h2 className="text-xl font-bold mb-4 text-center">{selectedTier === "premium" ? "Premium" : "Premium+"}</h2>
+          <ul className="list-disc list-inside space-y-2 mb-6">
+            {tierBenefits[selectedTier].map((b, i) => (
+              <li key={i}>{b}</li>
+            ))}
+          </ul>
+          <div className="flex gap-4">
+            <button
+              onClick={() => handleUpgrade(selectedTier)}
+              disabled={loadingUpgrade}
+              className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl"
+            >
+              {loadingUpgrade ? "Procesando..." : "Confirmar"}
+            </button>
+            <button
+              onClick={() => setSelectedTier(null)}
+              disabled={loadingUpgrade}
+              className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-2xl"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Banner de upgrade solo para free y premium
@@ -62,61 +112,15 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
         ) : (
           <div className="flex gap-4 mt-2">
             <button
-              onClick={() => handleUpgrade("premium")}
-              disabled={loadingUpgrade}
+              onClick={() => setSelectedTier("premium")}
               className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-md flex items-center justify-center"
             >
-              {loadingUpgrade ? (
-                <svg
-                  className="animate-spin h-5 w-5 mr-2 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                  ></path>
-                </svg>
-              ) : null}
               Premium
             </button>
             <button
-              onClick={() => handleUpgrade("premium+")}
-              disabled={loadingUpgrade}
+              onClick={() => setSelectedTier("premium+")}
               className="flex-1 py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-500 hover:to-teal-500 text-white font-bold rounded-2xl shadow-md flex items-center justify-center"
             >
-              {loadingUpgrade ? (
-                <svg
-                  className="animate-spin h-5 w-5 mr-2 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                  ></path>
-                </svg>
-              ) : null}
               Premium+
             </button>
           </div>
@@ -159,6 +163,7 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
       {posts.map((post) => (
         <PostCard key={post.id} post={post} />
       ))}
+      {renderBenefitsModal()}
     </div>
   );
 };
