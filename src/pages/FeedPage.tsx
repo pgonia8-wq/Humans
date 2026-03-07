@@ -64,17 +64,40 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
   };
 
   const confirmUpgrade = async () => {
-    if (!currentUserId || !selectedTier) return;
+    if (!currentUserId || !selectedTier) {
+      setUpgradeError("No se encontró tu ID o tier seleccionado.");
+      return;
+    }
 
     setLoadingUpgrade(true);
     setUpgradeError(null);
+    console.log("[UPGRADE] Iniciando upgrade para:", selectedTier);
+
     try {
-      // Pago real con MiniKit (cobra WLD)
+      // Paso 1: Inicializar en backend (crea intención)
+      const initRes = await fetch("/api/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "initiate", userId: currentUserId, tier: selectedTier }),
+      });
+
+      if (!initRes.ok) {
+        const text = await initRes.text();
+        throw new Error(`Error al iniciar: ${text}`);
+      }
+
+      const { paymentId } = await initRes.json();
+      console.log("[UPGRADE] PaymentId obtenido:", paymentId);
+
+      // Paso 2: Pago real con MiniKit
       const payRes = await MiniKit.commandsAsync.pay({
         amount: price,
         currency: 'WLD',
-        recipient: '0x...TU_WALLET_APP',  // ← wallet de la app para cobrar
+        recipient: '0x...TU_WALLET_APP',
+        reference: paymentId,  // opcional, para correlacionar
       });
+
+      console.log("[UPGRADE] Pago respuesta:", payRes);
 
       if (payRes.status !== "success") {
         throw new Error("Pago cancelado o fallido");
@@ -82,21 +105,27 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
 
       const transactionId = payRes.transactionId;
 
-      // Enviar a backend para registrar y verificar tx
-      const res = await fetch("/api/upgrade", {
+      // Paso 3: Confirmar en backend (verifica tx on chain)
+      const confirmRes = await fetch("/api/upgrade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUserId, tier: selectedTier, transactionId }),
+        body: JSON.stringify({ action: "confirm", userId: currentUserId, tier: selectedTier, transactionId }),
       });
 
-      const data = await res.json();
+      if (!confirmRes.ok) {
+        const text = await confirmRes.text();
+        throw new Error(`Error al confirmar: ${text}`);
+      }
+
+      const data = await confirmRes.json();
       if (!data.success) throw new Error(data.error || "Error al procesar upgrade");
 
       alert(`¡Upgrade a ${selectedTier} exitoso! Precio: ${price} WLD. Tu referral token: ${data.referralToken}`);
       setUserTier(selectedTier);
       cancelUpgrade();
     } catch (err: any) {
-      setUpgradeError(err.message);
+      console.error("[UPGRADE] Error completo:", err);
+      setUpgradeError(err.message || "Error al procesar el upgrade");
     } finally {
       setLoadingUpgrade(false);
     }
@@ -114,7 +143,7 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
         </button>
       </div>
 
-      {/* Opciones premium/premium+ */}
+      {/* Opciones */}
       {showUpgradeOptions && (
         <div className="space-y-4 mb-6">
           <button
