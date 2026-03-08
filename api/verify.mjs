@@ -8,33 +8,29 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const { action, max_age } = body;
   const userId = body.nullifier_hash;
 
   console.log("[BACKEND] userId extraído del body:", userId);
 
-  if (!action) {
+  if (!body.action) {
     console.log("[BACKEND] Falta action");
-    return res.status(400).json({
-      success: false,
-      error: "Missing action",
-    });
+    return res.status(400).json({ success: false, error: "Missing action" });
   }
 
-  // Verificación real del proof usando la API v2 de World
-  // https://developer.worldcoin.org/api/v2/verify/{app_id}
-  console.log("[BACKEND] Llamando a World API v2 verify...");
+  if (!userId) {
+    console.error("[BACKEND] nullifier_hash es undefined. Abortando.");
+    return res.status(400).json({ success: false, error: "nullifier_hash missing" });
+  }
 
+  console.log("[BACKEND] Llamando a World API v2 verify...");
   const verifyResponse = await fetch(
     "https://developer.worldcoin.org/api/v2/verify/app_6a98c88249208506dcd4e04b529111fc",
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         merkle_root: body.merkle_root,
-        nullifier_hash: body.nullifier_hash,
+        nullifier_hash: userId,
         proof: body.proof,
         verification_level: body.verification_level,
         action: body.action,
@@ -47,45 +43,32 @@ export default async function handler(req, res) {
 
   if (!verifyData.success) {
     console.log("[BACKEND] World rechazó la prueba");
-    return res.status(400).json({
-      success: false,
-      error: "World verification failed",
-    });
+    return res.status(400).json({ success: false, error: "World verification failed" });
   }
 
-  console.log("[BACKEND] Acción recibida y validada:", action);
-  console.log("[BACKEND] Verificación exitosa con World API");
+  console.log("[BACKEND] Acción recibida y validada:", body.action);
 
-  // ── Guardar verified: true en Supabase ──
-  if (userId) {
-    console.log("[BACKEND] Guardando usuario en Supabase:", userId);
-
-    // 1️⃣ Crear o actualizar el perfil si no existía
+  try {
     const { error: upsertError } = await supabase
       .from("profiles")
       .upsert({ id: userId }, { onConflict: ["id"] });
 
-    if (upsertError) {
-      console.error("[BACKEND] Error al registrar usuario:", upsertError.message);
-    } else {
-      console.log("[BACKEND] Usuario registrado/actualizado correctamente:", userId);
+    if (upsertError) throw upsertError;
+    console.log("[BACKEND] Usuario registrado/actualizado correctamente:", userId);
 
-      // 2️⃣ Guardar verified: true SOLO si el perfil se creó o existía
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ verified: true })
-        .eq("id", userId);
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ verified: true })
+      .eq("id", userId);
 
-      if (updateError) {
-        console.error("[BACKEND] Error al guardar verified:", updateError.message);
-      } else {
-        console.log("[BACKEND] verified: true guardado correctamente para userId:", userId);
-      }
-    }
-  } else {
-    console.warn("[BACKEND] No se recibió userId en el body → no se pudo guardar verified");
+    if (updateError) throw updateError;
+    console.log("[BACKEND] verified: true guardado correctamente para userId:", userId);
+
+  } catch (err) {
+    console.error("[BACKEND] Error Supabase al guardar userId:", err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 
   console.log("[BACKEND] Enviando respuesta al frontend con userId:", userId);
   return res.status(200).json({ success: true, userId });
-  }
+}
