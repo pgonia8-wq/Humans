@@ -13,30 +13,43 @@ const HomePage = () => {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-  const [userTier, setUserTier] = useState<"free" | "basic" | "premium" | "premium+">("free");
+  const [profile, setProfile] = useState<{
+    id: string;
+    username?: string;
+    tier: "free" | "basic" | "premium" | "premium+";
+    avatar_url?: string;
+    wallet_address?: string;
+    minikitData?: any;
+    accent_color?: string;
+    theme?: string;
+    verified?: boolean;
+    created_at?: string;
+    updated_at?: string;
+  } | null>(null);
+
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const { theme } = useContext(ThemeContext);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const maxChars = userTier === "premium+" ? 10000 : userTier === "premium" ? 4000 : 280;
+  const maxChars = profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 4000 : 280;
 
-  // ----------- FETCH POSTS -----------
+  // — Fetch posts
   const fetchPosts = useCallback(async (reset = false) => {
-    if (!hasMore && !reset) return;
+    if (!profile?.id || (!hasMore && !reset)) return;
     try {
       setLoading(true);
       const from = reset ? 0 : page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      console.log("[HOME] fetchPosts:", { from, to, currentUserId });
+      console.log("[HOME] fetchPosts:", { from, to, id: profile.id });
 
       const { data, error } = await supabase
         .from("posts")
         .select("*")
+        .eq("user_id", profile.id)
         .order("timestamp", { ascending: false })
         .range(from, to);
 
@@ -52,55 +65,43 @@ const HomePage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, hasMore, currentUserId]);
+  }, [page, hasMore, profile?.id]);
 
-  // ----------- FETCH USERID + TIER -----------
+  // — Fetch profile directly from Supabase
   useEffect(() => {
-    const fetchUserData = async () => {
+    const storedUserId = localStorage.getItem("userId");
+    if (!storedUserId) {
+      console.warn("[HOME] No se encontró userId en localStorage");
+      return;
+    }
+
+    const fetchProfile = async () => {
       try {
-        // 1️⃣ Intentamos obtener el último nullifier_hash de world_id_proofs
-        const { data: proofs, error: proofError } = await supabase
-          .from("world_id_proofs")
-          .select("nullifier_hash")
-          .order("timestamp", { ascending: false })
-          .limit(1)
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, username, tier, avatar_url, wallet_address, minikitData, accent_color, theme, verified, created_at, updated_at")
+          .eq("id", storedUserId)
           .single();
 
-        if (proofError) {
-          console.warn("[HOME] No se encontró nullifier_hash, buscando en profiles", proofError);
+        if (error) {
+          console.error("❌ Error fetch profiles:", error);
+          return;
         }
 
-        const userIdFromProof = proofs?.nullifier_hash || null;
-        setCurrentUserId(userIdFromProof);
+        console.log("🔥 Profile en Supabase:", data);
+        setProfile(data);
 
-        if (!userIdFromProof) return;
-
-        // 2️⃣ Obtenemos el tier desde profiles
-        const { data: profile, error: tierError } = await supabase
-          .from('profiles')
-          .select('tier')
-          .eq('id', userIdFromProof)
-          .single();
-
-        if (tierError) {
-          console.error("[HOME] Error al obtener tier:", tierError);
-        } else {
-          console.log("[HOME] Tier obtenido:", profile?.tier);
-          setUserTier(profile?.tier || 'free');
-        }
-
-        // 3️⃣ Cargamos posts
+        // Fetch posts con el ID correcto
         fetchPosts(true);
-
-      } catch (err: any) {
-        console.error("[HOME] Error fetchUserData:", err);
+      } catch (err) {
+        console.error("❌ Exception fetch profile:", err);
       }
     };
 
-    fetchUserData();
-  }, []);
+    fetchProfile();
+  }, [fetchPosts]);
 
-  // ----------- SCROLL INFINITO -----------
+  // — Scroll infinito
   useEffect(() => {
     const handleScroll = () => {
       if (!containerRef.current) return;
@@ -113,7 +114,6 @@ const HomePage = () => {
     return () => containerRef.current?.removeEventListener("scroll", handleScroll);
   }, [fetchPosts]);
 
-  // ----------- REFRESH / NUEVO POST -----------
   const handleRefresh = () => fetchPosts(true);
 
   const handleCreatePost = async () => {
@@ -121,18 +121,18 @@ const HomePage = () => {
       alert("Escribe algo antes de publicar");
       return;
     }
-    if (!currentUserId) {
+    if (!profile?.id) {
       alert("No se encontró tu ID. Verifica con World ID primero o recarga la app.");
       return;
     }
 
-    console.log("[POST] Publicando con currentUserId:", currentUserId);
+    console.log("[POST] Publicando con id:", profile.id);
 
     try {
       const { data: inserted, error: insertError } = await supabase
         .from('posts')
         .insert({
-          user_id: currentUserId,
+          user_id: profile.id,
           content: newPostContent.trim(),
           timestamp: new Date().toISOString(),
           deleted_flag: false,
@@ -177,7 +177,7 @@ const HomePage = () => {
 
       {/* Feed */}
       <main className="w-full px-2 py-6 flex justify-center">
-        <FeedPage posts={posts} loading={loading} error={error} currentUserId={currentUserId} userTier={userTier} />
+        <FeedPage posts={posts} loading={loading} error={error} currentUserId={profile?.id} userTier={profile?.tier || 'free'} />
       </main>
 
       {/* Modal Nuevo Post */}
@@ -204,7 +204,7 @@ const HomePage = () => {
       )}
 
       {/* Modal Perfil */}
-      {showProfileModal && <ProfileModal currentUserId={currentUserId} onClose={() => setShowProfileModal(false)} showUpgradeButton={userTier === 'free'} />}
+      {showProfileModal && <ProfileModal currentUserId={profile?.id || null} onClose={() => setShowProfileModal(false)} showUpgradeButton={profile?.tier === 'free'} />}
     </div>
   );
 };
