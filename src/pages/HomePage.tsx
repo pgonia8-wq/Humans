@@ -39,7 +39,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       if (error) throw error;
 
       const newPosts = data || [];
-      setPosts((prev) => reset ? newPosts : [...prev, ...newPosts]);
+      setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
       setHasMore(newPosts.length === PAGE_SIZE);
       if (reset) setPage(1);
       else setPage((prev) => prev + 1);
@@ -53,16 +53,28 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
   useEffect(() => {
     console.log("[HOME] userId recibido:", userId);
+
     if (userId) {
       const fetchProfile = async () => {
-        const { data } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", userId);
 
-        console.log("[HOME] Profile cargado:", data);
-        setProfile(data || null);
+          if (error) {
+            console.error("[HOME] Error al cargar perfil:", error);
+            setError("No se pudo cargar tu perfil");
+          } else {
+            // data es array → tomamos el primero o null
+            const profileData = data?.[0] || null;
+            console.log("[HOME] Profile cargado:", profileData);
+            setProfile(profileData);
+          }
+        } catch (err) {
+          console.error("[HOME] Excepción en fetchProfile:", err);
+          setError("Error al cargar perfil");
+        }
       };
       fetchProfile();
     }
@@ -180,7 +192,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         Tirar para refrescar
       </div>
 
-      {/* Feed */}
+      {/* Feed completo */}
       <main className="w-full px-2 py-6 flex justify-center">
         <FeedPage 
           posts={posts}
