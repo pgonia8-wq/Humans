@@ -6,6 +6,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Tu App ID de Worldcoin
+const APP_ID = "TU_APP_ID_AQUI";
+
 export default async function handler(req, res) {
   console.log("[BACKEND] Verifying World ID…");
 
@@ -28,7 +31,7 @@ export default async function handler(req, res) {
   let verifyData;
   try {
     const verifyResponse = await fetch(
-      `https://developer.worldcoin.org/api/v2/verify/${process.env.WORLDCOIN_APP_ID}`,
+      `https://developer.worldcoin.org/api/v2/verify/${APP_ID}`, // <-- App ID aquí
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -109,4 +112,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ success: true, nullifier_hash: nullifierHash, verifyData });
-}
+                                   }
