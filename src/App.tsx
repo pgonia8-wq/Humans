@@ -9,29 +9,36 @@ const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Carga ID de localStorage al inicio
+  // Carga ID de localStorage
   useEffect(() => {
     const storedId = localStorage.getItem("userId");
     if (storedId) {
       setUserId(storedId);
       setVerified(true);
       console.log("[APP] ID cargado de localStorage:", storedId);
-    } else {
-      console.log("[APP] No hay ID en localStorage → forzando verify");
     }
   }, []);
 
-  // Inicializa MiniKit
+  // Inicializa MiniKit con logs detallados
   useEffect(() => {
+    console.log("[APP] Intentando instalar MiniKit...");
     try {
       MiniKit.install({
         appId: "app_6a98c88249208506dcd4e04b529111fc",
       });
 
-      if (MiniKit.isInstalled()) {
+      const installed = MiniKit.isInstalled();
+      console.log("[APP] MiniKit.isInstalled():", installed);
+
+      if (installed) {
         const w = MiniKit.walletAddress;
         setWallet(w);
-        console.log("[APP] MiniKit instalado correctamente. Wallet:", w);
+        console.log("[APP] Wallet detectada:", w);
+
+        // Forzar fetch de permisos
+        MiniKit.fetchPermissions()
+          .then((perms) => console.log("[APP] Permisos fetched:", perms))
+          .catch((err) => console.error("[APP] Error fetch permissions:", err));
       } else {
         console.warn("[APP] MiniKit no instalado aún");
       }
@@ -40,14 +47,6 @@ const App = () => {
       setError("Error al instalar MiniKit");
     }
   }, []);
-
-  // Fuerza verify si no hay ID (temporal para depurar)
-  useEffect(() => {
-    if (!userId && !verifying) {
-      console.log("[APP DEBUG] No hay userId → forzando verify");
-      verifyUser();
-    }
-  }, [userId, verifying]);
 
   const verifyUser = async () => {
     if (verifying) return;
