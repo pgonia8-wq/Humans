@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
+import HomePage from "./pages/HomePage";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
-
-const APP_ID = "app_6a98c88249208506dcd4e04b529111fc"; // <-- tu App ID
 
 const App = () => {
   const [wallet, setWallet] = useState<string | null>(null);
@@ -12,9 +11,15 @@ const App = () => {
 
   useEffect(() => {
     try {
-      MiniKit.install({ appId: APP_ID }); // <-- App ID aplicado
+      // Inicializamos MiniKit con tu App ID
+      MiniKit.install({
+        appId: "app_6a98c88249208506dcd4e04b529111fc"
+      });
+
       if (MiniKit.isInstalled()) {
         setWallet(MiniKit.walletAddress);
+      } else {
+        console.warn("[APP] MiniKit no instalado aún");
       }
     } catch (err) {
       console.error("MiniKit install error:", err);
@@ -39,13 +44,14 @@ const App = () => {
       const proof = verifyRes?.finalPayload;
       if (!proof) throw new Error("No se recibió proof");
 
+      // Enviamos al backend
       const res = await fetch("/api/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           payload: proof,
           walletAddress: MiniKit.walletAddress,
-          minikitData: MiniKit.data
+          minikitData: MiniKit.data,
         }),
       });
 
@@ -69,12 +75,15 @@ const App = () => {
   };
 
   return (
-    <div>
-      <button onClick={verifyUser} disabled={verifying || verified}>
-        {verified ? "Verificado ✅" : verifying ? "Verificando…" : "Verificar"}
-      </button>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-    </div>
+    <HomePage 
+      userId={userId} 
+      verifyUser={verifyUser} 
+      verified={verified} 
+      wallet={wallet} 
+      error={error} 
+      verifying={verifying} 
+      setUserId={setUserId} 
+    />
   );
 };
 
