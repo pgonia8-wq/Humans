@@ -1,12 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Configura Supabase con tu Service Role Key
+// Supabase con Service Role Key
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-
-const APP_ID = "app_6a98c88249208506dcd4e04b529111fc"; // <-- tu App ID
 
 export default async function handler(req, res) {
   console.log("[BACKEND] Verifying World ID…");
@@ -26,11 +24,11 @@ export default async function handler(req, res) {
   const nullifierHash = payload.nullifier_hash;
   console.log("[BACKEND] nullifier_hash:", nullifierHash);
 
-  // — Call Worldcoin API V2 Verify
+  // — Verificar en Worldcoin
   let verifyData;
   try {
     const verifyResponse = await fetch(
-      `https://developer.worldcoin.org/api/v2/verify/${APP_ID}`, // <-- App ID usado aquí
+      `https://developer.worldcoin.org/api/v2/verify/app_6a98c88249208506dcd4e04b529111fc`, // tu App ID
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,12 +62,12 @@ export default async function handler(req, res) {
       .upsert(
         {
           nullifier_hash: nullifierHash,
-          wallet_address: payload.wallet_address || null,
-          minikitData: payload.minikitData || null,
+          wallet_address: payload.walletAddress || null,
+          minikitData: JSON.stringify(payload.minikitData || {}),
           verified: true,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: ["nullifier_hash"] } // Actualiza si ya existía
+        { onConflict: ["nullifier_hash"] }
       );
 
     if (upsertError) {
@@ -101,7 +99,6 @@ export default async function handler(req, res) {
 
     if (proofError) {
       console.error("[BACKEND] Supabase insert world_id_proofs error:", proofError);
-      // No retornamos error al frontend para no bloquear la verificación
     } else {
       console.log("[BACKEND] Guardado en world_id_proofs:", nullifierHash);
     }
@@ -111,4 +108,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ success: true, nullifier_hash: nullifierHash, verifyData });
-        }
+}
