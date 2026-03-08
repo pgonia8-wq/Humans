@@ -7,7 +7,7 @@ import ActionButton from "../components/ActionButton";
 
 const PAGE_SIZE = 8;
 
-const HomePage = ({ userId }: { userId: string | null }) => {
+const HomePage = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,12 +17,14 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const { theme } = useContext(ThemeContext);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const maxChars = userTier === "premium+" ? 10000 : userTier === "premium" ? 4000 : 280;
 
+  // ----------- FETCH POSTS -----------
   const fetchPosts = useCallback(async (reset = false) => {
     if (!hasMore && !reset) return;
     try {
@@ -30,7 +32,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       const from = reset ? 0 : page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      console.log("[HOME] fetchPosts:", { from, to, userId });
+      console.log("[HOME] fetchPosts:", { from, to, currentUserId });
 
       const { data, error } = await supabase
         .from("posts")
@@ -44,51 +46,66 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
       setHasMore(newPosts.length === PAGE_SIZE);
       setPage(reset ? 1 : page + 1);
-      console.log("[HOME] Posts cargados:", newPosts.length);
     } catch (err: any) {
       console.error("[HOME] Error fetching posts:", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [page, hasMore, userId]);
+  }, [page, hasMore, currentUserId]);
 
+  // ----------- FETCH USERID + TIER -----------
   useEffect(() => {
-    console.log("[HOME] userId recibido desde App.tsx:", userId);
-    if (!userId) {
-      console.warn("[HOME] userId es null, HomePage no cargará tier ni posts");
-      return;
-    }
-
-    const fetchTier = async () => {
+    const fetchUserData = async () => {
       try {
+        // 1️⃣ Intentamos obtener el último nullifier_hash de world_id_proofs
+        const { data: proofs, error: proofError } = await supabase
+          .from("world_id_proofs")
+          .select("nullifier_hash")
+          .order("timestamp", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (proofError) {
+          console.warn("[HOME] No se encontró nullifier_hash, buscando en profiles", proofError);
+        }
+
+        const userIdFromProof = proofs?.nullifier_hash || null;
+        setCurrentUserId(userIdFromProof);
+
+        if (!userIdFromProof) return;
+
+        // 2️⃣ Obtenemos el tier desde profiles
         const { data: profile, error: tierError } = await supabase
           .from('profiles')
           .select('tier')
-          .eq('id', userId)
+          .eq('id', userIdFromProof)
           .single();
 
         if (tierError) {
           console.error("[HOME] Error al obtener tier:", tierError);
-          return;
+        } else {
+          console.log("[HOME] Tier obtenido:", profile?.tier);
+          setUserTier(profile?.tier || 'free');
         }
-        console.log("[HOME] Tier obtenido:", profile?.tier);
-        setUserTier(profile?.tier || 'free');
+
+        // 3️⃣ Cargamos posts
+        fetchPosts(true);
+
       } catch (err: any) {
-        console.error("[HOME] Exception al cargar tier:", err);
+        console.error("[HOME] Error fetchUserData:", err);
       }
     };
 
-    fetchTier();
-    fetchPosts(true);
-  }, [fetchPosts, userId]);
+    fetchUserData();
+  }, []);
 
+  // ----------- SCROLL INFINITO -----------
   useEffect(() => {
     const handleScroll = () => {
       if (!containerRef.current) return;
       const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
       if (scrollTop + clientHeight >= scrollHeight - 100) {
-        console.log("[HOME] Scroll infinito activado");
         fetchPosts();
       }
     };
@@ -96,28 +113,26 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     return () => containerRef.current?.removeEventListener("scroll", handleScroll);
   }, [fetchPosts]);
 
-  const handleRefresh = () => {
-    console.log("[HOME] Pull-to-refresh activado");
-    fetchPosts(true);
-  };
+  // ----------- REFRESH / NUEVO POST -----------
+  const handleRefresh = () => fetchPosts(true);
 
   const handleCreatePost = async () => {
     if (!newPostContent.trim()) {
       alert("Escribe algo antes de publicar");
       return;
     }
-    if (!userId) {
-      alert("No se encontró tu ID (nullifier_hash). Verifica con World ID primero o recarga la app.");
+    if (!currentUserId) {
+      alert("No se encontró tu ID. Verifica con World ID primero o recarga la app.");
       return;
     }
 
-    console.log("[POST] Publicando con currentUserId:", userId);
+    console.log("[POST] Publicando con currentUserId:", currentUserId);
 
     try {
       const { data: inserted, error: insertError } = await supabase
         .from('posts')
         .insert({
-          user_id: userId,
+          user_id: currentUserId,
           content: newPostContent.trim(),
           timestamp: new Date().toISOString(),
           deleted_flag: false,
@@ -151,12 +166,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           <button onClick={() => (window.location.href = '/chat')} className="px-5 py-2 bg-indigo-700 text-white rounded-full">Chat</button>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
-          <div className="relative cursor-pointer">
-            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg shadow-inner">
-              🔔
-            </div>
-            <span className="absolute -top-1 -right-1 bg-red-600 text-xs rounded-full px-1.5 py-0.5">3</span>
-          </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center font-bold cursor-pointer shadow-md ring-1 ring-white/10" onClick={() => setShowProfileModal(true)}>H</div>
         </div>
       </header>
@@ -168,7 +177,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       {/* Feed */}
       <main className="w-full px-2 py-6 flex justify-center">
-        <FeedPage posts={posts} loading={loading} error={error} currentUserId={userId} userTier={userTier} />
+        <FeedPage posts={posts} loading={loading} error={error} currentUserId={currentUserId} userTier={userTier} />
       </main>
 
       {/* Modal Nuevo Post */}
@@ -179,7 +188,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             <textarea
               value={newPostContent}
               onChange={(e) => e.target.value.length <= maxChars && setNewPostContent(e.target.value)}
-              className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white resize-none"
+              className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white"
               placeholder="¿Qué estás pensando?"
               maxLength={maxChars}
             />
@@ -195,7 +204,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       )}
 
       {/* Modal Perfil */}
-      {showProfileModal && <ProfileModal currentUserId={userId} onClose={() => setShowProfileModal(false)} showUpgradeButton={userTier === 'free'} />}
+      {showProfileModal && <ProfileModal currentUserId={currentUserId} onClose={() => setShowProfileModal(false)} showUpgradeButton={userTier === 'free'} />}
     </div>
   );
 };
