@@ -61,7 +61,7 @@ const App = () => {
           const { nonce } = await nonceRes.json();
           console.log("[APP] Nonce recibido:", nonce);
 
-          // Autenticación de wallet (firma del mensaje)
+          // Autenticación de wallet
           const authResult = await MiniKit.commandsAsync.walletAuth({
             nonce: nonce,
             requestId: 'wallet-auth-' + Date.now(),
@@ -72,13 +72,13 @@ const App = () => {
 
           console.log("[APP] walletAuth resultado completo:", authResult);
 
-          if (authResult.status === 'success') {
-            // ¡Aquí está la corrección clave!
+          // Corrección clave: leer status y address desde finalPayload
+          if (authResult?.finalPayload?.status === 'success') {
             const w = authResult.finalPayload.address || authResult.finalPayload.wallet_address;
             setWallet(w);
             console.log("[APP] Wallet cargada desde finalPayload:", w || 'todavía undefined');
           } else {
-            throw new Error("walletAuth falló: " + authResult.status);
+            throw new Error("walletAuth falló: " + (authResult?.status || 'desconocido'));
           }
         } catch (err: any) {
           console.error("[APP] Error completo en walletAuth:", err);
