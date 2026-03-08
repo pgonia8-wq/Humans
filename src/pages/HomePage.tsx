@@ -7,113 +7,69 @@ import ActionButton from "../components/ActionButton";
 
 const PAGE_SIZE = 8;
 
-const HomePage = () => {
+const HomePage = ({ userId }: { userId: string | null }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-  const [profile, setProfile] = useState<{
-    id: string;
-    username?: string;
-    tier: "free" | "basic" | "premium" | "premium+";
-    avatar_url?: string;
-    wallet_address?: string;
-    minikitData?: any;
-    accent_color?: string;
-    theme?: string;
-    verified?: boolean;
-    created_at?: string;
-    updated_at?: string;
-  } | null>(null);
-
+  const [profile, setProfile] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
-
   const { theme } = useContext(ThemeContext);
-  const containerRef = useRef<HTMLDivElement>(null);
+
+  const containerRef = useRef(null);
 
   const maxChars = profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 4000 : 280;
 
-  // — Fetch posts
   const fetchPosts = useCallback(async (reset = false) => {
-    if (!profile?.id || (!hasMore && !reset)) return;
+    if (!hasMore && !reset) return;
     try {
       setLoading(true);
       const from = reset ? 0 : page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      console.log("[HOME] fetchPosts:", { from, to, id: profile.id });
-
       const { data, error } = await supabase
         .from("posts")
         .select("*")
-        .eq("user_id", profile.id)
         .order("timestamp", { ascending: false })
         .range(from, to);
 
       if (error) throw error;
 
       const newPosts = data || [];
-      setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
+      setPosts((prev) => reset ? newPosts : [...prev, ...newPosts]);
       setHasMore(newPosts.length === PAGE_SIZE);
-      setPage(reset ? 1 : page + 1);
+      if (reset) setPage(1);
+      else setPage((prev) => prev + 1);
     } catch (err: any) {
-      console.error("[HOME] Error fetching posts:", err);
+      console.error("Error fetching posts:", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [page, hasMore, profile?.id]);
+  }, [page, hasMore]);
 
-  // — Fetch profile directamente desde Supabase
   useEffect(() => {
-    const storedUserId = localStorage.getItem("userId");
-    if (!storedUserId) {
-      console.warn("[HOME] No se encontró userId en localStorage");
-      return;
-    }
-
-    const fetchProfile = async () => {
-      try {
-        const { data, error } = await supabase
+    console.log("[HOME] userId recibido:", userId);
+    if (userId) {
+      const fetchProfile = async () => {
+        const { data } = await supabase
           .from("profiles")
-          .select(`
-            id, 
-            username, 
-            tier, 
-            avatar_url, 
-            wallet_address, 
-            minikitData, 
-            accent_color, 
-            theme, 
-            verified, 
-            created_at, 
-            updated_at
-          `)
-          .eq("id", storedUserId)
+          .select("*")
+          .eq("id", userId)
           .single();
 
-        if (error) {
-          console.error("❌ Error fetch profiles:", error);
-          return;
-        }
+        console.log("[HOME] Profile cargado:", data);
+        setProfile(data || null);
+      };
+      fetchProfile();
+    }
 
-        console.log("🔥 Profile en Supabase:", data);
-        setProfile(data);
+    fetchPosts(true);
+  }, [userId, fetchPosts]);
 
-        // Fetch posts con el ID correcto
-        fetchPosts(true);
-      } catch (err) {
-        console.error("❌ Exception fetch profile:", err);
-      }
-    };
-
-    fetchProfile();
-  }, [fetchPosts]);
-
-  // — Scroll infinito
   useEffect(() => {
     const handleScroll = () => {
       if (!containerRef.current) return;
@@ -133,26 +89,24 @@ const HomePage = () => {
       alert("Escribe algo antes de publicar");
       return;
     }
-    if (!profile?.id) {
-      alert("No se encontró tu ID. Verifica con World ID primero o recarga la app.");
+
+    if (!userId) {
+      alert("No se encontró tu ID. Verifica con World ID primero.");
       return;
     }
 
-    console.log("[POST] Publicando con id:", profile.id);
+    console.log("[POST] Publicando con userId:", userId);
 
     try {
-      const { data: inserted, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('posts')
         .insert({
-          user_id: profile.id,
+          user_id: userId,
           content: newPostContent.trim(),
           timestamp: new Date().toISOString(),
           deleted_flag: false,
           visibility_score: 1
-        })
-        .select();
-
-      console.log("[POST] Resultado insert:", { inserted, insertError });
+        });
 
       if (insertError) throw insertError;
 
@@ -160,41 +114,80 @@ const HomePage = () => {
       setShowNewPostModal(false);
       setNewPostContent('');
       fetchPosts(true);
-
     } catch (err: any) {
-      console.error("[POST] Error al publicar:", err);
-      alert("Error al publicar: " + (err.message || "Intenta de nuevo"));
+      console.error("[POST] Error:", err);
+      alert("Error al publicar: " + err.message);
     }
   };
 
   return (
-    <div ref={containerRef} className={`min-h-screen overflow-y-auto antialiased ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}>
-      
-      {/* Header y botones */}
-      <header className={`sticky top-0 z-20 w-full px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'border-white/10 bg-black/90' : 'border-black/10 bg-white/90'} backdrop-blur-xl`}>
-        <img src="/logo.png" alt="Logo" className="w-11 h-11 object-contain drop-shadow-md" />
+    <div
+      ref={containerRef}
+      className={`min-h-screen overflow-y-auto antialiased ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}
+      style={{ overflowX: "hidden" }}
+    >
+      {/* Header */}
+      <header
+        className={`sticky top-0 z-20 w-full px-4 py-3 flex items-center justify-between border-b ${
+          theme === 'dark' ? 'border-white/10 bg-black/90' : 'border-black/10 bg-white/90'
+        } backdrop-blur-xl`}
+      >
+        <img
+          src="/logo.png"
+          alt="Humans"
+          className="w-11 h-11 object-contain drop-shadow-md"
+        />
+
         <div className="flex gap-3">
-          <ActionButton label="Post" onClick={() => setShowNewPostModal(true)} />
-          <button onClick={() => (window.location.href = '/chat')} className="px-5 py-2 bg-indigo-700 text-white rounded-full">Chat</button>
+          <ActionButton
+            label="Post"
+            onClick={() => setShowNewPostModal(true)}
+            className={`px-5 py-2 bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base`}
+          />
+
+          <button
+            onClick={() => (window.location.href = '/chat')}
+            className={`px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base font-medium`}
+          >
+            Chat
+          </button>
         </div>
+
         <div className="flex items-center gap-3 sm:gap-4">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center font-bold cursor-pointer shadow-md ring-1 ring-white/10" onClick={() => setShowProfileModal(true)}>H</div>
+          <div className="relative cursor-pointer">
+            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg shadow-inner">
+              🔔
+            </div>
+            <span className="absolute -top-1 -right-1 bg-red-600 text-xs rounded-full px-1.5 py-0.5">3</span>
+          </div>
+          <div
+            className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center font-bold cursor-pointer shadow-md ring-1 ring-white/10"
+            onClick={() => setShowProfileModal(true)}
+          >
+            H
+          </div>
         </div>
       </header>
 
       {/* Pull to refresh */}
-      <div className="text-center py-4 text-gray-400 text-sm flex items-center justify-center gap-2 cursor-pointer" onClick={handleRefresh}>
-        ⟳ Tirar para refrescar
+      <div
+        className="text-center py-4 text-gray-400 text-sm flex items-center justify-center gap-2 cursor-pointer"
+        onClick={handleRefresh}
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Tirar para refrescar
       </div>
 
       {/* Feed */}
       <main className="w-full px-2 py-6 flex justify-center">
         <FeedPage 
-          posts={posts} 
-          loading={loading} 
-          error={error} 
-          currentUserId={profile?.id} 
-          userTier={profile?.tier || 'free'} 
+          posts={posts}
+          loading={loading}
+          error={error}
+          currentUserId={userId}
+          userTier={profile?.tier || 'free'}
         />
       </main>
 
@@ -206,7 +199,7 @@ const HomePage = () => {
             <textarea
               value={newPostContent}
               onChange={(e) => e.target.value.length <= maxChars && setNewPostContent(e.target.value)}
-              className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white"
+              className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
               placeholder="¿Qué estás pensando?"
               maxLength={maxChars}
             />
@@ -222,7 +215,13 @@ const HomePage = () => {
       )}
 
       {/* Modal Perfil */}
-      {showProfileModal && <ProfileModal currentUserId={profile?.id || null} onClose={() => setShowProfileModal(false)} showUpgradeButton={profile?.tier === 'free'} />}
+      {showProfileModal && (
+        <ProfileModal
+          currentUserId={userId}
+          onClose={() => setShowProfileModal(false)}
+          showUpgradeButton={profile?.tier === 'free'}
+        />
+      )}
     </div>
   );
 };
