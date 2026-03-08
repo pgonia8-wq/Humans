@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import HomePage from "./pages/HomePage";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
+
+const APP_ID = "app_6a98c88249208506dcd4e04b529111fc"; // <-- tu App ID
 
 const App = () => {
   const [wallet, setWallet] = useState<string | null>(null);
@@ -11,7 +12,7 @@ const App = () => {
 
   useEffect(() => {
     try {
-      MiniKit.install();
+      MiniKit.install({ appId: APP_ID }); // <-- App ID aplicado
       if (MiniKit.isInstalled()) {
         setWallet(MiniKit.walletAddress);
       }
@@ -43,8 +44,8 @@ const App = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           payload: proof,
-          walletAddress: MiniKit.walletAddress,   // <-- agregado
-          minikitData: MiniKit.data               // <-- agregado
+          walletAddress: MiniKit.walletAddress,
+          minikitData: MiniKit.data
         }),
       });
 
@@ -68,7 +69,12 @@ const App = () => {
   };
 
   return (
-    <HomePage userId={userId} />
+    <div>
+      <button onClick={verifyUser} disabled={verifying || verified}>
+        {verified ? "Verificado ✅" : verifying ? "Verificando…" : "Verificar"}
+      </button>
+      {error && <p style={{ color: "red" }}>{error}</p>}
+    </div>
   );
 };
 
