@@ -1,4 +1,4 @@
-import { supabase } from "../supabaseClient.js";
+import { supabase } from "../supabaseClient";
 
 export default async function handler(req, res) {
   console.log("[BACKEND] Request recibido - Method:", req.method);
@@ -10,12 +10,14 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const userId = body.nullifier_hash || body.payload?.nullifier_hash;
-  console.log("[BACKEND] userId extraído:", userId);
+  const { action, max_age, proof, merkle_root, nullifier_hash, verification_level } = body;
 
-  if (!userId) {
-    console.warn("[BACKEND] No se recibió userId");
-    return res.status(400).json({ success: false, error: "Missing userId" });
+  const userId = nullifier_hash;
+  console.log("[BACKEND] userId extraído del body:", userId);
+
+  if (!action) {
+    console.log("[BACKEND] Falta action");
+    return res.status(400).json({ success: false, error: "Missing action" });
   }
 
   console.log("[BACKEND] Llamando a World API v2 verify...");
@@ -25,13 +27,7 @@ export default async function handler(req, res) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        merkle_root: body.merkle_root,
-        nullifier_hash: userId,
-        proof: body.proof,
-        verification_level: body.verification_level,
-        action: body.action,
-      }),
+      body: JSON.stringify({ merkle_root, nullifier_hash, proof, verification_level, action }),
     }
   );
 
@@ -43,24 +39,34 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "World verification failed" });
   }
 
-  console.log("[BACKEND] Guardando verified en Supabase:", userId);
+  if (userId) {
+    console.log("[BACKEND] Guardando usuario en Supabase:", userId);
 
-  // Crear o actualizar perfil
-  const { error: upsertError } = await supabase
-    .from("profiles")
-    .upsert({ id: userId }, { onConflict: ["id"] });
+    // Crear o actualizar perfil
+    const { error: upsertError } = await supabase
+      .from("profiles")
+      .upsert({ id: userId }, { onConflict: ["id"] });
 
-  if (upsertError) console.error("[BACKEND] Error upsert:", upsertError.message);
+    if (upsertError) {
+      console.error("[BACKEND] Error al registrar usuario:", upsertError.message);
+    } else {
+      console.log("[BACKEND] Usuario registrado/actualizado correctamente:", userId);
 
-  // Guardar verified: true
-  const { error: updateError } = await supabase
-    .from("profiles")
-    .update({ verified: true })
-    .eq("id", userId);
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ verified: true })
+        .eq("id", userId);
 
-  if (updateError) console.error("[BACKEND] Error update verified:", updateError.message);
+      if (updateError) {
+        console.error("[BACKEND] Error al guardar verified:", updateError.message);
+      } else {
+        console.log("[BACKEND] verified: true guardado correctamente para userId:", userId);
+      }
+    }
+  } else {
+    console.warn("[BACKEND] No se recibió userId → no se pudo guardar verified");
+  }
 
-  console.log("[BACKEND] verified guardado correctamente para userId:", userId);
-
+  console.log("[BACKEND] Enviando respuesta al frontend con userId:", userId);
   return res.status(200).json({ success: true, userId });
-        }
+}
