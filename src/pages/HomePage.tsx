@@ -40,9 +40,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const { theme } = useContext(ThemeContext);
-
   const containerRef = useRef<HTMLDivElement>(null);
-
   const maxChars = userTier === "premium+" ? 10000 : userTier === "premium" ? 4000 : 280;
 
   const fetchPosts = useCallback(async (reset = false) => {
@@ -76,20 +74,35 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   useEffect(() => {
     console.log("[HOME] userId recibido desde App.tsx:", userId);
 
-    // Carga tier si tienes columna en profiles
-    if (userId) {
-      const fetchTier = async () => {
-        const { data: profile } = await supabase
+    if (!userId) {
+      console.warn("[HOME] userId es null, HomePage no cargará tier ni posts");
+      return;
+    }
+
+    // ── LOG PARA ERUDA ──
+    console.log("[HOME] Cargando tier y posts para userId:", userId);
+
+    const fetchTier = async () => {
+      try {
+        const { data: profile, error: tierError } = await supabase
           .from('profiles')
           .select('tier')
           .eq('id', userId)
           .single();
 
-        setUserTier(profile?.tier || 'free');
-      };
-      fetchTier();
-    }
+        if (tierError) {
+          console.error("[HOME] Error al obtener tier:", tierError);
+          return;
+        }
 
+        console.log("[HOME] Tier obtenido:", profile?.tier);
+        setUserTier(profile?.tier || 'free');
+      } catch (err: any) {
+        console.error("[HOME] Exception al cargar tier:", err);
+      }
+    };
+
+    fetchTier();
     fetchPosts(true);
   }, [fetchPosts, userId]);
 
