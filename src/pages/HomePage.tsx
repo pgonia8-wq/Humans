@@ -1,241 +1,268 @@
-import React, { useEffect, useState, useRef, useCallback, useContext } from "react";
-import { supabase } from "../supabaseClient";
-import FeedPage from './FeedPage';
-import { ThemeContext } from "../lib/ThemeContext";
-import ProfileModal from "../components/ProfileModal";
-import ActionButton from "../components/ActionButton";
+import React, { useState, useEffect } from 'react';
+import PostCard from '../components/PostCard';
+import { supabase } from '../supabaseClient';
+import { MiniKit } from '@worldcoin/minikit-js';
 
 const PAGE_SIZE = 8;
 
-const HomePage = ({ userId }: { userId: string | null }) => {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [profile, setProfile] = useState(null);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showNewPostModal, setShowNewPostModal] = useState(false);
-  const [newPostContent, setNewPostContent] = useState("");
-  const { theme } = useContext(ThemeContext);
+interface Post {
+  id: string;
+  content?: string;
+  timestamp: string;
+  profile?: {
+    username?: string;
+  }; : any;
+}
 
-  const containerRef = useRef(null);
+interface FeedPageProps {
+  posts: Post[];
+  loading?: boolean;
+  error?: string | null;
+  currentUserId: string | null;
+  userTier: "free" | "basic" | "premium" | "premium+";
+}
 
-  const maxChars = profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 4000 : 280;
-
-  const fetchPosts = useCallback(async (reset = false) => {
-    if (!hasMore && !reset) return;
-    try {
-      setLoading(true);
-      const from = reset ? 0 : page * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-
-      const { data, error } = await supabase
-        .from("posts")
-        .select("*")
-        .order("timestamp", { ascending: false })
-        .range(from, to);
-
-      if (error) throw error;
-
-      const newPosts = data || [];
-      setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
-      setHasMore(newPosts.length === PAGE_SIZE);
-      if (reset) setPage(1);
-      else setPage((prev) => prev + 1);
-    } catch (err: any) {
-      console.error("Error fetching posts:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, hasMore]);
+const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserId, userTier }) => {
+  const = useState(false);
+  const = useState<"premium" | "premium+" | null>(null);
+  const = useState(false);
+  const = useState(false);
+  const = useState<string | null>(null);
+  const = useState<number>(0);
+  const = useState<number>(0);
+  const = useState(false);
 
   useEffect(() => {
-    console.log("[HOME] userId recibido:", userId);
-
-    if (userId) {
-      const fetchProfile = async () => {
+    if (selectedTier) {
+      const fetchPriceAndSlots = async () => {
         try {
-          const { data, error } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userId);
+          const { count, error: countError } = await supabase
+            .from("upgrades")
+            .select("*", { count: "exact" })
+            .eq("tier", selectedTier);
 
-          if (error) {
-            console.error("[HOME] Error al cargar perfil:", error);
-            setError("No se pudo cargar tu perfil");
-          } else {
-            // data es array → tomamos el primero o null
-            const profileData = data?.[0] || null;
-            console.log("[HOME] Profile cargado:", profileData);
-            setProfile(profileData);
-          }
+          if (countError) console.error("Error contando upgrades:", countError);
+
+          const limit = selectedTier === "premium" ? 10000 : 3000;
+          setSlotsLeft(limit - (count || 0));
+          setPrice(count < limit ? (selectedTier === "premium" ? 10 : 15) : (selectedTier === "premium" ? 20 : 35));
         } catch (err) {
-          console.error("[HOME] Excepción en fetchProfile:", err);
-          setError("Error al cargar perfil");
+          console.error("Error en fetchPriceAndSlots:", err);
         }
       };
-      fetchProfile();
+      fetchPriceAndSlots();
     }
+  }, );
 
-    fetchPosts(true);
-  }, [userId, fetchPosts]);
+  const handleUpgrade = () => {
+    setShowUpgradeOptions(true);
+  };
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!containerRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-      if (scrollTop + clientHeight >= scrollHeight - 100) {
-        fetchPosts();
-      }
-    };
-    containerRef.current?.addEventListener("scroll", handleScroll);
-    return () => containerRef.current?.removeEventListener("scroll", handleScroll);
-  }, [fetchPosts]);
+  const selectTier = (tier: "premium" | "premium+") => {
+    setSelectedTier(tier);
+    setShowSlideModal(true);
+  };
 
-  const handleRefresh = () => fetchPosts(true);
+  const cancelUpgrade = () => {
+    setShowSlideModal(false);
+    setSelectedTier(null);
+    setShowUpgradeOptions(false);
+  };
 
-  const handleCreatePost = async () => {
-    if (!newPostContent.trim()) {
-      alert("Escribe algo antes de publicar");
+  const confirmUpgrade = async () => {
+    if (!currentUserId || !selectedTier) {
+      setUpgradeError("No se encontró tu ID o tier seleccionado.");
       return;
     }
 
-    if (!userId) {
-      alert("No se encontró tu ID. Verifica con World ID primero.");
-      return;
-    }
-
-    console.log("[POST] Publicando con userId:", userId);
+    setLoadingUpgrade(true);
+    setUpgradeError(null);
+    setShowInsufficientFunds(false);
+    console.log(" Iniciando pago para tier:", selectedTier, "precio:", price, "userId:", currentUserId);
 
     try {
-      const { error: insertError } = await supabase
-        .from('posts')
-        .insert({
-          user_id: userId,
-          content: newPostContent.trim(),
-          timestamp: new Date().toISOString(),
-          deleted_flag: false,
-          visibility_score: 1
-        });
+      if (!MiniKit.isInstalled()) {
+        throw new Error("MiniKit no instalado o World App no detectada");
+      }
 
-      if (insertError) throw insertError;
+      // Quitamos el chequeo forzado — dejamos que pay intente y maneje el error si falla
+      // (World App debería pedir permisos al primer pay si no están)
 
-      alert("¡Post publicado correctamente!");
-      setShowNewPostModal(false);
-      setNewPostContent('');
-      fetchPosts(true);
+      const payRes = await MiniKit.commandsAsync.pay({
+        amount: price,
+        currency: 'WLD',
+        recipient: '0x4df4a99b05945b0594db02127ad3cdffea619f4cb',
+      });
+
+      console.log(" Pago respuesta:", payRes);
+
+      if (payRes.status !== "success") {
+        if (payRes.error?.includes("insufficient") || payRes.error?.includes("funds")) {
+          setShowInsufficientFunds(true);
+          throw new Error("Fondos insuficientes en tu wallet");
+        }
+        throw new Error("Pago cancelado o fallido: " + (payRes.error || "Desconocido"));
+      }
+
+      const transactionId = payRes.transactionId;
+      console.log(" txId obtenido:", transactionId);
+
+      const res = await fetch("/api/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUserId, tier: selectedTier, transactionId }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Error ${res.status}: ${text}`);
+      }
+
+      const data = await res.json();
+      console.log(" Backend respuesta:", data);
+
+      if (!data.success) throw new Error(data.error || "Error al procesar upgrade");
+
+      alert(`¡Upgrade a ${selectedTier} exitoso! Precio: ${price} WLD. Tu referral token: ${data.referralToken}`);
+      // No hay setUserTier aquí — si quieres actualizarlo, hazlo desde HomePage después
+      cancelUpgrade();
     } catch (err: any) {
-      console.error("[POST] Error:", err);
-      alert("Error al publicar: " + err.message);
+      console.error(" Error completo:", err);
+      setUpgradeError(err.message || "Error al procesar el upgrade");
+    } finally {
+      setLoadingUpgrade(false);
     }
   };
 
   return (
-    <div
-      ref={containerRef}
-      className={`min-h-screen overflow-y-auto antialiased ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}
-      style={{ overflowX: "hidden" }}
-    >
-      {/* Header */}
-      <header
-        className={`sticky top-0 z-20 w-full px-4 py-3 flex items-center justify-between border-b ${
-          theme === 'dark' ? 'border-white/10 bg-black/90' : 'border-black/10 bg-white/90'
-        } backdrop-blur-xl`}
-      >
-        <img
-          src="/logo.png"
-          alt="Humans"
-          className="w-11 h-11 object-contain drop-shadow-md"
-        />
-
-        <div className="flex gap-3">
-          <ActionButton
-            label="Post"
-            onClick={() => setShowNewPostModal(true)}
-            className={`px-5 py-2 bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base`}
-          />
-
-          <button
-            onClick={() => (window.location.href = '/chat')}
-            className={`px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base font-medium`}
-          >
-            Chat
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="relative cursor-pointer">
-            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg shadow-inner">
-              🔔
-            </div>
-            <span className="absolute -top-1 -right-1 bg-red-600 text-xs rounded-full px-1.5 py-0.5">3</span>
-          </div>
-          <div
-            className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center font-bold cursor-pointer shadow-md ring-1 ring-white/10"
-            onClick={() => setShowProfileModal(true)}
-          >
-            H
-          </div>
-        </div>
-      </header>
-
-      {/* Pull to refresh */}
-      <div
-        className="text-center py-4 text-gray-400 text-sm flex items-center justify-center gap-2 cursor-pointer"
-        onClick={handleRefresh}
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        Tirar para refrescar
+    <div className="flex flex-col p-4">
+      {/* Botón Upgrade */}
+      <div className="mb-6">
+        <button
+          onClick={handleUpgrade}
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold shadow-lg"
+        >
+          Upgrade
+        </button>
       </div>
 
-      {/* Feed completo */}
-      <main className="w-full px-2 py-6 flex justify-center">
-        <FeedPage 
-          posts={posts}
-          loading={loading}
-          error={error}
-          currentUserId={userId}
-          userTier={profile?.tier || 'free'}
-        />
-      </main>
+      {/* Opciones de tiers */}
+      {showUpgradeOptions && (
+        <div className="space-y-4 mb-6">
+          <button
+            onClick={() => selectTier("premium")}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-md"
+          >
+            Premium
+          </button>
+          <button
+            onClick={() => selectTier("premium+")}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold shadow-md"
+          >
+            Premium+
+          </button>
+        </div>
+      )}
 
-      {/* Modal Nuevo Post */}
-      {showNewPostModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
-            <h2 className="text-xl font-bold mb-4 text-white">Nuevo Post</h2>
-            <textarea
-              value={newPostContent}
-              onChange={(e) => e.target.value.length <= maxChars && setNewPostContent(e.target.value)}
-              className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-              placeholder="¿Qué estás pensando?"
-              maxLength={maxChars}
-            />
-            <div className="flex justify-between mt-4 text-sm text-gray-400">
-              <span>{newPostContent.length} / {maxChars}</span>
-              <div className="flex gap-3">
-                <button onClick={() => setShowNewPostModal(false)} className="px-5 py-2 bg-gray-800 rounded-full">Cancelar</button>
-                <button onClick={handleCreatePost} className="px-6 py-2 bg-purple-600 rounded-full font-medium">Publicar</button>
+      {/* Feed */}
+      {loading ? (
+        <div className="space-y-5">
+          {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+            <div key={i} className="bg-gray-900/60 backdrop-blur-sm rounded-2xl p-4 animate-pulse space-y-4 border border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gray-700" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-gray-700 rounded w-3/4" />
+                  <div className="h-3 bg-gray-700 rounded w-1/2" />
+                </div>
               </div>
+              <div className="space-y-2">
+                <div className="h-4 bg-gray-700 rounded w-full" />
+                <div className="h-4 bg-gray-700 rounded w-5/6" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <p className="text-red-500 text-center py-10 px-2">{error}</p>
+      ) : posts.length === 0 ? (
+        <p className="text-gray-500 text-center py-10 px-2">No hay posts todavía.</p>
+      ) : (
+        <div className="space-y-5">
+          {posts.map((post) => (
+            <PostCard key={post.id} post={post} currentUserId={currentUserId} />
+          ))}
+        </div>
+      )}
+
+      {upgradeError && <p className="text-red-500 text-center py-4 mt-4">{upgradeError}</p>}
+
+      {/* Slide Modal de beneficios */}
+      {showSlideModal && selectedTier && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+          <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6 animate-slide-up">
+            <h2 className="text-xl font-bold text-white mb-4">Beneficios de {selectedTier}</h2>
+            <ul className="text-gray-200 mb-6 list-disc list-inside space-y-2">
+              {selectedTier === "premium" && (
+                <>
+                  <li>Tips ilimitados</li>
+                  <li>Boost 5 veces por semana</li>
+                  <li>1 WLD por cada referido</li>
+                  <li>Posts hasta 4.000 caracteres</li>
+                  <li>Badge Premium</li>
+                  <li>Solo quedan {slotsLeft} slots</li>
+                </>
+              )}
+              {selectedTier === "premium+" && (
+                <>
+                  <li>Todo lo de Premium</li>
+                  <li>Boost ilimitado</li>
+                  <li>Posts hasta 10.000 caracteres</li>
+                  <li>Badge Premium+ dorado</li>
+                  <li>Solo quedan {slotsLeft} slots</li>
+                </>
+              )}
+            </ul>
+            <p className="text-white text-center mb-4">Precio: {price} WLD</p>
+            <div className="flex gap-4">
+              <button
+                onClick={cancelUpgrade}
+                className="flex-1 py-3 bg-gray-700 text-white rounded-2xl font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmUpgrade}
+                disabled={loadingUpgrade}
+                className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
+              >
+                {loadingUpgrade ? "Procesando..." : "Aceptar"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Perfil */}
-      {showProfileModal && (
-        <ProfileModal
-          currentUserId={userId}
-          onClose={() => setShowProfileModal(false)}
-          showUpgradeButton={profile?.tier === 'free'}
-        />
+      {/* Alerta fondos insuficientes */}
+      {showInsufficientFunds && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70">
+          <div className="bg-gray-900 rounded-2xl p-8 w-full max-w-sm border border-white/10 text-center">
+            <div className="text-5xl mb-4">💸</div>
+            <h3 className="text-xl font-bold text-white mb-3">Fondos insuficientes</h3>
+            <p className="text-gray-300 mb-6">
+              No tienes suficientes WLD ({price} WLD requeridos).
+            </p>
+            <button
+              onClick={() => setShowInsufficientFunds(false)}
+              className="w-full py-3 bg-purple-600 text-white rounded-xl font-medium"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
 };
 
-export default HomePage;
+export default FeedPage;
