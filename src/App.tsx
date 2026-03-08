@@ -34,6 +34,12 @@ function App() {
       });
 
       const finalPayload = verifyRes?.finalPayload;
+
+      // ── INSERT LOG PARA DEPURAR nullifier_hash ──
+      console.log("verifyRes:", verifyRes);
+      console.log("finalPayload.proof:", finalPayload?.proof);
+      console.log("nullifier_hash:", finalPayload?.proof?.nullifier_hash);
+
       if (!finalPayload || finalPayload.status !== "success") {
         setError("Verificación cancelada o fallida");
         return;
@@ -46,6 +52,10 @@ function App() {
       }
 
       const id = proofData.nullifier_hash;  // identificador único de World ID
+
+      // Guardar en localStorage antes de renderizar HomePage
+      localStorage.setItem('userId', id);
+      setUserId(id);
 
       const body = {
         proof: proofData.proof,
@@ -66,9 +76,7 @@ function App() {
       const result = await res.json();
 
       if (result.success) {
-        setVerified(true);
-        setUserId(id);
-        localStorage.setItem('userId', id);  // Persiste para no pedir verify de nuevo
+        setVerified(true);  // ahora HomePage se renderizará con userId definido
         setMessage("✅ Verificación exitosa");
       } else {
         setError("Backend rechazó la prueba: " + (result.error || ""));
@@ -79,13 +87,13 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      {!verified ? (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
+      {!verified || !userId ? (
         <div className="bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center w-full max-w-md">
           <img
             src="/logo.png"
             alt="Logo H"
-            className="w-40 h-40 rounded-full mb-6 shadow-lg object-cover mx-auto block"
+            className="w-40 h-40 rounded-full mb-6 shadow-lg object-contain"  // logo centrado
           />
           <p className="text-black text-2xl font-bold mb-6 text-center">
             Verificando con H…
