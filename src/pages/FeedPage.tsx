@@ -228,8 +228,63 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
       )}
 
       {upgradeError && <p className="text-red-500 text-center py-4 mt-4">{upgradeError}</p>}
+    {/* Slide Modal */}
+{showSlideModal && selectedTier && (
+  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+    <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6 animate-slide-up">
+      <h2 className="text-xl font-bold text-white mb-4">
+        Beneficios de {selectedTier}
+      </h2>
+
+      <ul className="text-gray-200 mb-6 list-disc list-inside space-y-2">
+        {selectedTier === "premium" && (
+          <>
+            <li>Tips ilimitados</li>
+            <li>Boost 5 veces por semana</li>
+            <li>1 WLD por referido</li>
+            <li>Posts hasta 4.000 caracteres</li>
+            <li>Badge Premium</li>
+            <li>Prioridad media en el feed</li>
+            <li>Solo quedan {slotsLeft} slots disponibles</li>
+          </>
+        )}
+
+        {selectedTier === "premium+" && (
+          <>
+            <li>Todo lo de Premium</li>
+            <li>Tips con +10%</li>
+            <li>Boost ilimitado</li>
+            <li>Posts hasta 10.000 caracteres</li>
+            <li>Contenido exclusivo</li>
+            <li>Badge Premium+ dorado</li>
+            <li>Prioridad máxima en el feed</li>
+            <li>Solo quedan {slotsLeft} slots disponibles</li>
+          </>
+        )}
+      </ul>
+
+      <p className="text-white text-center mb-4">
+        Precio: {price} WLD
+      </p>
+
+      <div className="flex gap-4">
+        <button
+          onClick={cancelUpgrade}
+          className="flex-1 py-3 bg-gray-700 text-white rounded-2xl font-bold"
+        >
+          Cancelar
+        </button>
+
+        <button
+          onClick={confirmUpgrade}
+          disabled={loadingUpgrade}
+          className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
+        >
+          {loadingUpgrade ? "Procesando..." : "Aceptar"}
+        </button>
+      </div>
     </div>
-  );
-};
+  </div>
+)}
 
 export default FeedPage;
