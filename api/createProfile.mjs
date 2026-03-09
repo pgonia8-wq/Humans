@@ -1,11 +1,16 @@
+// api/createProfile.mjs (versión corregida)
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ success: false, error: "Method not allowed" });
+  }
+
   try {
     const { userId } = req.body;
 
@@ -13,8 +18,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "No userId provided" });
     }
 
-    // 🔍 Verifico si el profile ya existe primero
-    const { data: existingProfile, error: selectError } = await supabase
+    // Verifica existencia (con .maybeSingle)
+    const { data: existing, error: selectError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
@@ -22,13 +27,13 @@ export default async function handler(req, res) {
 
     if (selectError) throw selectError;
 
-    if (existingProfile) {
-      console.log("[CREATE PROFILE] Profile already exists:", existingProfile);
-      return res.status(200).json({ success: true, profile: existingProfile });
+    if (existing) {
+      console.log("[CREATE PROFILE] Already exists:", existing);
+      return res.status(200).json({ success: true, profile: existing });
     }
 
-    // ➕ Insert profile solo si no existe
-    const { data, error } = await supabase
+    // Insert sin select posterior
+    const { data: inserted, error: insertError } = await supabase
       .from("profiles")
       .insert({
         id: userId,
@@ -36,16 +41,16 @@ export default async function handler(req, res) {
         username: "Anon",
         avatar_url: ""
       })
-      .select()
-      .maybeSingle(); // devuelve null si ya existe
+      .select()  // select devuelve array
+      .single();  // .single() aquí es seguro porque insert devuelve 1 fila
 
-    if (error) throw error;
+    if (insertError) throw insertError;
 
-    console.log("[CREATE PROFILE] New profile created:", data);
-    res.status(200).json({ success: true, profile: data });
+    console.log("[CREATE PROFILE] New profile created:", inserted);
+    return res.status(200).json({ success: true, profile: inserted });
 
-  } catch (err) {
+  } catch (err: any) {
     console.error("[CREATE PROFILE] error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message || "Internal error" });
   }
-  }
+      }
