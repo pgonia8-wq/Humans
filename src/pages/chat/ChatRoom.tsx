@@ -1,17 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../../supabaseClient';
+import React, { useEffect, useState } from "react";
+import { supabase } from "../../supabaseClient";
 
-const ChatRoom: React.FC<{ roomId: string }> = ({ roomId }) => {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState('');
+interface Message {
+  id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+}
+
+const ChatRoom: React.FC<{ conversationId: string; currentUserId: string }> = ({
+  conversationId,
+  currentUserId,
+}) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
 
   useEffect(() => {
     const fetchMessages = async () => {
       const { data } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('room_id', roomId)
-        .order('created_at', { ascending: true });
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
 
       setMessages(data || []);
     };
@@ -19,14 +29,17 @@ const ChatRoom: React.FC<{ roomId: string }> = ({ roomId }) => {
     fetchMessages();
 
     const channel = supabase
-      .channel('realtime-chat')
+      .channel("realtime-messages")
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
         (payload) => {
-          if (payload.new.room_id === roomId) {
-            setMessages((prev) => [...prev, payload.new]);
-          }
+          setMessages((prev) => [...prev, payload.new as Message]);
         }
       )
       .subscribe();
@@ -34,29 +47,33 @@ const ChatRoom: React.FC<{ roomId: string }> = ({ roomId }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId]);
+  }, [conversationId]);
 
   const sendMessage = async () => {
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
+    if (!newMessage.trim()) return;
 
-    if (!newMessage || !user) return;
-
-    await supabase.from('chat_messages').insert({
-      room_id: roomId,
-      user_id: user.id,
+    await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: currentUserId,
       content: newMessage,
     });
 
-    setNewMessage('');
+    setNewMessage("");
   };
 
   return (
-    <div className="flex flex-col h-96 border p-2 rounded bg-white">
+    <div className="flex flex-col h-full border p-2 rounded bg-white">
       <div className="flex-1 overflow-y-auto mb-2 space-y-1">
         {messages.map((m) => (
-          <div key={m.id} className="p-1 rounded bg-gray-100">
-            <strong>{m.user_id}:</strong> {m.content}
+          <div
+            key={m.id}
+            className={`p-2 rounded max-w-xs ${
+              m.sender_id === currentUserId
+                ? "bg-purple-200 ml-auto"
+                : "bg-gray-200"
+            }`}
+          >
+            {m.content}
           </div>
         ))}
       </div>
