@@ -28,23 +28,45 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [price, setPrice] = useState(0);
 
-  // ---- Ordenar posts por score antes de renderizar ----
+  // ---- Ordenar posts por score antes de renderizar, con tags y decay avanzado ----
   const sortedPosts = [...posts].sort((a, b) => {
+    const weightLikes = 1;
+    const weightComments = 2;
+    const weightReposts = 2;
+    const weightTips = 3;
+    const weightBoost = 10;
+
+    const decayA = a.recency_decay || 1;
+    const decayB = b.recency_decay || 1;
+
+    // Peso monetización (tips_total ya multiplicado en PostCard)
+    const tipsA = a.tips_total || 0;
+    const tipsB = b.tips_total || 0;
+
+    const boostA = (a.boosted_until && new Date(a.boosted_until) > new Date()) ? 1 : 0;
+    const boostB = (b.boosted_until && new Date(b.boosted_until) > new Date()) ? 1 : 0;
+
+    // Tags internos: se pueden usar para score futuro (no visibles)
+    const tagScoreA = a.tags ? a.tags.length * 0.5 : 0;
+    const tagScoreB = b.tags ? b.tags.length * 0.5 : 0;
+
     const scoreA =
-      (a.likes || 0) * 1 +
-      (a.comments || 0) * 2 +
-      (a.reposts || 0) * 2 +
-      (a.tips_total || 0) * 3 +
-      ((a.boosted_until && new Date(a.boosted_until) > new Date()) ? 10 : 0) +
-      (a.recency_decay || 1);
+      (a.likes || 0) * weightLikes +
+      (a.comments || 0) * weightComments +
+      (a.reposts || 0) * weightReposts +
+      tipsA * weightTips +
+      boostA * weightBoost +
+      decayA +
+      tagScoreA;
 
     const scoreB =
-      (b.likes || 0) * 1 +
-      (b.comments || 0) * 2 +
-      (b.reposts || 0) * 2 +
-      (b.tips_total || 0) * 3 +
-      ((b.boosted_until && new Date(b.boosted_until) > new Date()) ? 10 : 0) +
-      (b.recency_decay || 1);
+      (b.likes || 0) * weightLikes +
+      (b.comments || 0) * weightComments +
+      (b.reposts || 0) * weightReposts +
+      tipsB * weightTips +
+      boostB * weightBoost +
+      decayB +
+      tagScoreB;
 
     return scoreB - scoreA; // mayor score primero
   });
@@ -104,8 +126,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
         to: RECEIVER,
         tokens: [
           {
-            symbol: Tokens.WLD, // CORRECCIÓN: Usa el enum Tokens.WLD en lugar de "WLD"
-            token_amount: tokenToDecimals(price, Tokens.WLD).toString() // CORRECCIÓN: Convierte price (ej. 15) a string con 18 decimales (ej. "15000000000000000000")
+            symbol: Tokens.WLD,
+            token_amount: tokenToDecimals(price, Tokens.WLD).toString()
           }
         ],
         description: `Upgrade ${selectedTier}`
