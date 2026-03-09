@@ -28,6 +28,27 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [price, setPrice] = useState(0);
 
+  // ---- Ordenar posts por score antes de renderizar ----
+  const sortedPosts = [...posts].sort((a, b) => {
+    const scoreA =
+      (a.likes || 0) * 1 +
+      (a.comments || 0) * 2 +
+      (a.reposts || 0) * 2 +
+      (a.tips_total || 0) * 3 +
+      ((a.boosted_until && new Date(a.boosted_until) > new Date()) ? 10 : 0) +
+      (a.recency_decay || 1);
+
+    const scoreB =
+      (b.likes || 0) * 1 +
+      (b.comments || 0) * 2 +
+      (b.reposts || 0) * 2 +
+      (b.tips_total || 0) * 3 +
+      ((b.boosted_until && new Date(b.boosted_until) > new Date()) ? 10 : 0) +
+      (b.recency_decay || 1);
+
+    return scoreB - scoreA; // mayor score primero
+  });
+
   useEffect(() => {
     if (!selectedTier) return;
 
@@ -158,7 +179,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
         <p className="text-red-500 text-center py-10">{error}</p>
       ) : (
         <div className="space-y-5">
-          {posts?.map((post) => (
+          {sortedPosts?.map((post) => (
             <PostCard key={post.id} post={post} currentUserId={currentUserId} />
           ))}
         </div>
