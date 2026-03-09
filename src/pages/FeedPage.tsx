@@ -18,8 +18,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
   posts,
   loading,
   error,
-  currentUserId,
-  userTier
+  currentUserId
 }) => {
 
   const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
@@ -35,7 +34,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const [upgradeError, setUpgradeError] =
   useState<string | null>(null);
 
-  const [price, setPrice] = useState(0);
+  const [price, setPrice] = useState<number | null>(null);
 
   useEffect(() => {
 
@@ -102,6 +101,15 @@ const FeedPage: React.FC<FeedPageProps> = ({
       return;
     }
 
+    if (!price || price <= 0) {
+
+      setUpgradeError(
+        "El precio aún no está cargado"
+      );
+
+      return;
+    }
+
     setLoadingUpgrade(true);
     setUpgradeError(null);
 
@@ -126,7 +134,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
         tokens: [
           {
             symbol: "WLD",
-            token_amount: price.toString()
+            amount: price.toString()
           }
         ],
 
@@ -220,7 +228,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
         <button
           onClick={handleUpgrade}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold shadow-lg"
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold"
         >
           Upgrade
         </button>
@@ -249,44 +257,6 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       )}
 
-      {loading ? (
-
-        <p className="text-center py-10">
-          Cargando...
-        </p>
-
-      ) : error ? (
-
-        <p className="text-red-500 text-center py-10">
-          {error}
-        </p>
-
-      ) : (
-
-        <div className="space-y-5">
-
-          {posts?.map((post) => (
-
-            <PostCard
-              key={post.id}
-              post={post}
-              currentUserId={currentUserId}
-            />
-
-          ))}
-
-        </div>
-
-      )}
-
-      {upgradeError && (
-
-        <p className="text-red-500 text-center py-4">
-          {upgradeError}
-        </p>
-
-      )}
-
       {showSlideModal && selectedTier && (
 
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
@@ -298,7 +268,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
             </h2>
 
             <p className="text-white text-center mb-4">
-              Precio: {price} WLD
+              Precio: {price ?? "..."} WLD
             </p>
 
             <div className="flex gap-4">
@@ -312,7 +282,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
               <button
                 onClick={confirmUpgrade}
-                disabled={loadingUpgrade}
+                disabled={loadingUpgrade || !price}
                 className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
               >
                 {loadingUpgrade
@@ -325,6 +295,14 @@ const FeedPage: React.FC<FeedPageProps> = ({
           </div>
 
         </div>
+
+      )}
+
+      {upgradeError && (
+
+        <p className="text-red-500 text-center py-4">
+          {upgradeError}
+        </p>
 
       )}
 
