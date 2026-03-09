@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import PostCard from "../components/PostCard";
 import { supabase } from "../supabaseClient";
-import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js"; // CORRECCIÓN: Importa Tokens y tokenToDecimals
+import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
@@ -27,6 +27,18 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const [loadingUpgrade, setLoadingUpgrade] = useState(false);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [price, setPrice] = useState(0);
+
+  // FIX 1: Estado para saber si MiniKit está listo
+  const [miniKitReady, setMiniKitReady] = useState(false);
+
+  useEffect(() => {
+    if (MiniKit.isInstalled()) {
+      // Pequeño delay para asegurar bridge ready (común workaround)
+      setTimeout(() => {
+        setMiniKitReady(true);
+      }, 300); // o 500ms si ves issues
+    }
+  }, []);
 
   useEffect(() => {
     if (!selectedTier) return;
@@ -83,8 +95,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
         to: RECEIVER,
         tokens: [
           {
-            symbol: Tokens.WLD, // CORRECCIÓN: Usa el enum Tokens.WLD en lugar de "WLD"
-            token_amount: tokenToDecimals(price, Tokens.WLD).toString() // CORRECCIÓN: Convierte price (ej. 15) a string con 18 decimales (ej. "15000000000000000000")
+            symbol: Tokens.WLD,
+            token_amount: tokenToDecimals(price, Tokens.WLD).toString()
           }
         ],
         description: `Upgrade ${selectedTier}`
@@ -172,7 +184,13 @@ const FeedPage: React.FC<FeedPageProps> = ({
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
           <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6">
             <h2 className="text-xl font-bold text-white mb-4">Beneficios de {selectedTier}</h2>
-            <p className="text-white text-center mb-4">Precio: {price} WLD</p>
+            <p className="text-white text-center mb-4">Precio: {price > 0 ? `${price} WLD` : "Cargando..."}</p>
+
+            {/* FIX 2 opcional: Mensaje cuando el precio aún no se calculó */}
+            {price <= 0 && (
+              <p className="text-yellow-400 text-center mt-4">Calculando precio disponible...</p>
+            )}
+
             <div className="flex gap-4">
               <button
                 onClick={cancelUpgrade}
@@ -180,12 +198,20 @@ const FeedPage: React.FC<FeedPageProps> = ({
               >
                 Cancelar
               </button>
+
+              {/* FIX 2: Botón deshabilitado si price <= 0 o MiniKit no ready */}
               <button
                 onClick={confirmUpgrade}
-                disabled={loadingUpgrade}
+                disabled={loadingUpgrade || price <= 0 || !miniKitReady}
                 className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
               >
-                {loadingUpgrade ? "Procesando..." : "Aceptar"}
+                {loadingUpgrade
+                  ? "Procesando..."
+                  : price <= 0
+                  ? "Calculando precio..."
+                  : miniKitReady
+                  ? "Aceptar"
+                  : "Cargando wallet..."}
               </button>
             </div>
           </div>
