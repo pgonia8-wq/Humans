@@ -54,7 +54,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         if (reset) setPage(1);
         else setPage((prev) => prev + 1);
       } catch (err: any) {
-        console.error("Error fetching posts:", err);
+        console.error("[POSTS] fetch error:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -69,36 +69,39 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     if (userId) {
       const fetchProfile = async () => {
         try {
-          // Intentamos traer profile directamente
           const { data, error } = await supabase
             .from("profiles")
             .select("*")
             .eq("id", userId)
-            .maybeSingle(); // FIX: devuelve null si no existe
+            .maybeSingle(); // FIX: permite null sin error
 
           if (error) {
-            console.warn("[HOME] Error fetching profile, intentando crear:", error);
+            console.error("[HOME] Error en fetchProfile:", error);
+            setError("No se pudo cargar tu perfil");
+            return;
+          }
 
-            // Llamamos a serverless para crear profile si no existe o falla RLS
+          if (!data) {
+            // No existe profile, lo creamos
+            console.log("[HOME] No existe profile, creando...");
             const res = await fetch("/api/createProfile", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ userId })
             });
-
             const result = await res.json();
             if (result.success) {
-              setProfile(result.profile || null);
+              setProfile(result.profile);
             } else {
-              setProfile(null);
-              setError(result.error || "No se pudo crear perfil");
+              console.error("[HOME] Error creando profile:", result.error);
             }
           } else {
-            setProfile(data || null);
+            setProfile(data);
           }
+
         } catch (err: any) {
           console.error("[HOME] Error en fetchProfile:", err);
-          setProfile(null);
+          setError("Error al cargar perfil");
         }
       };
 
@@ -106,6 +109,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     }
 
     fetchPosts(true);
+
   }, [userId, fetchPosts]);
 
   useEffect(() => {
@@ -196,7 +200,10 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           />
 
           <button
-            onClick={() => (window.location.href = "/chat")}
+            onClick={() => {
+              if (!userId) return alert("Wallet no cargada aún");
+              window.location.href = "/chat";
+            }}
             className="px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base font-medium"
           >
             Chat
@@ -215,7 +222,10 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
           <div
             className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center font-bold cursor-pointer shadow-md ring-1 ring-white/10"
-            onClick={() => setShowProfileModal(true)}
+            onClick={() => {
+              if (!userId) return alert("Wallet no cargada aún");
+              setShowProfileModal(true);
+            }}
           >
             H
           </div>
@@ -292,11 +302,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       )}
 
       {/* Modal Perfil */}
-      {showProfileModal && (
+      {showProfileModal && profile && (
         <ProfileModal
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
-          showUpgradeButton={profile?.tier === "free"}
+          showUpgradeButton={profile.tier === "free"}
         />
       )}
     </div>
