@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useContext, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
+import { useNavigate } from "react-router-dom";
 
 interface ProfileModalProps {
-  viewerId: string | null;
-  profileId: string;
+  id: string | null;  // <-- ID de Worldcoin
   onClose: () => void;
 }
 
@@ -13,14 +13,16 @@ interface UserProfile {
   name: string;
   username: string;
   avatar_url: string;
+  tier: "free" | "basic" | "premium" | "premium+";
   bio: string;
+  created_at: string;
   birthdate: string;
   city: string;
   country: string;
-  created_at: string;
+  posts_count: number;
   followers_count: number;
   following_count: number;
-  is_private: boolean;
+  is_subscribed: boolean; // <-- si tiene suscripción al chat premium
 }
 
 const emptyProfile: UserProfile = {
@@ -28,324 +30,266 @@ const emptyProfile: UserProfile = {
   name: "",
   username: "",
   avatar_url: "",
+  tier: "free",
   bio: "",
+  created_at: "",
   birthdate: "",
   city: "",
   country: "",
-  created_at: "",
+  posts_count: 0,
   followers_count: 0,
   following_count: 0,
-  is_private: false
+  is_subscribed: false,
 };
 
-const ProfileModal: React.FC<ProfileModalProps> = ({
-  viewerId,
-  profileId,
-  onClose
-}) => {
-
+const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
+  const [profile, setProfile] = useState<UserProfile>(emptyProfile);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [bioLength, setBioLength] = useState(0);
   const { theme, setTheme } = useContext(ThemeContext);
-
-  const [profile,setProfile] = useState<UserProfile>(emptyProfile);
-  const [loading,setLoading] = useState(true);
-  const [isFollowing,setIsFollowing] = useState(false);
-
-  const [activeTab,setActiveTab] = useState<"posts"|"responses"|"likes">("posts");
-
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
-  const isOwnProfile = viewerId === profileId;
+  useEffect(() => {
+    if (!id) return setLoading(false);
 
-  useEffect(()=>{
+    const fetchProfile = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
 
-    loadProfile();
+        if (error) throw error;
+        setProfile(data || emptyProfile);
+        setBioLength(data?.bio.length || 0);
 
-    if(!isOwnProfile){
-      checkFollow();
-    }
-
-  },[profileId]);
-
-  const loadProfile = async ()=>{
-
-    const {data,error} = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id",profileId)
-      .maybeSingle();
-
-    if(!error && data){
-      setProfile(data);
-    }
-
-    setLoading(false);
-  };
-
-  const checkFollow = async ()=>{
-
-    if(!viewerId) return;
-
-    const {data} = await supabase
-      .from("follows")
-      .select("*")
-      .eq("follower_id",viewerId)
-      .eq("following_id",profileId)
-      .maybeSingle();
-
-    setIsFollowing(!!data);
-  };
-
-  const followUser = async ()=>{
-
-    if(!viewerId) return;
-
-    await supabase.from("follows").insert({
-      follower_id: viewerId,
-      following_id: profileId
-    });
-
-    setIsFollowing(true);
-  };
-
-  const unfollowUser = async ()=>{
-
-    if(!viewerId) return;
-
-    await supabase
-      .from("follows")
-      .delete()
-      .eq("follower_id",viewerId)
-      .eq("following_id",profileId);
-
-    setIsFollowing(false);
-  };
-
-  const startChat = async ()=>{
-
-    if(!viewerId) return;
-
-    const {data,error} = await supabase.rpc(
-      "get_or_create_conversation",
-      {
-        user_a: viewerId,
-        user_b: profileId
+        if (!data?.username && id) {
+          const autoUsername = `@${id.slice(0, 10)}`;
+          setProfile((prev) => ({ ...prev, username: autoUsername }));
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-    );
+    };
 
-    if(!error && data){
-      window.location.href = `/chat/${data}`;
+    fetchProfile();
+  }, [id]);
+
+  const handleSave = async () => {
+    if (!id) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          name: profile.name,
+          username: profile.username,
+          bio: profile.bio,
+          birthdate: profile.birthdate,
+          city: profile.city,
+          country: profile.country,
+        })
+        .eq("id", id);
+
+      if (error) throw error;
+      setToast({ message: "Perfil guardado correctamente", type: "success" });
+    } catch (err: any) {
+      setError(err.message);
+      setToast({ message: "Error al guardar perfil", type: "error" });
+    } finally {
+      setSaving(false);
     }
-
   };
 
-  const blockUser = async ()=>{
-
-    if(!viewerId) return;
-
-    await supabase.from("blocks").insert({
-      blocker_id: viewerId,
-      blocked_id: profileId
-    });
-
-    onClose();
-  };
-
-  const togglePrivacy = async ()=>{
-
-    const newValue = !profile.is_private;
-
-    await supabase
-      .from("profiles")
-      .update({is_private:newValue})
-      .eq("id",profileId);
-
-    setProfile(prev=>({
-      ...prev,
-      is_private:newValue
-    }));
-  };
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>)=>{
-
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if(!file || !viewerId) return;
+    if (!file) return;
 
-    const {data,error} = await supabase.storage
-      .from("avatars")
-      .upload(`${viewerId}/${file.name}`,file,{upsert:true});
+    setUploadingAvatar(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from("avatars")
+        .upload(`${id}/${file.name}`, file);
 
-    if(error) return;
+      if (error) throw error;
 
-    const {data:publicUrlData} = supabase.storage
-      .from("avatars")
-      .getPublicUrl(data.path);
+      const { data: publicURLData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(data.path);
 
-    const url = publicUrlData.publicUrl;
+      if (publicURLData.publicUrl) {
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({ avatar_url: publicURLData.publicUrl })
+          .eq("id", id);
 
-    await supabase
-      .from("profiles")
-      .update({avatar_url:url})
-      .eq("id",viewerId);
+        if (updateError) throw updateError;
 
-    setProfile(prev=>({...prev,avatar_url:url}));
+        setProfile((prev) => ({ ...prev, avatar_url: publicURLData.publicUrl }));
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
-  if(loading){
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center">
-        <p className="text-white">Cargando perfil...</p>
-      </div>
-    );
-  }
+  const handlePremiumChat = () => {
+    if (!profile.is_subscribed) {
+      // Redirigir a página de pago de suscripción (5 WLD/mes)
+      navigate("/premium-subscription");
+    } else {
+      navigate("/premium-chat");
+    }
+  };
 
   return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10 space-y-4">
+        {loading ? (
+          <p>Cargando perfil...</p>
+        ) : error ? (
+          <p className="text-red-500">{error}</p>
+        ) : (
+          <>
+            <h2 className="text-xl font-bold text-white">Tu Perfil</h2>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <img
+                  src={profile.avatar_url || "/default-avatar.png"}
+                  alt="Avatar"
+                  className="w-20 h-20 rounded-full object-cover"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 bg-purple-600 p-1 rounded-full"
+                >
+                  ✏️
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                  accept="image/*"
+                />
+              </div>
+              <div>
+                <p className="text-white font-bold">{profile.name || "Tu nombre"}</p>
+                <input
+                  value={`@${id ? id.slice(0, 10) : "invitado"}`}
+                  disabled
+                  className="bg-transparent text-gray-400 cursor-not-allowed outline-none"
+                />
+              </div>
+            </div>
 
-<div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2">
+            {/* Switch tema */}
+            <div className="flex justify-between items-center">
+              <label className="text-gray-400">Tema</label>
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="px-4 py-2 bg-gray-700 text-white rounded-full"
+              >
+                {theme === "dark" ? "Claro ☀️" : "Oscuro 🌙"}
+              </button>
+            </div>
 
-<div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10 space-y-4">
+            <input
+              value={profile.name}
+              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+              placeholder="Tu nombre"
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
+            />
 
-<h2 className="text-xl font-bold text-white">Perfil</h2>
+            <textarea
+              value={profile.bio}
+              onChange={(e) => {
+                if (e.target.value.length <= 160) {
+                  setProfile({ ...profile, bio: e.target.value });
+                  setBioLength(e.target.value.length);
+                }
+              }}
+              placeholder="Escribe tu bio..."
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white min-h-[80px]"
+              maxLength={160}
+            />
+            <p className="text-gray-500 text-sm text-right">{bioLength}/160</p>
 
-<div className="flex items-center gap-4">
+            <input
+              type="date"
+              value={profile.birthdate}
+              onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
+            />
 
-<div className="relative">
+            <input
+              value={profile.city}
+              onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+              placeholder="Ciudad"
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
+            />
 
-<img
-src={profile.avatar_url || "/default-avatar.png"}
-className="w-20 h-20 rounded-full object-cover"
-/>
+            <input
+              value={profile.country}
+              onChange={(e) => setProfile({ ...profile, country: e.target.value })}
+              placeholder="País"
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
+            />
 
-{isOwnProfile && (
+            <div className="flex justify-between text-gray-400">
+              <p>0 Siguiendo</p>
+              <p>0 Seguidores</p>
+              <p>Se unió en -</p>
+            </div>
 
-<button
-onClick={()=>fileInputRef.current?.click()}
-className="absolute bottom-0 right-0 bg-purple-600 p-1 rounded-full"
->
-✏️
-</button>
+            {/* Botón premium chat */}
+            <div className="mt-4">
+              <button
+                onClick={handlePremiumChat}
+                className={`w-full py-3 font-medium rounded-full ${
+                  profile.is_subscribed ? "bg-purple-600 text-white" : "bg-yellow-500 text-black"
+                }`}
+              >
+                {profile.is_subscribed
+                  ? "Acceder al Chat Exclusivo de Creadores de Tokens"
+                  : "Suscribirse al Chat Premium (5 WLD/mes)"}
+              </button>
+            </div>
 
-)}
-
-<input
-type="file"
-ref={fileInputRef}
-onChange={handleAvatarUpload}
-className="hidden"
-accept="image/*"
-/>
-
-</div>
-
-<div>
-
-<p className="text-white font-bold">{profile.name || "Usuario"}</p>
-
-<p className="text-gray-400 text-sm">@{profile.id.slice(0,10)}</p>
-
-</div>
-
-</div>
-
-<p className="text-gray-300">{profile.bio}</p>
-
-<div className="flex justify-between text-gray-400">
-
-<p>{profile.following_count} Siguiendo</p>
-
-<p>{profile.followers_count} Seguidores</p>
-
-</div>
-
-{/* BOTONES SOLO PARA OTRO PERFIL */}
-
-{!isOwnProfile && (
-
-<div className="flex gap-2">
-
-{isFollowing ? (
-
-<button
-onClick={unfollowUser}
-className="flex-1 py-2 bg-gray-700 rounded-xl"
->
-Siguiendo
-</button>
-
-) : (
-
-<button
-onClick={followUser}
-className="flex-1 py-2 bg-purple-600 rounded-xl"
->
-Seguir
-</button>
-
-)}
-
-<button
-onClick={startChat}
-className="flex-1 py-2 bg-blue-600 rounded-xl"
->
-Mensaje
-</button>
-
-</div>
-
-)}
-
-{/* BLOQUEAR SOLO OTRO PERFIL */}
-
-{!isOwnProfile && (
-
-<button
-onClick={blockUser}
-className="w-full py-2 bg-red-600 rounded-xl"
->
-Bloquear usuario
-</button>
-
-)}
-
-{/* PRIVACIDAD SOLO TU PERFIL */}
-
-{isOwnProfile && (
-
-<button
-onClick={togglePrivacy}
-className="w-full py-2 bg-gray-700 rounded-xl"
->
-{profile.is_private ? "Perfil privado 🔒" : "Perfil público 🌎"}
-</button>
-
-)}
-
-{/* TABS */}
-
-<div className="border-t border-gray-700 pt-4">
-
-<div className="flex justify-around text-gray-400 text-sm">
-
-<button onClick={()=>setActiveTab("posts")}>Posts</button>
-
-<button onClick={()=>setActiveTab("responses")}>Respuestas</button>
-
-<button onClick={()=>setActiveTab("likes")}>Likes</button>
-
-</div>
-
-</div>
-
-<button
-onClick={onClose}
-className="w-full py-3 bg-red-600 text-white rounded-full"
->
-Cerrar
-</button>
-
-</div>
-
-</div>
-
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-3 bg-green-600 text-white rounded-full font-medium"
+              >
+                {saving ? "Guardando..." : "Guardar"}
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 bg-red-600 text-white rounded-full font-medium"
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+        {toast && (
+          <p className={toast.type === "success" ? "text-green-500" : "text-red-500"}>
+            {toast.message}
+          </p>
+        )}
+      </div>
+    </div>
   );
 };
 
