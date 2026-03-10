@@ -1,41 +1,39 @@
-import React,{useState} from "react";
-import Inbox from "./Inbox";
-import ChatRoom from "./ChatRoom";
+import React,{useState} from "react"
+import Inbox from "./Inbox"
+import ChatRoom from "./ChatRoom"
 
-const ChatPage = ({currentUserId})=>{
+const ChatPage = ({currentUserId}) => {
 
-  const [conversationId,setConversationId] = useState(null);
-  const [otherUser,setOtherUser] = useState(null);
+const [conversationId,setConversationId] = useState(null)
 
-  const openChat = (id,other)=>{
-    setConversationId(id);
-    setOtherUser(other);
-  };
+const openChat = (id)=>{
+setConversationId(id)
+}
 
-  return(
+return(
 
-    <div className="h-screen flex flex-col bg-black text-white">
+<div className="h-screen flex flex-col bg-black text-white">
 
-      {conversationId ? (
+{conversationId ? (
 
-        <ChatRoom
-          conversationId={conversationId}
-          currentUserId={currentUserId}
-        />
+<ChatRoom
+conversationId={conversationId}
+currentUserId={currentUserId}
+/>
 
-      ) : (
+):(
 
-        <Inbox
-          currentUserId={currentUserId}
-          openChat={openChat}
-        />
+<Inbox
+currentUserId={currentUserId}
+openChat={openChat}
+/>
 
-      )}
+)}
 
-    </div>
+</div>
 
-  );
+)
 
-};
+}
 
-export default ChatPage;
+export default ChatPage
