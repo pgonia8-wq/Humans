@@ -11,6 +11,7 @@ interface FeedPageProps {
   error?: string | null;
   currentUserId: string | null;
   userTier: "free" | "basic" | "premium" | "premium+";
+  onUpgradeSuccess?: () => void;
 }
 
 const FeedPage: React.FC<FeedPageProps> = ({
@@ -18,7 +19,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
   loading,
   error,
   currentUserId,
-  userTier
+  userTier,
+  onUpgradeSuccess
 }) => {
 
   const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
@@ -108,13 +110,22 @@ const FeedPage: React.FC<FeedPageProps> = ({
   };
 
   const confirmUpgrade = async () => {
+    setUpgradeError(null);
+
+    // <<< INSERTADO SEGÚN INSTRUCCIONES: chequeo de wallet antes de proceder >>>
+    const wallet = MiniKit.walletAddress; // suponiendo que usas MiniKit.walletAddress
+    if (!wallet) {
+      setUpgradeError("Wallet no detectada. Intenta de nuevo en unos segundos.");
+      return;
+    }
+    // <<< FIN INSERTADO >>>
+
     if (!currentUserId || !selectedTier) {
       setUpgradeError("No se encontró tu ID o tier seleccionado");
       return;
     }
 
     setLoadingUpgrade(true);
-    setUpgradeError(null);
 
     try {
       if (!MiniKit.isInstalled()) {
@@ -158,6 +169,11 @@ const FeedPage: React.FC<FeedPageProps> = ({
       }
 
       alert(`Upgrade ${selectedTier} exitoso`);
+
+      // <<< INSERTADO SEGÚN INSTRUCCIONES: refresca perfil/tier en HomePage >>>
+      onUpgradeSuccess?.();
+      // <<< FIN INSERTADO >>>
+
       cancelUpgrade();
     } catch (err: any) {
       console.error("[UPGRADE] error:", err);
