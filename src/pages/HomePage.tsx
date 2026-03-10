@@ -28,6 +28,13 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       ? 4000
       : 280;
 
+  const [conversationToOpen, setConversationToOpen] = useState<string | null>(null); // <<< FIX INSERTADO
+
+  const openChat = (otherUserId: string) => { // <<< FIX INSERTADO
+    setConversationToOpen(otherUserId);
+    setShowProfileModal(false);
+  };
+
   const fetchPosts = useCallback(
     async (reset = false) => {
       if (!hasMore && !reset) return;
@@ -309,10 +316,19 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       {/* Modal Perfil */}
       {showProfileModal && profile && (
         <ProfileModal
-          id={userId}                    // ← FIX AGREGADO: ahora ProfileModal recibe id
+          id={userId}                    // ← FIX AGREGADO
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile.tier === "free"}
+          onOpenChat={openChat}          // <<< FIX INSERTADO
+        />
+      )}
+
+      {/* ChatPage */}
+      {conversationToOpen && (
+        <ChatPage
+          currentUserId={userId}
+          initialOtherUserId={conversationToOpen} // <<< FIX INSERTADO
         />
       )}
     </div>
