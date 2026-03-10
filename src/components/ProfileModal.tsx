@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useContext, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
+import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 
 interface ProfileModalProps {
-  id: string | null;
   onClose: () => void;
   showUpgradeButton?: boolean;
 }
@@ -15,14 +15,9 @@ interface UserProfile {
   avatar_url: string;
   tier: "free" | "basic" | "premium" | "premium+";
   bio: string;
-  created_at: string;
   birthdate: string;
   city: string;
   country: string;
-  posts_count: number;
-  followers_count: number;
-  following_count: number;
-  profile_visible: boolean;
 }
 
 const emptyProfile: UserProfile = {
@@ -32,69 +27,65 @@ const emptyProfile: UserProfile = {
   avatar_url: "",
   tier: "free",
   bio: "",
-  created_at: "",
   birthdate: "",
   city: "",
   country: "",
-  posts_count: 0,
-  followers_count: 0,
-  following_count: 0,
-  profile_visible: true,
 };
 
-const ProfileModal: React.FC<ProfileModalProps> = ({
-  id,
-  onClose,
-  showUpgradeButton = true,
-}) => {
+const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b"; // dirección de cobro
+
+const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, showUpgradeButton = true }) => {
+  const { theme } = useContext(ThemeContext);
+
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [activeTab, setActiveTab] = useState<"posts" | "responses" | "likes">("posts");
   const [bioLength, setBioLength] = useState(0);
-
-  const { theme, setTheme } = useContext(ThemeContext);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [hasPremium, setHasPremium] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
+  const userId = MiniKit?.user?.id || ""; // ID del usuario desde MiniKit
 
   useEffect(() => {
-    if (!id) return setLoading(false);
+    if (!userId) return setLoading(false);
 
     const fetchProfile = async () => {
+      setLoading(true);
       try {
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", id)
+          .eq("id", userId)
           .maybeSingle();
-
         if (error) throw error;
 
-        setProfile(data || emptyProfile);
-        setBioLength(data?.bio?.length || 0);
+        if (data) {
+          setProfile(data);
+          setBioLength(data.bio?.length || 0);
+          setHasPremium(data.tier === "premium" || data.tier === "premium+");
+        } else {
+          setProfile({ ...emptyProfile, id: userId });
+        }
 
-        if (!data?.username && id) {
-          const autoUsername = `@${id.slice(0, 10)}`;
-          setProfile((prev) => ({ ...prev, username: autoUsername }));
+        if (!data?.username) {
+          setProfile((prev) => ({ ...prev, username: `@${userId.slice(0, 10)}` }));
         }
       } catch (err: any) {
-        setError(err.message);
+        setToast({ message: err.message || "Error cargando perfil", type: "error" });
       } finally {
         setLoading(false);
       }
     };
 
     fetchProfile();
-  }, [id]);
+  }, [userId]);
 
   const handleSave = async () => {
-    if (!id) return;
-
+    if (!userId) return;
     setSaving(true);
     try {
       const { error } = await supabase
@@ -105,10 +96,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           birthdate: profile.birthdate,
           city: profile.city,
           country: profile.country,
-          profile_visible: profile.profile_visible,
         })
-        .eq("id", id);
-
+        .eq("id", userId);
       if (error) throw error;
       setToast({ message: "Perfil guardado", type: "success" });
     } catch (err: any) {
@@ -120,75 +109,58 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !id) return;
-
+    if (!file || !userId) return;
     setUploadingAvatar(true);
     try {
-      const { data, error } = await supabase.storage
-        .from("avatars")
-        .upload(`${id}/${file.name}`, file);
+      const { data, error } = await supabase.storage.from("avatars").upload(`${userId}/${file.name}`, file);
       if (error) throw error;
 
-      const { data: publicURLData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(data.path);
+      const { data: publicURLData } = supabase.storage.from("avatars").getPublicUrl(data.path);
       const publicUrl = publicURLData.publicUrl;
 
-      await supabase
-        .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", id);
+      await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId);
 
-      setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
+      setProfile((prev) => ({ ...prev, avatar_url: publicUrl }));
     } catch (err: any) {
-      setError(err.message);
+      setToast({ message: err.message, type: "error" });
     } finally {
       setUploadingAvatar(false);
     }
   };
 
-  // Función corregida: toggleProfileVisibility
-  const toggleProfileVisibility = () => {
-    setProfile(prev => ({ ...prev, profile_visible: !prev.profile_visible }));
-  };
-
-  const startChat = async () => {
-    if (!id || !profile.id) return;
+  const goToPremiumChat = async () => {
+    if (!userId) return;
+    if (hasPremium) {
+      window.location.href = "/premium-chat";
+      return;
+    }
 
     try {
-      const { data, error } = await supabase.rpc(
-        "get_or_create_conversation",
-        {
-          user_a: id,
-          user_b: profile.id,
-        }
-      );
+      setProcessingPayment(true);
+      if (!MiniKit.isInstalled()) throw new Error("MiniKit no detectado");
 
-      if (error) throw error;
+      const payRes = await MiniKit.commandsAsync.pay({
+        reference: "premium-chat-" + Date.now(),
+        to: RECEIVER,
+        tokens: [
+          {
+            symbol: Tokens.WLD,
+            token_amount: tokenToDecimals(5, Tokens.WLD).toString(), // 5 WLD con 18 decimales
+          },
+        ],
+        description: "Suscripción mensual Chat Premium",
+      });
 
-      window.location.href = `/chat/${data}`;
-    } catch (err) {
-      console.error(err);
-    }
-  };
+      if (payRes?.finalPayload?.status !== "success") throw new Error("Pago cancelado");
 
-  const blockUser = (userId: string) => {
-    if (!blockedUsers.includes(userId)) {
-      setBlockedUsers([...blockedUsers, userId]);
-    }
-  };
-
-  const viewProfile = async (userId: string) => {
-    try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (data) setProfile(data);
-    } catch (err) {
-      console.error(err);
+      // Actualizamos el perfil a premium
+      await supabase.from("profiles").update({ tier: "premium" }).eq("id", userId);
+      setHasPremium(true);
+      window.location.href = "/premium-chat";
+    } catch (err: any) {
+      setToast({ message: err.message || "Error al procesar pago", type: "error" });
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
@@ -214,45 +186,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 >
                   ✏️
                 </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleAvatarUpload}
-                  className="hidden"
-                  accept="image/*"
-                />
+                <input type="file" ref={fileInputRef} onChange={handleAvatarUpload} className="hidden" accept="image/*" />
               </div>
 
               <div>
                 <p className="text-white font-bold">{profile.name || "Tu nombre"}</p>
-                <input
-                  value={`@${id?.slice(0, 10)}`}
-                  disabled
-                  className="bg-transparent text-gray-400 cursor-not-allowed outline-none"
-                />
+                <input value={profile.username || `@${userId.slice(0, 10)}`} disabled className="bg-transparent text-gray-400 cursor-not-allowed outline-none" />
               </div>
             </div>
-
-            <button
-              onClick={startChat}
-              className="w-full py-3 bg-purple-600 text-white rounded-full font-medium"
-            >
-              Enviar Mensaje
-            </button>
-
-            <button
-              onClick={toggleProfileVisibility}
-              className="w-full py-2 bg-gray-700 text-white rounded-xl"
-            >
-              {profile.profile_visible ? "Perfil Público" : "Perfil Privado"}
-            </button>
-
-            <button
-              onClick={() => blockUser(profile.id)}
-              className="w-full py-2 bg-red-600 text-white rounded-xl"
-            >
-              Bloquear Usuario
-            </button>
 
             <textarea
               value={profile.bio}
@@ -266,50 +207,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             />
             <p className="text-gray-500 text-sm text-right">{bioLength}/160</p>
 
-            <input
-              type="date"
-              value={profile.birthdate}
-              onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
+            <input type="date" value={profile.birthdate} onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })} className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white" />
+            <input value={profile.city} onChange={(e) => setProfile({ ...profile, city: e.target.value })} placeholder="Ciudad" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white" />
+            <input value={profile.country} onChange={(e) => setProfile({ ...profile, country: e.target.value })} placeholder="País" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white" />
 
-            <input
-              value={profile.city}
-              onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-              placeholder="Ciudad"
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
+            <button
+              onClick={goToPremiumChat}
+              disabled={processingPayment}
+              className="w-full py-3 bg-purple-600 text-white rounded-full font-medium"
+            >
+              {hasPremium ? "Acceder a Chat Exclusivo" : processingPayment ? "Procesando..." : "Suscribirse 5 WLD/mes"}
+            </button>
 
-            <input
-              value={profile.country}
-              onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-              placeholder="País"
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 py-3 bg-green-600 text-white rounded-full"
-              >
+            <div className="flex gap-3 mt-2">
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-3 bg-green-600 text-white rounded-full">
                 {saving ? "Guardando..." : "Guardar"}
               </button>
-
-              <button
-                onClick={onClose}
-                className="flex-1 py-3 bg-red-600 text-white rounded-full"
-              >
+              <button onClick={onClose} className="flex-1 py-3 bg-red-600 text-white rounded-full">
                 Cancelar
               </button>
             </div>
-          </>
-        )}
 
-        {toast && (
-          <p className={toast.type === "success" ? "text-green-500" : "text-red-500"}>
-            {toast.message}
-          </p>
+            {toast && <p className={toast.type === "success" ? "text-green-500" : "text-red-500"}>{toast.message}</p>}
+          </>
         )}
       </div>
     </div>
