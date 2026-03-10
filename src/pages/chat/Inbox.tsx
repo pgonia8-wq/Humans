@@ -11,7 +11,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, openChat }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentUserId) return; // ← FIX: no fetch si no hay ID
+    if (!currentUserId) return; // <<< FIX: no fetch si no hay ID
     load();
   }, [currentUserId]);
 
@@ -59,7 +59,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, openChat }) => {
         return (
           <div
             key={c.id}
-            onClick={() => openChat(c.id, otherId)}
+            onClick={() => openChat(c.id, otherId)} // <<< FIX INSERTADO
             className="flex items-center justify-between p-3 bg-gray-900 rounded cursor-pointer hover:bg-gray-800"
           >
             <div>
