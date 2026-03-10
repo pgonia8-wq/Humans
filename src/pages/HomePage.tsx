@@ -4,7 +4,7 @@ import FeedPage from './FeedPage';
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
-import ChatPage from "../components/ChatPage"; // <- Asegúrate de importar ChatPage
+import ChatPage from "./chat/ChatPage"; // ← CORRECCIÓN DE RUTA
 
 const PAGE_SIZE = 8;
 
@@ -29,8 +29,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       ? 4000
       : 280;
 
-  const [chatTargetId, setChatTargetId] = useState<string | null>(null);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [chatTargetId, setChatTargetId] = useState<string | null>(null); 
+  const [conversationId, setConversationId] = useState<string | null>(null); 
 
   const fetchPosts = useCallback(
     async (reset = false) => {
@@ -184,8 +184,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     }
   };
 
-  const openChatFromModal = (otherUserId: string) => {
-    setConversationId(otherUserId);
+  const openChatFromModal = (otherUserId: string) => { 
+    setConversationId(otherUserId); 
     setChatTargetId(otherUserId);
     setShowProfileModal(false);
   };
@@ -323,23 +323,18 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile.tier === "free"}
-          onOpenChat={openChatFromModal} // ← FIXADO PARA OPCIÓN A
+          openChat={openChatFromModal} 
         />
       )}
 
-      {/* ChatPage como modal */}
+      {/* ChatPage single-page */}
       {conversationId && chatTargetId && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex justify-center items-center">
-          <ChatPage
-            currentUserId={userId}
-            conversationId={conversationId}
-            otherUserId={chatTargetId}
-            onClose={() => {
-              setConversationId(null);
-              setChatTargetId(null);
-            }}
-          />
-        </div>
+        <ChatPage
+          currentUserId={userId}
+          conversationId={conversationId}
+          otherUserId={chatTargetId}
+          onClose={() => setConversationId(null)} 
+        />
       )}
     </div>
   );
