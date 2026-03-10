@@ -3,7 +3,7 @@ import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 
 interface ProfileModalProps {
-  currentUserId: string | null;
+  id: string | null;
   onClose: () => void;
   showUpgradeButton?: boolean;
 }
@@ -22,6 +22,7 @@ interface UserProfile {
   posts_count: number;
   followers_count: number;
   following_count: number;
+  profile_visible: boolean;
 }
 
 const emptyProfile: UserProfile = {
@@ -38,13 +39,15 @@ const emptyProfile: UserProfile = {
   posts_count: 0,
   followers_count: 0,
   following_count: 0,
+  profile_visible: true
 };
 
 const ProfileModal: React.FC<ProfileModalProps> = ({
-  currentUserId,
+  id,
   onClose,
   showUpgradeButton = true,
 }) => {
+
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,75 +56,101 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeTab, setActiveTab] = useState<"posts" | "responses" | "likes">("posts");
   const [bioLength, setBioLength] = useState(0);
-  const { theme, setTheme, accentColor } = useContext(ThemeContext);  // ← restaurado para switch theme
+
+  const { theme, setTheme } = useContext(ThemeContext);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
+
   useEffect(() => {
-    if (!currentUserId) return setLoading(false);
+
+    if (!id) return setLoading(false);
 
     const fetchProfile = async () => {
+
       try {
+
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", currentUserId)
-          .maybeSingle();   // ← CAMBIO 1
+          .eq("id", id)
+          .maybeSingle();
 
         if (error) throw error;
-        setProfile(data || emptyProfile);
-        setBioLength(data?.bio.length || 0);
 
-        // Autocompletar username con userId (nullifier_hash) si no existe
-        if (!data?.username && currentUserId) {
-          const autoUsername = `@${currentUserId.slice(0, 10)}`; // ej. @0x123abc...
+        setProfile(data || emptyProfile);
+        setBioLength(data?.bio?.length || 0);
+
+        if (!data?.username && id) {
+          const autoUsername = `@${id.slice(0, 10)}`;
           setProfile((prev) => ({ ...prev, username: autoUsername }));
         }
+
       } catch (err: any) {
+
         setError(err.message);
+
       } finally {
+
         setLoading(false);
+
       }
+
     };
 
     fetchProfile();
-  }, [currentUserId]);
+
+  }, [id]);
 
   const handleSave = async () => {
-    if (!currentUserId) return;
+
+    if (!id) return;
 
     setSaving(true);
+
     try {
+
       const { error } = await supabase
         .from("profiles")
         .update({
           name: profile.name,
-          username: profile.username,
           bio: profile.bio,
           birthdate: profile.birthdate,
           city: profile.city,
           country: profile.country,
+          profile_visible: profile.profile_visible
         })
-        .eq("id", currentUserId);
+        .eq("id", id);
 
       if (error) throw error;
-      setToast({ message: "Perfil guardado correctamente", type: "success" });
+
+      setToast({ message: "Perfil guardado", type: "success" });
+
     } catch (err: any) {
-      setError(err.message);
-      setToast({ message: "Error al guardar perfil", type: "error" });
+
+      setToast({ message: "Error guardando perfil", type: "error" });
+
     } finally {
+
       setSaving(false);
+
     }
+
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !id) return;
 
     setUploadingAvatar(true);
+
     try {
+
       const { data, error } = await supabase.storage
         .from("avatars")
-        .upload(`${currentUserId}/${file.name}`, file);   // ← CAMBIO 2
+        .upload(`${id}/${file.name}`, file);
 
       if (error) throw error;
 
@@ -129,46 +158,123 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         .from("avatars")
         .getPublicUrl(data.path);
 
-      if (publicURLData.publicUrl) {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ avatar_url: publicURLData.publicUrl })
-          .eq("id", currentUserId);
+      const publicUrl = publicURLData.publicUrl;
 
-        if (updateError) throw updateError;
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", id);
 
-        setProfile((prev) => ({ ...prev, avatar_url: publicURLData.publicUrl }));
-      }
+      setProfile(prev => ({
+        ...prev,
+        avatar_url: publicUrl
+      }));
+
     } catch (err: any) {
+
       setError(err.message);
+
     } finally {
+
       setUploadingAvatar(false);
+
     }
+
+  };
+
+  const startChat = async () => {
+
+    if (!id || !profile.id) return;
+
+    try {
+
+      const { data, error } = await supabase.rpc(
+        "get_or_create_conversation",
+        {
+          user_a: id,
+          user_b: profile.id
+        }
+      );
+
+      if (error) throw error;
+
+      window.location.href = `/chat/${data}`;
+
+    } catch (err) {
+
+      console.error(err);
+
+    }
+
+  };
+
+  const toggleProfileVisibility = () => {
+
+    setProfile(prev => ({
+      ...prev,
+      profile_visible: !prev.profile_visible
+    }));
+
+  };
+
+  const blockUser = (userId: string) => {
+
+    if (!blockedUsers.includes(userId)) {
+      setBlockedUsers([...blockedUsers, userId]);
+    }
+
+  };
+
+  const viewProfile = async (userId: string) => {
+
+    try {
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (data) {
+        setProfile(data);
+      }
+
+    } catch (err) {
+
+      console.error(err);
+
+    }
+
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2 overflow-y-auto">  {/* ← restaurado scroll con overflow-y-auto */}
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2 overflow-y-auto">
+
       <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10 space-y-4">
+
         {loading ? (
           <p>Cargando perfil...</p>
-        ) : error ? (
-          <p className="text-red-500">{error}</p>
         ) : (
           <>
             <h2 className="text-xl font-bold text-white">Tu Perfil</h2>
+
             <div className="flex items-center gap-3">
+
               <div className="relative">
+
                 <img
                   src={profile.avatar_url || "/default-avatar.png"}
                   alt="Avatar"
                   className="w-20 h-20 rounded-full object-cover"
                 />
+
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute bottom-0 right-0 bg-purple-600 p-1 rounded-full"
                 >
-                  ✏️  {/* ← restaurado lápiz ✏️ para edición de avatar */}
+                  ✏️
                 </button>
+
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -176,34 +282,50 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   className="hidden"
                   accept="image/*"
                 />
+
               </div>
+
               <div>
-                <p className="text-white font-bold">{profile.name || "Tu nombre"}</p>
+                <p className="text-white font-bold">
+                  {profile.name || "Tu nombre"}
+                </p>
+
                 <input
-                  value={`@${currentUserId ? currentUserId.slice(0, 10) : "invitado"}`}
-                  disabled  // ← no editable, autocompletado con userId (nullifier_hash)
+                  value={`@${id?.slice(0, 10)}`}
+                  disabled
                   className="bg-transparent text-gray-400 cursor-not-allowed outline-none"
                 />
               </div>
+
             </div>
 
-            {/* Switch theme claro/oscuro restaurado */}
-            <div className="flex justify-between items-center">
-              <label className="text-gray-400">Tema</label>
-              <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="px-4 py-2 bg-gray-700 text-white rounded-full"
-              >
-                {theme === "dark" ? "Claro ☀️" : "Oscuro 🌙"}
-              </button>
-            </div>
+            <button
+              onClick={startChat}
+              className="w-full py-3 bg-purple-600 text-white rounded-full font-medium"
+            >
+              Enviar Mensaje
+            </button>
 
-            <input
-              value={profile.name}
-              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-              placeholder="Tu nombre"
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
+            <button
+              onClick={toggleProfileVisibility}
+              className="w-full py-2 bg-gray-700 text-white rounded-xl"
+            >
+              {profile.profile_visible ? "Perfil Público" : "Perfil Privado"}
+            </button>
+
+            <button
+              onClick={() => blockUser(profile.id)}
+              className="w-full py-2 bg-red-600 text-white rounded-xl"
+            >
+              Bloquear Usuario
+            </button>
+
+            <button
+              onClick={() => viewProfile(profile.id)}
+              className="w-full py-2 bg-blue-600 text-white rounded-xl"
+            >
+              Ver Perfil
+            </button>
 
             <textarea
               value={profile.bio}
@@ -213,11 +335,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   setBioLength(e.target.value.length);
                 }
               }}
-              placeholder="Escribe tu bio..."
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white min-h-[80px]"
-              maxLength={160}  // ← límite reforzado
+              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
-            <p className="text-gray-500 text-sm text-right">{bioLength}/160</p>
+
+            <p className="text-gray-500 text-sm text-right">
+              {bioLength}/160
+            </p>
 
             <input
               type="date"
@@ -240,43 +363,34 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
 
-            <div className="flex justify-between text-gray-400">
-              <p>0 Siguiendo</p>
-              <p>0 Seguidores</p>
-              <p>Se unió en -</p>
-            </div>
-
-            <div className="border-t border-gray-700 pt-4">
-              <div className="flex justify-around text-gray-400 text-sm">
-                <button onClick={() => setActiveTab("posts")}>Posts</button>
-                <button onClick={() => setActiveTab("responses")}>Respuestas</button>
-                <button onClick={() => setActiveTab("likes")}>Likes</button>
-              </div>
-              {/* Tabs content would go here, but truncated */}
-            </div>
-
             <div className="flex gap-3">
+
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 py-3 bg-green-600 text-white rounded-full font-medium"
+                className="flex-1 py-3 bg-green-600 text-white rounded-full"
               >
                 {saving ? "Guardando..." : "Guardar"}
               </button>
+
               <button
                 onClick={onClose}
-                className="flex-1 py-3 bg-red-600 text-white rounded-full font-medium"
+                className="flex-1 py-3 bg-red-600 text-white rounded-full"
               >
                 Cancelar
               </button>
+
             </div>
+
           </>
         )}
+
         {toast && (
           <p className={toast.type === "success" ? "text-green-500" : "text-red-500"}>
             {toast.message}
           </p>
         )}
+
       </div>
     </div>
   );
