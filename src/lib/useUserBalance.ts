@@ -16,8 +16,8 @@ export const useUserBalance = (userId: string | null) => {
         .single();
 
       if (!error && data) {
-        setBalance(data.wld_balance);
-        setBoost(data.boost_credit_balance);
+        setBalance(data?.wld_balance || 0);
+        setBoost(data?.boost_credit_balance || 0);
       }
     };
 
@@ -31,8 +31,8 @@ export const useUserBalance = (userId: string | null) => {
         { event: "*", schema: "public", table: "user_balances", filter: `user_id=eq.${userId}` },
         (payload) => {
           if (payload.new) {
-            setBalance(payload.new.wld_balance);
-            setBoost(payload.new.boost_credit_balance);
+            setBalance(payload.new?.wld_balance || 0);
+            setBoost(payload.new?.boost_credit_balance || 0);
           }
         }
       )
