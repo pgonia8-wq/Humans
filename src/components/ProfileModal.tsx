@@ -9,8 +9,7 @@ interface ProfileModalProps {
   id: string | null;
   onClose: () => void;
   currentUserId: string | null;
-  showUpgradeButton?: boolean;
-  onOpenChat?: (otherUserId: string) => void; // <<< FIX INSERTADO
+  openChat?: (otherUserId: string) => void; // ← NUEVA PROP
 }
 
 interface UserProfile {
@@ -47,7 +46,7 @@ const emptyProfile: UserProfile = {
   profile_visible: true,
 };
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId, onOpenChat }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId, openChat }) => {
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,6 +57,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId,
   const { theme } = useContext(ThemeContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- FIX: Loader si no hay ID ---
   if (!id && loading) {
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
@@ -66,6 +66,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId,
     );
   }
 
+  // --- Cargar perfil ---
   useEffect(() => {
     if (!id) return setLoading(false);
 
@@ -78,6 +79,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId,
           .maybeSingle();
         if (error) throw error;
 
+        // --- FIX: fallback seguro ---
         setProfile({
           ...emptyProfile,
           ...data,
@@ -100,6 +102,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId,
     fetchProfile();
   }, [id]);
 
+  // --- Guardar cambios ---
   const handleSave = async () => {
     if (!id) return;
     setSaving(true);
@@ -124,6 +127,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId,
     }
   };
 
+  // --- Subir avatar ---
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
@@ -148,10 +152,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId,
     }
   };
 
+  // --- Toggle visibilidad ---
   const toggleProfileVisibility = () => {
     setProfile(prev => ({ ...prev, profile_visible: !prev.profile_visible }));
   };
 
+  // --- Abrir Chat Exclusivo para Creadores de Tokens ---
   const handlePremiumChat = async () => {
     if (!currentUserId) {
       setToast({ message: "No se encontró tu ID", type: "error" });
@@ -174,144 +180,4 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId,
       });
 
       if (payRes?.finalPayload?.status !== "success") {
-        throw new Error(payRes?.finalPayload?.description || "Pago cancelado");
-      }
-
-      const transactionId = payRes?.finalPayload?.transaction_id;
-
-      await fetch("/api/subscribePremiumChat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUserId, transactionId }),
-      });
-
-      alert("¡Suscripción exitosa! Abriendo chat...");
-      window.location.href = "/chat/premium";
-    } catch (err: any) {
-      setToast({ message: err.message || "Error en el pago", type: "error" });
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2 overflow-y-auto">
-      <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10 space-y-4">
-        {loading ? (
-          <p>Cargando perfil...</p>
-        ) : (
-          <>
-            <h2 className="text-xl font-bold text-white">Tu Perfil</h2>
-
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <img
-                  src={profile.avatar_url || "/default-avatar.png"}
-                  alt="Avatar"
-                  className="w-20 h-20 rounded-full object-cover"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 bg-purple-600 p-1 rounded-full"
-                >
-                  ✏️
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleAvatarUpload}
-                  className="hidden"
-                  accept="image/*"
-                />
-              </div>
-
-              <div>
-                <p className="text-white font-bold">{profile.name || "Tu nombre"}</p>
-                <input
-                  value={profile.username || `@${id?.slice(0, 10)}`}
-                  disabled
-                  className="bg-transparent text-gray-400 cursor-not-allowed outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Botón DM */}
-            <button
-              onClick={() => onOpenChat?.(profile.id)} // <<< FIX INSERTADO
-              className="w-full py-3 bg-purple-600 text-white rounded-full font-medium"
-            >
-              Enviar Mensaje
-            </button>
-
-            <button
-              onClick={handlePremiumChat}
-              className="w-full py-3 bg-pink-600 text-white rounded-full font-medium"
-            >
-              Abrir Chat Exclusivo para Creadores de Tokens
-            </button>
-
-            <button
-              onClick={toggleProfileVisibility}
-              className="w-full py-2 bg-gray-700 text-white rounded-xl"
-            >
-              {profile.profile_visible ? "Perfil Público" : "Perfil Privado"}
-            </button>
-
-            <textarea
-              value={profile.bio || ""}
-              onChange={(e) => {
-                if (e.target.value.length <= 160) {
-                  setProfile({ ...profile, bio: e.target.value });
-                  setBioLength(e.target.value.length);
-                }
-              }}
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
-            <p className="text-gray-500 text-sm text-right">{bioLength}/160</p>
-
-            <input
-              type="date"
-              value={profile.birthdate || ""}
-              onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
-            <input
-              value={profile.city || ""}
-              onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-              placeholder="Ciudad"
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
-            <input
-              value={profile.country || ""}
-              onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-              placeholder="País"
-              className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-            />
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 py-3 bg-green-600 text-white rounded-full"
-              >
-                {saving ? "Guardando..." : "Guardar"}
-              </button>
-              <button
-                onClick={onClose}
-                className="flex-1 py-3 bg-red-600 text-white rounded-full"
-              >
-                Cancelar
-              </button>
-            </div>
-          </>
-        )}
-
-        {toast && (
-          <p className={toast.type === "success" ? "text-green-500" : "text-red-500"}>
-            {toast.message}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default ProfileModal;
+        throw new Error(pay
