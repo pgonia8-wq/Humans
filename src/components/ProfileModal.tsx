@@ -233,9 +233,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId,
               </div>
             </div>
 
-            {/* Botón DM */}
+            {/* Botón DM con fix */}
             <button
-              onClick={() => onOpenChat?.(profile.id)} // <<< FIX INSERTADO
+              onClick={() => {
+                if (onOpenChat) {
+                  onOpenChat(profile.id); // si el padre pasó la función, úsala
+                } else if (profile.id) {
+                  window.location.href = `/inbox/${profile.id}`; // fallback directo
+                }
+              }}
               className="w-full py-3 bg-purple-600 text-white rounded-full font-medium"
             >
               Enviar Mensaje
