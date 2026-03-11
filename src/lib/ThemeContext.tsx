@@ -9,13 +9,11 @@ interface ThemeContextType {
   setAccentColor: (c: string) => void;
 }
 
-// Creamos el contexto
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// Provider que envuelve la app
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<ThemeType>("dark");
-  const [accentColor, setAccentColor] = useState<string>("#7c3aed"); // color púrpura por defecto
+  const [accentColor, setAccentColor] = useState<string>("#7c3aed");
 
   return (
     <ThemeContext.Provider value={{ theme, accentColor, setTheme, setAccentColor }}>
@@ -29,12 +27,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// Hook para usar el contexto en componentes
 export const useTheme = () => {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
   return ctx;
 };
 
-// Export explícito de ThemeContext para compatibilidad con imports antiguos
 export { ThemeContext };
