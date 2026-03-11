@@ -22,9 +22,11 @@ const App = () => {
       setVerified(true);
       console.log("[APP] ID cargado de localStorage:", storedId);
     } else {
-      console.log("[APP] No hay ID en localStorage, se forzará verificación...");
+      console.log("[APP] No hay ID en localStorage, forzando verificación...");
+      // Forzar verificación apenas se inicialice MiniKit
+      if (miniKitReady) verifyUser();
     }
-  }, []);
+  }, [miniKitReady]);
 
   // Inicializar MiniKit
   useEffect(() => {
@@ -102,7 +104,7 @@ const App = () => {
 
   // Función de verificación forzada
   const verifyUser = async () => {
-    if (verifying) return;
+    if (verifying || !miniKitReady) return;
 
     setVerifying(true);
     setError(null);
