@@ -1,4 +1,3 @@
-// src/pages/chat/ChatWindow.tsx
 import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "../../supabaseClient";
 
@@ -10,10 +9,11 @@ interface ChatWindowProps {
 
 interface Message {
   id: string;
+  conversation_id: string;
   sender_id: string;
   receiver_id: string;
   content: string;
-  timestamp: string;
+  created_at: string;
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -21,17 +21,57 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   otherUserId,
   onBack
 }) => {
+
   const [messages, setMessages] = useState<Message[]>([]);
-  const [text, setText] = useState("");
+  const [newMessage, setNewMessage] = useState("");
+
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  const conversationId = [currentUserId, otherUserId].sort().join("-");
+  const conversationId =
+    [currentUserId, otherUserId].sort().join("-");
+
+  /* --------------------------------
+     Scroll automático
+  -------------------------------- */
+
+  const scrollBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  /* --------------------------------
+     Cargar mensajes iniciales
+  -------------------------------- */
 
   useEffect(() => {
+
     loadMessages();
 
+  }, []);
+
+  const loadMessages = async () => {
+
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    if (data) {
+
+      setMessages(data);
+      setTimeout(scrollBottom, 100);
+
+    }
+  };
+
+  /* --------------------------------
+     Realtime subscription
+  -------------------------------- */
+
+  useEffect(() => {
+
     const channel = supabase
-      .channel("dm-realtime")
+      .channel("chat-" + conversationId)
       .on(
         "postgres_changes",
         {
@@ -41,7 +81,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           filter: `conversation_id=eq.${conversationId}`
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
+
+          const msg = payload.new as Message;
+
+          setMessages(prev => [...prev, msg]);
+
+          setTimeout(scrollBottom, 100);
+
         }
       )
       .subscribe();
@@ -49,111 +95,127 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId]);
 
-  const loadMessages = async () => {
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", conversationId)
-      .order("timestamp", { ascending: true });
+  }, []);
 
-    if (error) {
-      console.error("[CHAT] Error cargando mensajes:", error.message);
-      return;
-    }
-
-    setMessages(data || []);
-  };
+  /* --------------------------------
+     Enviar mensaje
+  -------------------------------- */
 
   const sendMessage = async () => {
-    if (!text.trim()) return;
 
-    const { error } = await supabase
+    if (!newMessage.trim()) return;
+
+    await supabase
       .from("messages")
       .insert({
         conversation_id: conversationId,
         sender_id: currentUserId,
         receiver_id: otherUserId,
-        content: text.trim(),
-        timestamp: new Date().toISOString()
+        content: newMessage
       });
 
-    if (error) {
-      console.error("[CHAT] Error enviando mensaje:", error.message);
-      return;
-    }
+    setNewMessage("");
 
-    setText("");
   };
 
+  /* --------------------------------
+     Marcar como leído
+  -------------------------------- */
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+
+    supabase
+      .from("messages")
+      .update({ read_flag: true })
+      .eq("conversation_id", conversationId)
+      .eq("receiver_id", currentUserId)
+      .eq("read_flag", false);
+
+  }, []);
+
+  /* --------------------------------
+     UI
+  -------------------------------- */
 
   return (
+
     <div className="flex flex-col h-full">
 
-      {/* HEADER */}
-      <div className="flex items-center gap-3 border-b border-gray-700 pb-2 mb-2">
+      {/* Header */}
+
+      <div className="flex justify-between items-center mb-3">
+
         <button
           onClick={onBack}
           className="text-gray-400 hover:text-white"
         >
-          ←
+          ← Volver
         </button>
 
-        <div className="font-bold text-white">
-          {otherUserId.slice(0, 10)}
+        <div className="text-white font-semibold">
+          Chat
         </div>
+
+        <div></div>
+
       </div>
 
-      {/* MENSAJES */}
-      <div className="flex-1 overflow-y-auto space-y-2 px-1">
+      {/* Mensajes */}
 
-        {messages.map((m) => {
-          const mine = m.sender_id === currentUserId;
+      <div className="flex-1 overflow-y-auto space-y-2 mb-3">
 
-          return (
+        {messages.map(msg => (
+
+          <div
+            key={msg.id}
+            className={`flex ${
+              msg.sender_id === currentUserId
+                ? "justify-end"
+                : "justify-start"
+            }`}
+          >
+
             <div
-              key={m.id}
-              className={`flex ${mine ? "justify-end" : "justify-start"}`}
+              className={`px-3 py-2 rounded-xl max-w-[70%] text-sm ${
+                msg.sender_id === currentUserId
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-white"
+              }`}
             >
-              <div
-                className={`px-3 py-2 rounded-xl max-w-[70%] text-sm ${
-                  mine
-                    ? "bg-purple-600 text-white"
-                    : "bg-gray-800 text-gray-200"
-                }`}
-              >
-                {m.content}
-              </div>
+              {msg.content}
             </div>
-          );
-        })}
+
+          </div>
+
+        ))}
 
         <div ref={bottomRef} />
+
       </div>
 
-      {/* INPUT */}
-      <div className="flex gap-2 mt-2 border-t border-gray-700 pt-2">
+      {/* Input */}
+
+      <div className="flex gap-2">
 
         <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Escribe un mensaje..."
-          className="flex-1 bg-gray-800 text-white px-3 py-2 rounded-lg outline-none"
+          className="flex-1 p-2 rounded bg-gray-800 text-white focus:outline-none"
         />
 
         <button
           onClick={sendMessage}
-          className="px-4 py-2 bg-purple-600 rounded-lg text-white font-medium"
+          className="bg-blue-600 px-4 rounded text-white"
         >
           Enviar
         </button>
 
       </div>
+
     </div>
+
   );
 };
 
