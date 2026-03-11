@@ -1,3 +1,5 @@
+import { useUser } from "../context/UserContext";
+const { setUser } = useUser();
 import React, { useEffect, useState, useRef, useCallback, useContext } from "react";
 import { supabase } from "../supabaseClient";
 import FeedPage from './FeedPage';
@@ -85,6 +87,7 @@ if (selectError) throw selectError;
 
 if (data) {
 setProfile(data);
+setUser({ tier: data.tier }); // ← NUEVO
 console.log("[HOME] Profile cargado:", data);
 return;
 }
@@ -117,7 +120,7 @@ throw new Error(result.error || "Error al crear el perfil");
 }
 
 setProfile(result.profile);
-
+setUser({ tier: result.profile.tier });
 console.log("[HOME] Profile creado exitosamente:", result.profile);
 } catch (err: any) {
 console.error("[HOME] Error en fetchOrCreateProfile:", err);
@@ -127,7 +130,7 @@ setError("Error cargando o creando perfil: " + (err.message || "Desconocido"));
 
 useEffect(() => {
 console.log("[HOME] userId recibido:", userId);
-
+setUser({ userId });
 if (userId) {
 fetchOrCreateProfile(userId);
 }
