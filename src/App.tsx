@@ -12,7 +12,8 @@ const App = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [miniKitReady, setMiniKitReady] = useState(false);
   const walletLoading = useRef(false);
-  // Cargar ID de localStorage
+
+  // Cargar ID de localStorage y forzar verificación si no hay
   useEffect(() => {
     const storedId = localStorage.getItem("userId");
 
@@ -21,7 +22,8 @@ const App = () => {
       setVerified(true);
       console.log("[APP] ID cargado de localStorage:", storedId);
     } else {
-      console.log("[APP] No hay ID en localStorage");
+      console.log("[APP] No hay ID en localStorage, forzando verificación...");
+      verifyUser(); // ← Se dispara automáticamente
     }
   }, []);
 
@@ -58,10 +60,10 @@ const App = () => {
   useEffect(() => {
     const loadWallet = async () => {
       if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) {
-  return;
-}
+        return;
+      }
 
-walletLoading.current = true;
+      walletLoading.current = true;
 
       console.log("[APP] Iniciando walletAuth...");
 
@@ -104,6 +106,8 @@ walletLoading.current = true;
       } catch (err: any) {
         console.error("[APP] Error walletAuth:", err);
         setError(err.message || "Error autenticando wallet");
+      } finally {
+        walletLoading.current = false;
       }
     };
 
