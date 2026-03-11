@@ -132,7 +132,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       alert("¡Post publicado correctamente!");
       setShowNewPostModal(false);
       setNewPostContent('');
-      fetchPosts(true);  // ← Cambio clave: refresca feed para ver el post nuevo
+      fetchPosts(true);  // ← Refresca feed para ver el post nuevo
     } catch (err: any) {
       console.error("[POST] Error:", err);
       alert("Error al publicar: " + err.message);
@@ -237,20 +237,13 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         </div>
       )}
 
-      {/* Loader si modal perfil abierto pero profile null */}
-      {showProfileModal && !profile && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <p className="text-white">Cargando perfil... o perfil no encontrado</p>
-        </div>
-      )}
-
       {/* Modal Perfil */}
-      {showProfileModal && profile && (
+      {showProfileModal && (
         <ProfileModal
           id={userId}
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
-          showUpgradeButton={profile.tier === "free"}
+          showUpgradeButton={profile?.tier === "free"}
         />
       )}
     </div>
