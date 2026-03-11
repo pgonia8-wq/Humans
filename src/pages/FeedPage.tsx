@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import PostCard from "../components/PostCard";
 import { supabase } from "../supabaseClient";
-import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js"; // CORRECCIÓN: Importa Tokens y tokenToDecimals
+import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
@@ -30,7 +30,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [price, setPrice] = useState(0);
 
-  // ---- Ordenar posts por score antes de renderizar, con tags y decay avanzado ----
+  // ---- Ordenar posts por score antes de renderizar ----
   const sortedPosts = [...posts].sort((a, b) => {
     const weightLikes = 1;
     const weightComments = 2;
@@ -41,14 +41,12 @@ const FeedPage: React.FC<FeedPageProps> = ({
     const decayA = a.recency_decay || 1;
     const decayB = b.recency_decay || 1;
 
-    // Peso monetización (tips_total ya multiplicado en PostCard)
     const tipsA = a.tips_total || 0;
     const tipsB = b.tips_total || 0;
 
     const boostA = (a.boosted_until && new Date(a.boosted_until) > new Date()) ? 1 : 0;
     const boostB = (b.boosted_until && new Date(b.boosted_until) > new Date()) ? 1 : 0;
 
-    // Tags internos: se pueden usar para score futuro (no visibles)
     const tagScoreA = a.tags ? a.tags.length * 0.5 : 0;
     const tagScoreB = b.tags ? b.tags.length * 0.5 : 0;
 
@@ -70,7 +68,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
       decayB +
       tagScoreB;
 
-    return scoreB - scoreA; // mayor score primero
+    return scoreB - scoreA;
   });
 
   useEffect(() => {
@@ -84,9 +82,15 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       const limit = selectedTier === "premium" ? 10000 : 3000;
       const used = count || 0;
-      const calculatedPrice = used < limit
-        ? selectedTier === "premium" ? 10 : 15
-        : selectedTier === "premium" ? 20 : 35;
+
+      const calculatedPrice =
+        used < limit
+          ? selectedTier === "premium"
+            ? 10
+            : 15
+          : selectedTier === "premium"
+          ? 20
+          : 35;
 
       setPrice(calculatedPrice);
     };
@@ -112,25 +116,24 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const confirmUpgrade = async () => {
     setUpgradeError(null);
 
-    // <<< INSERTADO SEGÚN INSTRUCCIONES: chequeo de wallet antes de proceder >>>
-    const wallet = MiniKit.walletAddress; // suponiendo que usas MiniKit.walletAddress
-    if (!wallet) {
-      setUpgradeError("Wallet no detectada. Intenta de nuevo en unos segundos.");
+    if (!price) {
+      setUpgradeError("Calculando precio, intenta nuevamente.");
       return;
     }
-    // <<< FIN INSERTADO >>>
 
     if (!currentUserId || !selectedTier) {
       setUpgradeError("No se encontró tu ID o tier seleccionado");
       return;
     }
 
+    if (!MiniKit.isInstalled()) {
+      setUpgradeError("MiniKit no detectado dentro de World App");
+      return;
+    }
+
     setLoadingUpgrade(true);
 
     try {
-      if (!MiniKit.isInstalled()) {
-        throw new Error("MiniKit no detectado dentro de World App");
-      }
 
       const payRes = await MiniKit.commandsAsync.pay({
         reference: "upgrade-" + Date.now(),
@@ -170,21 +173,26 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       alert(`Upgrade ${selectedTier} exitoso`);
 
-      // <<< INSERTADO SEGÚN INSTRUCCIONES: refresca perfil/tier en HomePage >>>
       onUpgradeSuccess?.();
-      // <<< FIN INSERTADO >>>
 
       cancelUpgrade();
+
     } catch (err: any) {
+
       console.error("[UPGRADE] error:", err);
+
       setUpgradeError(err.message || "Error en el upgrade");
+
     } finally {
+
       setLoadingUpgrade(false);
+
     }
   };
 
   return (
     <div className="flex flex-col p-4">
+
       <div className="mb-6">
         <button
           onClick={handleUpgrade}
@@ -196,18 +204,21 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       {showUpgradeOptions && (
         <div className="space-y-4 mb-6">
+
           <button
             onClick={() => selectTier("premium")}
             className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold"
           >
             Premium
           </button>
+
           <button
             onClick={() => selectTier("premium+")}
             className="w-full py-4 rounded-xl bg-purple-600 text-white font-bold"
           >
             Premium+
           </button>
+
         </div>
       )}
 
@@ -229,16 +240,26 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       {showSlideModal && selectedTier && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+
           <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6">
-            <h2 className="text-xl font-bold text-white mb-4">Beneficios de {selectedTier}</h2>
-            <p className="text-white text-center mb-4">Precio: {price} WLD</p>
+
+            <h2 className="text-xl font-bold text-white mb-4">
+              Beneficios de {selectedTier}
+            </h2>
+
+            <p className="text-white text-center mb-4">
+              Precio: {price} WLD
+            </p>
+
             <div className="flex gap-4">
+
               <button
                 onClick={cancelUpgrade}
                 className="flex-1 py-3 bg-gray-700 text-white rounded-2xl"
               >
                 Cancelar
               </button>
+
               <button
                 onClick={confirmUpgrade}
                 disabled={loadingUpgrade}
@@ -246,10 +267,14 @@ const FeedPage: React.FC<FeedPageProps> = ({
               >
                 {loadingUpgrade ? "Procesando..." : "Aceptar"}
               </button>
+
             </div>
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 };
