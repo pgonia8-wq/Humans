@@ -5,22 +5,9 @@ import FeedPage from './FeedPage';
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
-import Inbox from "./chat/Inbox"; // ← RUTA CORRECTA
+import Inbox from "./chat/Inbox"; // ruta correcta
 
 const PAGE_SIZE = 8;
-
-// Post de prueba permanente
-const DUMMY_POST = {
-  id: "dummy-1",
-  user_id: "test-user",
-  content: "Este es un post de prueba.",
-  timestamp: new Date().toISOString(),
-  likes: 0,
-  comments: 0,
-  reposts: 0,
-  deleted_flag: false,
-  visibility_score: 1,
-};
 
 const HomePage = ({ userId }: { userId: string | null }) => {
   const [posts, setPosts] = useState<any[]>([]);
@@ -167,11 +154,12 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             className={`px-5 py-2 bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base`}
           />
 
+          {/* Botón fijo de DM */}
           <button
             onClick={() => setShowInbox(true)}
             className={`px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base font-medium`}
           >
-            Chat
+            Mensajes
           </button>
         </div>
 
@@ -202,7 +190,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         Tirar para refrescar
       </div>
 
-      {/* Feed completo */}
+      {/* Feed */}
       <main className="w-full px-2 py-6 flex justify-center">
         <FeedPage 
           posts={posts}
@@ -250,8 +238,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         />
       )}
 
-      {/* Modal Inbox */}
-      {showInbox && currentUserId && (
+      {/* Modal Inbox DM */}
+      {showInbox && userId && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
             <Inbox
