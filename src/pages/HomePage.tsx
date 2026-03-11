@@ -1,14 +1,15 @@
+// src/pages/HomePage.tsx
 import React, { useEffect, useState, useRef, useCallback, useContext } from "react";
 import { supabase } from "../supabaseClient";
 import FeedPage from './FeedPage';
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
-import Inbox from "../components/Inbox";
-import ChatModal from "../components/ChatModal"; // Tu modal de conversación DM
+import Inbox from "./chat/Inbox"; // ← RUTA CORRECTA
 
 const PAGE_SIZE = 8;
 
+// Post de prueba permanente
 const DUMMY_POST = {
   id: "dummy-1",
   user_id: "test-user",
@@ -31,14 +32,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
-
-  // ✅ NUEVO: estados para DM
-  const [showDMModal, setShowDMModal] = useState(false);
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [currentChatUserId, setCurrentChatUserId] = useState<string | null>(null);
-
+  const [showInbox, setShowInbox] = useState(false);
   const { theme } = useContext(ThemeContext);
+
   const containerRef = useRef<HTMLDivElement>(null);
+
   const maxChars = profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 4000 : 280;
 
   const fetchPosts = useCallback(async (reset = false) => {
@@ -169,12 +167,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             className={`px-5 py-2 bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base`}
           />
 
-          {/* ✅ NUEVO: Botón DM fijo en header */}
           <button
-            onClick={() => setShowDMModal(true)}
+            onClick={() => setShowInbox(true)}
             className={`px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base font-medium`}
           >
-            Mensaje
+            Chat
           </button>
         </div>
 
@@ -253,37 +250,24 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         />
       )}
 
-      {/* ✅ Modal DM Inbox */}
-      {showDMModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-gray-900 rounded-2xl w-full max-w-lg p-4">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-white font-bold text-lg">Mensajes</h2>
-              <button onClick={() => setShowDMModal(false)} className="text-gray-400 font-bold">✕</button>
-            </div>
-            
+      {/* Modal Inbox */}
+      {showInbox && currentUserId && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
             <Inbox
               currentUserId={userId}
               openChat={(conversationId, otherUserId) => {
-                setCurrentConversationId(conversationId);
-                setCurrentChatUserId(otherUserId);
+                console.log("[INBOX] Abrir chat:", conversationId, otherUserId);
               }}
             />
+            <button
+              onClick={() => setShowInbox(false)}
+              className="mt-4 px-6 py-2 bg-gray-800 rounded-full w-full"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
-      )}
-
-      {/* ✅ Modal Chat DM */}
-      {currentConversationId && currentChatUserId && (
-        <ChatModal
-          conversationId={currentConversationId}
-          fromUserId={userId!}
-          toUserId={currentChatUserId}
-          onClose={() => {
-            setCurrentConversationId(null);
-            setCurrentChatUserId(null);
-          }}
-        />
       )}
 
     </div>
