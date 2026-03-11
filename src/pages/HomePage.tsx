@@ -72,7 +72,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
     } catch (err: any) {
 
-      console.error("Error fetching posts:", err);
+      console.error(err);
       setError(err.message);
 
     } finally {
@@ -123,19 +123,9 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           schema: "public",
           table: "posts"
         },
-        payload => {
+        (payload) => {
 
-          const newPost = payload.new;
-
-          setPosts(prev => {
-
-            if (prev.find(p => p.id === newPost.id)) {
-              return prev;
-            }
-
-            return [newPost, ...prev];
-
-          });
+          setPosts(prev => [payload.new, ...prev]);
 
         }
       )
@@ -159,7 +149,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
 
-      if (scrollTop + clientHeight >= scrollHeight - 120) {
+      if (scrollTop + clientHeight >= scrollHeight - 150) {
         fetchPosts();
       }
 
@@ -169,9 +159,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
     el?.addEventListener("scroll", handleScroll);
 
-    return () => {
-      el?.removeEventListener("scroll", handleScroll);
-    };
+    return () => el?.removeEventListener("scroll", handleScroll);
 
   }, [fetchPosts]);
 
@@ -210,22 +198,21 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         {
           event: "INSERT",
           schema: "public",
-          table: "messages"
+          table: "messages",
+          filter: `receiver_id=eq.${userId}`
         },
-        payload => {
+        () => {
 
-          const msg = payload.new;
-
-          if (msg.receiver_id === userId) {
-            setUnreadMessages(prev => prev + 1);
-          }
+          setUnreadMessages(prev => prev + 1);
 
         }
       )
       .subscribe();
 
     return () => {
+
       supabase.removeChannel(channel);
+
     };
 
   }, [userId]);
@@ -281,12 +268,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       }`}
     >
 
+      {/* HEADER */}
+
       <header className="sticky top-0 z-20 w-full px-4 py-3 flex items-center justify-between border-b border-white/10 backdrop-blur-xl">
 
-        <img
-          src="/logo.png"
-          className="w-11 h-11 object-contain"
-        />
+        <img src="/logo.png" className="w-11 h-11 object-contain"/>
 
         <div className="flex gap-3">
 
@@ -303,6 +289,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             }}
             className="relative px-5 py-2 bg-indigo-700 rounded-full"
           >
+
             Mensajes
 
             {unreadMessages > 0 && (
@@ -331,6 +318,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       </header>
 
+      {/* FEED */}
+
       <main className="w-full px-2 py-6 flex justify-center">
 
         <FeedPage
@@ -343,46 +332,18 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       </main>
 
-      {showNewPostModal && (
+      {/* INBOX */}
 
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+      {showInbox && userId && (
 
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg">
-
-            <h2 className="text-xl font-bold mb-4">
-              Nuevo Post
-            </h2>
-
-            <textarea
-              value={newPostContent}
-              onChange={(e) => setNewPostContent(e.target.value)}
-              className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px]"
-              maxLength={maxChars}
-            />
-
-            <div className="flex justify-between mt-4">
-
-              <button
-                onClick={() => setShowNewPostModal(false)}
-                className="px-5 py-2 bg-gray-800 rounded-full"
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={handleCreatePost}
-                className="px-6 py-2 bg-purple-600 rounded-full"
-              >
-                Publicar
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
+        <Inbox
+          currentUserId={userId}
+          onClose={() => setShowInbox(false)}
+        />
 
       )}
+
+      {/* PROFILE */}
 
       {showProfileModal && (
 
@@ -391,15 +352,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile?.tier === "free"}
-        />
-
-      )}
-
-      {showInbox && userId && (
-
-        <Inbox
-          currentUserId={userId}
-          onClose={() => setShowInbox(false)}
         />
 
       )}
