@@ -178,7 +178,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       } else {
         if (height > MAX) { width *= MAX / height; height = MAX; }
       }
-      canvas.width = width; canvas.height = height;
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext("2d");
       ctx?.drawImage(img, 0, 0, width, height);
 
@@ -290,11 +291,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             {/* Avatar */}
             <div className="flex flex-col items-center gap-3">
               <div className="relative w-24 h-24 rounded-full overflow-hidden bg-gray-800 border-4 border-purple-600">
-                {uploadingAvatar ? (
+                {uploadingAvatar && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
                   </div>
-                ) : null}
+                )}
 
                 {profile.avatar_url ? (
                   <img
@@ -427,6 +428,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </button>
             </div>
 
+            {/* Botón Cerrar adicional */}
+            {!saving && (
+              <button
+                onClick={onClose}
+                className="mt-4 w-full py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition"
+              >
+                Cerrar
+              </button>
+            )}
+
             {/* Upgrade Premium Chat */}
             {showUpgradeButton && (
               <button
@@ -436,6 +447,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 Suscribirse a Chat Premium (5 WLD)
               </button>
             )}
+
+            {/* Chat Exclusivo Creadores de Tokens */}
+            <button
+              onClick={() => window.location.href = "/chat/tokens"}
+              className="w-full py-3 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 transition"
+            >
+              Chat Exclusivo Creadores de Tokens
+            </button>
+
           </>
         )}
 
