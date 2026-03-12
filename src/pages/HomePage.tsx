@@ -331,7 +331,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
     setShowNewPostModal(false);
     setNewPostContent("");
-    fetchPosts(true);  // ← Refresca feed
+    fetchPosts(true);  // Refresca feed
 
   };
 
@@ -450,19 +450,42 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       )}
 
-      {/* NEW POST MODAL */}
+      {/* MODAL NUEVO POST (INLINE - Opción 1) */}
 
       {showNewPostModal && (
-
-        <NewPostModal
-          maxChars={maxChars}
-          content={newPostContent}
-          setContent={setNewPostContent}
-          onClose={() => setShowNewPostModal(false)}
-          onSubmit={handleCreatePost}
-          theme={theme}
-        />
-
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
+            <h2 className="text-xl font-bold mb-4 text-white">Nuevo Post</h2>
+            <textarea
+              value={newPostContent}
+              onChange={(e) => {
+                if (e.target.value.length <= maxChars) {
+                  setNewPostContent(e.target.value);
+                }
+              }}
+              className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+              placeholder="¿Qué estás pensando?"
+              maxLength={maxChars}
+            />
+            <div className="flex justify-between mt-4 text-sm text-gray-400">
+              <span>{newPostContent.length} / {maxChars}</span>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowNewPostModal(false)}
+                  className="px-5 py-2 bg-gray-800 rounded-full"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreatePost}
+                  className="px-6 py-2 bg-purple-600 rounded-full font-medium"
+                >
+                  Publicar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
