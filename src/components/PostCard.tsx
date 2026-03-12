@@ -158,17 +158,20 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // --- LÓGICA CORRECTA DE PAGOS ---
+  // --- PAGOS CORREGIDOS SEGÚN HOME ---
   const confirmTip = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
     if (tipAmount < 1) return setError("El mínimo es 1 WLD");
 
     setLoadingAction("tip");
     try {
+      const reference = `tip-${post.id}-${Date.now()}`;
+      const amount = tokenToDecimals(tipAmount, Tokens.WLD).toString();
+
       const res = await MiniKit.commandsAsync.pay({
-        reference: `tip-${post.id}-${Date.now()}`,
+        reference,
         to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(tipAmount, Tokens.WLD).toString() }],
+        tokens: [{ symbol: Tokens.WLD, token_amount: amount }],
         description: "Tip a post",
       });
 
@@ -190,10 +193,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
     setLoadingAction("boost");
     try {
+      const reference = `boost-${post.id}-${Date.now()}`;
+      const amount = tokenToDecimals(5, Tokens.WLD).toString();
+
       const res = await MiniKit.commandsAsync.pay({
-        reference: `boost-${post.id}-${Date.now()}`,
+        reference,
         to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
+        tokens: [{ symbol: Tokens.WLD, token_amount: amount }],
         description: "Boost a post",
       });
 
@@ -215,10 +221,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
     setLoadingAction("subscription");
     try {
+      const reference = `sub-chat-${post.id}-${Date.now()}`;
+      const amount = tokenToDecimals(5, Tokens.WLD).toString();
+
       const res = await MiniKit.commandsAsync.pay({
-        reference: `sub-chat-${post.id}-${Date.now()}`,
+        reference,
         to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
+        tokens: [{ symbol: Tokens.WLD, token_amount: amount }],
         description: "Suscripción Chat Creadores de Tokens",
       });
 
@@ -234,7 +243,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       setLoadingAction(null);
     }
   };
-  // --- FIN LÓGICA PAGOS ---
+  // --- FIN PAGOS CORREGIDOS ---
 
   const openUserProfile = () => {
     window.location.href = `/profile/${post.user_id}`;
