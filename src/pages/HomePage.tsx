@@ -1,12 +1,25 @@
 import React, { useEffect, useState, useRef, useCallback, useContext } from "react";
 import { supabase } from "../supabaseClient";
-import FeedPage from "./FeedPage";
+import FeedPage from './FeedPage';
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
 import Inbox from "./chat/Inbox";
 
 const PAGE_SIZE = 8;
+
+// Post de prueba permanente
+const DUMMY_POST = {
+  id: "dummy-1",
+  user_id: "test-user",
+  content: "Este es un post de prueba.",
+  timestamp: new Date().toISOString(),
+  likes: 0,
+  comments: 0,
+  reposts: 0,
+  deleted_flag: false,
+  visibility_score: 1,
+};
 
 const HomePage = ({ userId }: { userId: string | null }) => {
 
@@ -91,29 +104,51 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   }, [page, hasMore]);
 
   /* ------------------------------
-     FETCH PROFILE
+     FETCH OR CREATE PROFILE
   ------------------------------ */
 
-  useEffect(() => {
+  const fetchOrCreateProfile = useCallback(async (uid: string) => {
+    if (!uid) return;
 
-    if (!userId) return;
-
-    const fetchProfile = async () => {
-
-      const { data } = await supabase
+    try {
+      const { data, error: selectError } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", userId)
+        .eq("id", uid)
         .maybeSingle();
 
-      setProfile(data || null);
+      if (selectError) throw selectError;
 
-    };
+      if (data) {
+        setProfile(data);
+        return;
+      }
 
-    fetchProfile();
+      console.log("[HOME] No existe profile, creando...");
+
+      const res = await fetch("/api/createProfile.mjs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: uid })
+      });
+
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || "Error creando profile");
+
+      setProfile(result.profile);
+    } catch (err: any) {
+      console.error("[HOME] Profile error:", err);
+      setError(err.message);
+    }
+  }, []);
+
+  // 🔹 Init user & profile
+  useEffect(() => {
+    if (!userId) return;
+
+    fetchOrCreateProfile(userId);
     fetchPosts(true);
-
-  }, [userId]);
+  }, [userId, fetchOrCreateProfile, fetchPosts]);
 
   /* ------------------------------
      AVATAR UPDATED EVENT
@@ -125,16 +160,12 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       const { userId: changedId, avatarUrl } = e.detail;
 
-      /* actualizar header */
-
       if (changedId === userId) {
         setProfile((prev: any) => ({
           ...prev,
           avatar_url: avatarUrl
         }));
       }
-
-      /* actualizar feed */
 
       setPosts(prev =>
         prev.map(post =>
@@ -300,6 +331,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
     setShowNewPostModal(false);
     setNewPostContent("");
+    fetchPosts(true);  // ← Refresca feed
 
   };
 
@@ -389,6 +421,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           error={error}
           currentUserId={userId}
           userTier={profile?.tier || "free"}
+          onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
         />
 
       </main>
@@ -413,6 +446,21 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile?.tier === "free"}
+        />
+
+      )}
+
+      {/* NEW POST MODAL */}
+
+      {showNewPostModal && (
+
+        <NewPostModal
+          maxChars={maxChars}
+          content={newPostContent}
+          setContent={setNewPostContent}
+          onClose={() => setShowNewPostModal(false)}
+          onSubmit={handleCreatePost}
+          theme={theme}
         />
 
       )}
