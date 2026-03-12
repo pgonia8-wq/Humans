@@ -20,7 +20,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [reposts, setReposts] = useState(post.reposts || 0);
   const [commentInput, setCommentInput] = useState("");
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | null>(null);
+  const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
@@ -192,7 +192,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
         <div className="flex-1">
           <p className="font-bold text-lg">
-            {post.profiles?.username || `Anon-${post.user_id.slice(0, 8)}`}
+            {post.profiles?.username || `@anon-${post.user_id.slice(0, 8)}`}
           </p>
           <p className="text-sm text-gray-500">@{post.user_id.slice(0, 8)}</p>
         </div>
