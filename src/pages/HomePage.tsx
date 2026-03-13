@@ -326,7 +326,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       </main>
 
       {/* MODAL INBOX */}
-      {showInbox && userId && (
+      {/* MODAL INBOX */}
+{showInbox && userId && (
   <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
     <div className="bg-gray-900 rounded-2xl w-full max-w-md h-[80vh] flex flex-col border border-white/10 shadow-lg">
       {/* HEADER */}
@@ -341,97 +342,86 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       </div>
 
       {/* NUEVO MENSAJE / ADJUNTOS */}
-<div className="p-4 border-t border-white/20 flex flex-col gap-2">
-  <textarea
-    value={newMessage}
-    onChange={(e) => {
-      const maxChars =
-        profile?.tier === "premium+"
-          ? 10000
-          : profile?.tier === "premium"
-          ? 3000
-          : 1000; // free
-      if (e.target.value.length <= maxChars) setNewMessage(e.target.value);
-    }}
-    className="w-full p-2 bg-gray-800 text-white rounded resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[80px]"
-    placeholder="Escribe tu mensaje..."
-  />
-
-  <div className="flex items-center justify-between mt-2">
-    {/* Input para adjuntos */}
-    <input
-      type="file"
-      onChange={handleFileUpload}
-      className="text-sm text-gray-300"
-      multiple
-    />
-
-    <span className="text-gray-400 text-sm">
-      {newMessage.length} /{" "}
-      {profile?.tier === "premium+"
-        ? 10000
-        : profile?.tier === "premium"
-        ? 3000
-        : 1000}
-    </span>
-
-    <button
-      onClick={sendMessage}
-      className="px-4 py-1 bg-purple-600 rounded-full text-white font-medium"
-    >
-      Enviar
-    </button>
-  </div>
-</div>
-
-
-      {/* PERFIL */}
-      {showProfileModal && (
-        <ProfileModal
-          id={userId}
-          currentUserId={userId}
-          onClose={() => setShowProfileModal(false)}
-          showUpgradeButton={profile?.tier === "free"}
+      <div className="p-4 border-t border-white/20 flex flex-col gap-2">
+        <textarea
+          value={newMessage}
+          onChange={(e) => {
+            const maxChars =
+              profile?.tier === "premium+"
+                ? 10000
+                : profile?.tier === "premium"
+                ? 3000
+                : 1000; // free
+            if (e.target.value.length <= maxChars) setNewMessage(e.target.value);
+          }}
+          className="w-full p-2 bg-gray-800 text-white rounded resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[80px]"
+          placeholder="Escribe tu mensaje..."
         />
-      )}
-
-      {/* MODAL NUEVO POST */}
-      {showNewPostModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
-            <h2 className="text-xl font-bold mb-4 text-white">Nuevo Post</h2>
-            <textarea
-              value={newPostContent}
-              onChange={(e) => {
-                if (e.target.value.length <= maxChars) setNewPostContent(e.target.value);
-              }}
-              className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-              placeholder="¿Qué estás pensando?"
-              maxLength={maxChars}
-            />
-            <div className="flex justify-between mt-4 text-sm text-gray-400">
-              <span>{newPostContent.length} / {maxChars}</span>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowNewPostModal(false)}
-                  className="px-5 py-2 bg-gray-800 rounded-full"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleCreatePost}
-                  className="px-6 py-2 bg-purple-600 rounded-full font-medium"
-                >
-                  Publicar
-                </button>
-              </div>
-            </div>
-          </div>
+        <div className="flex items-center justify-between mt-2">
+          {/* Input para adjuntos */}
+          <input
+            type="file"
+            onChange={handleFileUpload}
+            className="text-sm text-gray-300"
+            multiple
+          />
+          <span className="text-gray-400 text-sm">
+            {newMessage.length} / {profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 3000 : 1000}
+          </span>
+          <button
+            onClick={sendMessage}
+            className="px-4 py-1 bg-purple-600 rounded-full text-white font-medium"
+          >
+            Enviar
+          </button>
         </div>
-      )}
-
+      </div>
     </div>
-  );
-};
+  </div>
+)}
 
+{/* PERFIL */}
+{showProfileModal && (
+  <ProfileModal
+    id={userId}
+    currentUserId={userId}
+    onClose={() => setShowProfileModal(false)}
+    showUpgradeButton={profile?.tier === "free"}
+  />
+)}
+
+{/* MODAL NUEVO POST */}
+{showNewPostModal && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
+    <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
+      <h2 className="text-xl font-bold mb-4 text-white">Nuevo Post</h2>
+      <textarea
+        value={newPostContent}
+        onChange={(e) => {
+          if (e.target.value.length <= maxChars) setNewPostContent(e.target.value);
+        }}
+        className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+        placeholder="¿Qué estás pensando?"
+        maxLength={maxChars}
+      />
+      <div className="flex justify-between mt-4 text-sm text-gray-400">
+        <span>{newPostContent.length} / {maxChars}</span>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowNewPostModal(false)}
+            className="px-5 py-2 bg-gray-800 rounded-full"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleCreatePost}
+            className="px-6 py-2 bg-purple-600 rounded-full font-medium"
+          >
+            Publicar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 export default HomePage;
