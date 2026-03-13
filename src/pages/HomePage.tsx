@@ -429,5 +429,5 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     )}
   </div>
 );
-  HomePage default
+  export default HomePage;
       
