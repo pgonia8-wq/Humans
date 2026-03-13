@@ -30,45 +30,68 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [price, setPrice] = useState(0);
 
-  // ---- Ordenar posts por score antes de renderizar ----
+  // ---- Algoritmo de ranking avanzado ----
   const sortedPosts = [...posts].sort((a, b) => {
-    const weightLikes = 1;
-    const weightComments = 2;
-    const weightReposts = 2;
-    const weightTips = 3;
-    const weightBoost = 10;
 
-    const decayA = a.recency_decay || 1;
-    const decayB = b.recency_decay || 1;
+    const now = Date.now();
 
-    const tipsA = a.tips_total || 0;
-    const tipsB = b.tips_total || 0;
+    const calculateScore = (post: any) => {
 
-    const boostA = (a.boosted_until && new Date(a.boosted_until) > new Date()) ? 1 : 0;
-    const boostB = (b.boosted_until && new Date(b.boosted_until) > new Date()) ? 1 : 0;
+      const weightLikes = 1;
+      const weightComments = 2;
+      const weightReposts = 2;
+      const weightTips = 3;
+      const weightBoost = 15;
 
-    const tagScoreA = a.tags ? a.tags.length * 0.5 : 0;
-    const tagScoreB = b.tags ? b.tags.length * 0.5 : 0;
+      const ageHours =
+        (now - new Date(post.timestamp).getTime()) / 3600000;
 
-    const scoreA =
-      (a.likes || 0) * weightLikes +
-      (a.comments || 0) * weightComments +
-      (a.reposts || 0) * weightReposts +
-      tipsA * weightTips +
-      boostA * weightBoost +
-      decayA +
-      tagScoreA;
+      // Recency decay
+      const recencyDecay = Math.exp(-ageHours / 24);
 
-    const scoreB =
-      (b.likes || 0) * weightLikes +
-      (b.comments || 0) * weightComments +
-      (b.reposts || 0) * weightReposts +
-      tipsB * weightTips +
-      boostB * weightBoost +
-      decayB +
-      tagScoreB;
+      // Engagement base
+      const likes = post.likes || 0;
+      const comments = post.comments || 0;
+      const reposts = post.reposts || 0;
+      const tips = post.tips_total || 0;
 
-    return scoreB - scoreA;
+      const engagement =
+        likes * weightLikes +
+        comments * weightComments +
+        reposts * weightReposts +
+        tips * weightTips;
+
+      // Normalización por edad
+      const engagementScore = engagement / (1 + ageHours);
+
+      // Boost pagado
+      const boost =
+        post.boosted_until &&
+        new Date(post.boosted_until) > new Date()
+          ? weightBoost
+          : 0;
+
+      // Score por tags
+      const tagScore = post.tags ? post.tags.length * 0.5 : 0;
+
+      // Velocity (posts que se vuelven virales)
+      const velocity =
+        (likes + comments * 2 + reposts * 2 + tips * 3) /
+        Math.max(ageHours, 1);
+
+      const velocityScore = velocity * 0.5;
+
+      const score =
+        engagementScore +
+        recencyDecay +
+        boost +
+        tagScore +
+        velocityScore;
+
+      return score;
+    };
+
+    return calculateScore(b) - calculateScore(a);
   });
 
   useEffect(() => {
