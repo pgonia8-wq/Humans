@@ -383,7 +383,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     </button>
   </div>
 </div>
-)}
+
 
       {/* PERFIL */}
       {showProfileModal && (
