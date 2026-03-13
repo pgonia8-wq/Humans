@@ -82,9 +82,88 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   }, [showComments, post.id]);
 
-  const handleLike = async () => { /* sin cambios */ };
-  const handleComment = async () => { /* sin cambios */ };
-  const handleRepost = async () => { /* sin cambios */ };
+  const handleLike = async () => {
+    if (!currentUserId) return setError("Debes estar logueado");
+    setLoadingAction("like");
+
+    try {
+      const { data: existing } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("post_id", post.id)
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("likes").delete().eq("id", existing.id);
+        await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
+        setLiked(false);
+        setLikes(likes - 1);
+      } else {
+        await supabase.from("likes").insert({ post_id: post.id, user_id: currentUserId });
+        await supabase.from("posts").update({ likes: likes + 1 }).eq("id", post.id);
+        setLiked(true);
+        setLikes(likes + 1);
+      }
+    } catch (err: any) {
+      setError("Error al dar like: " + err.message);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleComment = async () => {
+    if (!currentUserId) return setError("Debes estar logueado");
+    if (!commentInput.trim()) return setError("Escribe un comentario");
+
+    setLoadingAction("comment");
+
+    try {
+      const { error } = await supabase.from("comments").insert({
+        post_id: post.id,
+        user_id: currentUserId,
+        content: commentInput.trim(),
+        timestamp: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+
+      await supabase.from("posts").update({ comments: comments + 1 }).eq("id", post.id);
+
+      setCommentInput("");
+      setShowCommentInput(false);
+      setComments(comments + 1);
+    } catch (err: any) {
+      setError("Error al comentar: " + err.message);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleRepost = async () => {
+    if (!currentUserId) return setError("Debes estar logueado");
+    if (!confirm("¿Repostear este post?")) return;
+
+    setLoadingAction("repost");
+
+    try {
+      const { error } = await supabase.from("reposts").insert({
+        post_id: post.id,
+        user_id: currentUserId,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+
+      await supabase.from("posts").update({ reposts: reposts + 1 }).eq("id", post.id);
+
+      setReposts(reposts + 1);
+    } catch (err: any) {
+      setError("Error al repostear: " + err.message);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
 
   const handleTip = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
@@ -106,13 +185,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       if (payRes && payRes.finalPayload && payRes.finalPayload.status === "success") {
         alert("¡Tip enviado!");
+      } else if (payRes && payRes.finalPayload && payRes.finalPayload.status === "error") {
+        alert("Error en pago: " + (payRes.finalPayload.error_code || "Desconocido"));
       } else {
-        console.log("[TIP] Pago no exitoso:", payRes?.finalPayload);
-        alert("Pago cancelado o fallido");
+        alert("Pago cancelado o no completado");
       }
     } catch (err: any) {
-      console.error("[TIP] Error al llamar pay:", err);
-      setError("Error en tip: " + (err.message || "No se pudo iniciar el pago"));
+      console.error("[TIP] Error completo:", err);
+      setError("Error en tip: " + (err.message || "No se pudo iniciar el pago. Verifica saldo o wallet"));
     } finally {
       setLoadingAction(null);
     }
@@ -137,13 +217,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       if (payRes && payRes.finalPayload && payRes.finalPayload.status === "success") {
         alert("¡Boost enviado!");
+      } else if (payRes && payRes.finalPayload && payRes.finalPayload.status === "error") {
+        alert("Error en pago: " + (payRes.finalPayload.error_code || "Desconocido"));
       } else {
-        console.log("[BOOST] Pago no exitoso:", payRes?.finalPayload);
-        alert("Pago cancelado o fallido");
+        alert("Pago cancelado o no completado");
       }
     } catch (err: any) {
-      console.error("[BOOST] Error al llamar pay:", err);
-      setError("Error en boost: " + (err.message || "No se pudo iniciar el pago"));
+      console.error("[BOOST] Error completo:", err);
+      setError("Error en boost: " + (err.message || "No se pudo iniciar el pago. Verifica saldo o wallet"));
     } finally {
       setLoadingAction(null);
     }
@@ -166,20 +247,22 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       if (payRes && payRes.finalPayload && payRes.finalPayload.status === "success") {
         window.location.href = "/chat/tokens";
+      } else if (payRes && payRes.finalPayload && payRes.finalPayload.status === "error") {
+        alert("Error en pago: " + (payRes.finalPayload.error_code || "Desconocido"));
       } else {
-        console.log("[CHAT] Pago no exitoso:", payRes?.finalPayload);
         alert("Pago cancelado");
       }
     } catch (err: any) {
-      console.error("[CHAT] Error al llamar pay:", err);
-      setError("Error al procesar pago: " + (err.message || "No se pudo iniciar el pago"));
+      console.error("[CHAT] Error completo:", err);
+      setError("Error al procesar pago: " + (err.message || "No se pudo iniciar el pago. Verifica saldo o wallet"));
     } finally {
       setLoadingAction(null);
     }
   };
 
-  // Resto del componente sin cambios (like, comment, repost, render, etc.)
-  // ... (tu JSX original completo aquí, sin tocar nada más)
+  const openUserProfile = () => {
+    window.location.href = `/profile/${post.user_id}`;
+  };
 
   return (
     <div className={`p-4 rounded-xl ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} border border-gray-700 mb-4 shadow-md`}>
@@ -187,7 +270,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       <div className="flex items-center gap-3 mb-3">
         <div
           className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600 cursor-pointer"
-          onClick={() => window.location.href = `/profile/${post.user_id}`}
+          onClick={openUserProfile}
         >
           {post.profiles?.avatar_url ? (
             <img src={post.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
