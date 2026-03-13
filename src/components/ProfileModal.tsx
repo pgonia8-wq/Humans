@@ -261,7 +261,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2 overflow-y-auto"
+      className="fixed inset-0 bg-black/80 flex items-start justify-center z-50 px-2 overflow-y-auto pt-10"
       onClick={onClose}
     >
       <div
@@ -311,20 +311,19 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <input
-                type="file"
-                accept="image/*"
-                ref={fileInputRef}
-                onChange={handleAvatarUpload}
-                className="hidden"
-              />
+  id="avatarUpload"
+  type="file"
+  accept="image/*"
+  onChange={handleAvatarUpload}
+  className="hidden"
+/>
 
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingAvatar}
-                className="px-4 py-2 bg-gray-700 text-white rounded-full text-sm hover:bg-gray-600 transition disabled:opacity-50"
-              >
-                {uploadingAvatar ? "Subiendo..." : "Cambiar avatar"}
-              </button>
+              <label
+  htmlFor="avatarUpload"
+  className="px-4 py-2 bg-gray-700 text-white rounded-full text-sm hover:bg-gray-600 transition cursor-pointer"
+>
+  {uploadingAvatar ? "Subiendo..." : "Cambiar avatar"}
+</label>
             </div>
 
             {/* Campos editables */}
