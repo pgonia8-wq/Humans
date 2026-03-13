@@ -6,6 +6,9 @@ import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
 import Inbox from "./chat/Inbox";
 
+const [newPostImage, setNewPostImage] = useState<File | null>(null);
+const [imagePreview, setImagePreview] = useState<string | null>(null);
+
 const PAGE_SIZE = 8;
 
 const HomePage = ({ userId }: { userId: string | null }) => {
@@ -221,31 +224,65 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   /* CREAR POST */
   /* -------------------------------------------------- */
   const handleCreatePost = async () => {
-    if (!newPostContent.trim()) {
-      alert("Escribe algo antes de publicar");
-      return;
+
+  if (!newPostContent.trim()) {
+    alert("Escribe algo antes de publicar");
+    return;
+  }
+
+  if (!userId) return;
+
+  let imageUrl = null;
+
+  try {
+
+    if (newPostImage) {
+
+      const fileExt = newPostImage.name.split(".").pop();
+
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("post-images")
+        .upload(fileName, newPostImage);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from("post-images")
+        .getPublicUrl(fileName);
+
+      imageUrl = data.publicUrl;
     }
-    if (!userId) return;
 
     const { error } = await supabase
       .from("posts")
       .insert({
         user_id: userId,
         content: newPostContent,
+        image_url: imageUrl,
         timestamp: new Date().toISOString(),
         deleted_flag: false,
         visibility_score: 1
       });
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    if (error) throw error;
 
     setShowNewPostModal(false);
     setNewPostContent("");
+    setNewPostImage(null);
+    setImagePreview(null);
+
     fetchPosts(true);
-  };
+
+  } catch (err:any) {
+
+    console.error("Error creando post", err);
+    alert(err.message);
+
+  }
+};
+  
 
   /* -------------------------------------------------- */
   /* UI */
@@ -363,10 +400,16 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             <div className="flex items-center justify-between mt-2">
               {/* Input para adjuntos */}
               <input
-                type="file"
-                onChange={handleFileUpload}
-                className="text-sm text-gray-300"
-                multiple
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+              if (!e.target.files || !e.target.files[0]) return;
+
+              const file = e.target.files[0];
+
+              setNewPostImage(file);
+              setImagePreview(URL.createObjectURL(file));
+               }}
               />
               <span className="text-gray-400 text-sm">
                 {newMessage.length} / {profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 3000 : 1000}
@@ -403,14 +446,20 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       {/* TEXTO DEL POST */}
       <textarea
-        value={newPostContent}
-        onChange={(e) => {
-          if (e.target.value.length <= maxChars) setNewPostContent(e.target.value);
-        }}
-        className="w-full bg-gray-800 border border-gray-700 rounded-xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[140px]"
-        placeholder="¿Qué estás pensando?"
-        maxLength={maxChars}
-      />
+  value={newPostContent}
+  onChange={(e) => {
+    if (e.target.value.length <= maxChars) {
+      setNewPostContent(e.target.value);
+    }
+  }}
+  className={`w-full border rounded-xl p-4 resize-none min-h-[140px] focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+    theme === "dark"
+      ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+      : "bg-white border-gray-300 text-black placeholder-gray-500"
+  }`}
+  placeholder="¿Qué estás pensando?"
+  maxLength={maxChars}
+/>
 
       {/* SUBIDA DE IMAGEN */}
       <div className="flex flex-col gap-2">
