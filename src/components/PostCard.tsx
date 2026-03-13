@@ -25,7 +25,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | "subscription" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tipAmount, setTipAmount] = useState<number>(1); // Dinámico, mínimo 1 WLD
+  const [tipAmount, setTipAmount] = useState<number | "">(1); // permite borrar todo
+  const [showRepostModal, setShowRepostModal] = useState(false);
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
@@ -49,40 +50,36 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     return () => supabase.removeChannel(channel);
   }, [post.id, likes, comments, reposts]);
 
-  // Cargar comentarios (sin join fallido)
+  // Cargar comentarios
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
         setLoadingComments(true);
         try {
-          const { data: commentsData, error: commentsError } = await supabase
+          const { data: commentsData } = await supabase
             .from("comments")
             .select("*")
             .eq("post_id", post.id)
             .order("timestamp", { ascending: false })
             .limit(10);
 
-          if (commentsError) throw commentsError;
-
           if (!commentsData || commentsData.length === 0) {
             setCommentsList([]);
             return;
           }
 
-          const userIds = [...new Set(commentsData.map(c => c.user_id))];
-          const { data: profilesData, error: profilesError } = await supabase
+          const userIds = [...new Set(commentsData.map((c: any) => c.user_id))];
+          const { data: profilesData } = await supabase
             .from("profiles")
             .select("id, username, avatar_url")
             .in("id", userIds);
 
-          if (profilesError) throw profilesError;
-
-          const profilesMap = (profilesData || []).reduce((acc, p) => {
+          const profilesMap = (profilesData || []).reduce((acc: any, p: any) => {
             acc[p.id] = p;
             return acc;
-          }, {} as Record<string, any>);
+          }, {});
 
-          const enriched = commentsData.map(c => ({
+          const enriched = commentsData.map((c: any) => ({
             ...c,
             profiles: profilesMap[c.user_id] || null,
           }));
@@ -157,11 +154,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  const handleRepost = async () => {
+  const handleRepost = () => {
+    setShowRepostModal(true);
+  };
+
+  const confirmRepost = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
-    if (!confirm("¿Repostear este post?")) return;
 
     setLoadingAction("repost");
+    setShowRepostModal(false);
 
     try {
       const { error } = await supabase.from("reposts").insert({
@@ -173,8 +174,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       if (error) throw error;
 
       await supabase.from("posts").update({ reposts: reposts + 1 }).eq("id", post.id);
-
       setReposts(reposts + 1);
+      alert("¡Reposteado!");
     } catch (err: any) {
       setError("Error al repostear: " + err.message);
     } finally {
@@ -184,7 +185,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const handleTip = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
-    if (tipAmount < 1) return setError("Mínimo 1 WLD");
+    if (typeof tipAmount !== "number" || tipAmount < 1) return setError("Mínimo 1 WLD");
 
     setLoadingAction("tip");
     setError(null);
@@ -274,9 +275,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   return (
     <div className={`p-4 rounded-xl ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} border border-gray-700 mb-4 shadow-md`}>
-      {/* Header del post */}
+      {/* Header */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600">
+        <div
+          className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600 cursor-pointer"
+          onClick={openUserProfile}
+        >
           {post.profiles?.avatar_url ? (
             <img src={post.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
           ) : (
@@ -288,20 +292,25 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
         <div className="flex-1">
           <p className="font-bold text-lg">
-            {post.profiles?.username || `Anon-${post.user_id.slice(0, 8)}`}
+            {post.profiles?.username || `@anon-${post.user_id.slice(0, 8)}`}
           </p>
           <p className="text-sm text-gray-500">@{post.user_id.slice(0, 8)}</p>
+          <p className="text-xs text-gray-400">
+            {new Date(post.timestamp).toLocaleString("es-ES", {
+              hour: "2-digit",
+              minute: "2-digit",
+              day: "numeric",
+              month: "short",
+            })}
+          </p>
         </div>
 
-        {/* Botón Seguir */}
         {currentUserId && currentUserId !== post.user_id && (
           <button
             onClick={toggleFollow}
             className={`ml-auto px-4 py-1 rounded-full text-sm font-medium transition ${
-              isFollowing
-                ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                : "bg-purple-600 text-white hover:bg-purple-700"
-            }`}
+              isFollowing ? "bg-gray-700 text-gray-300" : "bg-purple-600 text-white"
+            } hover:opacity-90`}
           >
             {isFollowing ? "Siguiendo" : "Seguir"}
           </button>
@@ -311,10 +320,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {/* Contenido */}
       <p className="text-white whitespace-pre-wrap mb-4 leading-relaxed">{post.content}</p>
 
+      {/* Imagen si existe */}
+      {post.image_url && (
+        <img
+          src={post.image_url}
+          alt="Post image"
+          className="w-full rounded-xl mt-3 max-h-[400px] object-cover"
+        />
+      )}
+
       {/* Acciones */}
       <div className="flex justify-between items-center text-gray-400 text-sm mt-4">
         <div className="flex gap-8">
-          {/* Like */}
           <button
             onClick={handleLike}
             disabled={loadingAction === "like"}
@@ -323,7 +340,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             {liked ? "❤️" : "♡"} {likes}
           </button>
 
-          {/* Comentar */}
           <button
             onClick={() => setShowCommentInput(!showCommentInput)}
             className="flex items-center gap-1 hover:text-blue-500 transition"
@@ -331,7 +347,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             💬 {comments}
           </button>
 
-          {/* Repost */}
           <button
             onClick={handleRepost}
             disabled={loadingAction === "repost"}
@@ -341,7 +356,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           </button>
         </div>
 
-        {/* Tip y Boost */}
         <div className="flex gap-3">
           <div className="flex items-center gap-2">
             <input
@@ -349,11 +363,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               min="1"
               step="0.1"
               value={tipAmount}
-              onChange={(e) => {
-                const value = Number(e.target.value);
-                if (!isNaN(value) && value >= 1) setTipAmount(value);
-              }}
+              onChange={(e) => setTipAmount(e.target.value === "" ? "" : Number(e.target.value))}
               className="w-16 p-1 bg-gray-800 text-white rounded text-sm"
+              placeholder="1"
             />
             <button
               onClick={handleTip}
@@ -363,6 +375,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               Tip
             </button>
           </div>
+
           <button
             onClick={handleBoost}
             disabled={loadingAction === "boost"}
@@ -433,12 +446,45 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           onClick={handleChatCreadores}
           className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
         >
-          Chat Exclusivo Creadores de Tokens (5 WLD)
+          Chat Exclusivo Creadores de Tokens
         </button>
       )}
 
       {/* Error */}
       {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+
+      {/* Modal Repost bonito */}
+      {showRepostModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-white text-xl font-bold mb-4 text-center">Repostear</h3>
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={confirmRepost}
+                className="py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
+              >
+                Repostear
+              </button>
+              <button
+                onClick={() => {
+                  setShowRepostModal(false);
+                  // Aquí puedes abrir modal de citar en el futuro
+                  alert("Función de citar post (próximamente)");
+                }}
+                className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
+              >
+                Citar post
+              </button>
+              <button
+                onClick={() => setShowRepostModal(false)}
+                className="py-3 text-gray-400 hover:text-gray-300 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
