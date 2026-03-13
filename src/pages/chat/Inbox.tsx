@@ -25,21 +25,18 @@ interface Profile {
 const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [profilesCache, setProfilesCache] = useState<Record<string, Profile>>({});
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
   const [loading, setLoading] = useState(true);
+  const [chatUserId, setChatUserId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
 
   const [matchIds, setMatchIds] = useState<string[]>([]);
-  const [profilesCache, setProfilesCache] = useState<Record<string, Profile>>({});
-  const [newMatches, setNewMatches] = useState<string[]>([]);
 
-  const [chatUserId, setChatUserId] = useState<string | null>(null);
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-
-  /* ------------------------------
-     Carga inicial
-  ------------------------------ */
+  /* -------------------------- */
 
   useEffect(() => {
 
@@ -50,23 +47,19 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   }, [currentUserId]);
 
-  /* ------------------------------
-     Realtime Inbox
-  ------------------------------ */
+  /* --------------------------
+     REALTIME
+  -------------------------- */
 
   useEffect(() => {
 
     if (!currentUserId) return;
 
     const channel = supabase
-      .channel("inbox-realtime")
+      .channel("inbox-updates")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages"
-        },
+        { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
 
           const msg = payload.new as any;
@@ -88,9 +81,9 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   }, [currentUserId]);
 
-  /* ------------------------------
-     Cargar conversaciones
-  ------------------------------ */
+  /* --------------------------
+     CONVERSACIONES
+  -------------------------- */
 
   const loadConversations = async () => {
 
@@ -98,149 +91,125 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
     setLoading(true);
 
-    try {
+    const { data, error } = await supabase
+      .from("conversations_with_last_message")
+      .select("*")
+      .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`)
+      .order("last_message_time", { ascending: false });
 
-      const { data, error } = await supabase
-        .from("conversations_with_last_message")
-        .select("*")
-        .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`)
-        .order("last_message_time", { ascending: false });
-
-      if (error) throw error;
-
-      const convs = data || [];
-
-      setConversations(convs);
-
-      const otherIds = convs.map(c =>
-        c.user1_id === currentUserId ? c.user2_id : c.user1_id
-      );
-
-      await loadProfiles(otherIds);
-      await loadUnreadCounts(convs);
-
-    } catch (err: any) {
-
-      console.error("[INBOX]", err.message);
-
-    } finally {
-
+    if (error) {
+      console.error("[Inbox]", error.message);
       setLoading(false);
-
+      return;
     }
+
+    const convs = data || [];
+
+    setConversations(convs);
+
+    const otherIds = convs.map(c =>
+      c.user1_id === currentUserId ? c.user2_id : c.user1_id
+    );
+
+    await loadProfiles(otherIds);
+    await loadUnreadCounts();
+
+    setLoading(false);
 
   };
 
-  /* ------------------------------
-     Contador no leídos
-  ------------------------------ */
+  /* --------------------------
+     CONTADOR NO LEÍDOS
+  -------------------------- */
 
-  const loadUnreadCounts = async (convs: Conversation[]) => {
+  const loadUnreadCounts = async () => {
 
     if (!currentUserId) return;
 
+    const { data } = await supabase
+      .from("conversation_unread_counts")
+      .select("*")
+      .eq("receiver_id", currentUserId);
+
     const counts: Record<string, number> = {};
 
-    for (const c of convs) {
-
-      const conversationId =
-        [c.user1_id, c.user2_id].sort().join("-");
-
-      const { count } = await supabase
-        .from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("conversation_id", conversationId)
-        .eq("receiver_id", currentUserId)
-        .eq("read_flag", false);
-
-      counts[conversationId] = count || 0;
-
-    }
+    data?.forEach((row: any) => {
+      counts[row.conversation_id] = row.unread;
+    });
 
     setUnreadCounts(counts);
 
   };
 
-  /* ------------------------------
-     Cargar matches
-  ------------------------------ */
+  /* --------------------------
+     MATCHES
+  -------------------------- */
 
   const loadMatches = async () => {
 
     if (!currentUserId) return;
 
-    try {
+    const { data: following } = await supabase
+      .from("follows")
+      .select("following_id")
+      .eq("follower_id", currentUserId);
 
-      const { data: following } = await supabase
-        .from("follows")
-        .select("following_id")
-        .eq("follower_id", currentUserId);
+    const { data: followers } = await supabase
+      .from("follows")
+      .select("follower_id")
+      .eq("following_id", currentUserId);
 
-      const { data: followers } = await supabase
-        .from("follows")
-        .select("follower_id")
-        .eq("following_id", currentUserId);
+    const followingIds = following?.map(f => f.following_id) || [];
+    const followerIds = followers?.map(f => f.follower_id) || [];
 
-      const followingIds = following?.map(f => f.following_id) || [];
-      const followerIds = followers?.map(f => f.follower_id) || [];
+    const matches = followingIds.filter(id =>
+      followerIds.includes(id)
+    );
 
-      const matches = followingIds.filter(id =>
-        followerIds.includes(id)
-      );
-
-      setMatchIds(matches);
-      setNewMatches(matches);
-
-    } catch (err: any) {
-
-      console.error("[INBOX MATCHES]", err.message);
-
-    }
+    setMatchIds(matches);
 
   };
 
-  /* ------------------------------
-     Cargar perfiles
-  ------------------------------ */
+  /* --------------------------
+     PROFILES CACHE
+  -------------------------- */
 
   const loadProfiles = async (ids: string[]) => {
 
-    const toLoad = ids.filter(id => !profilesCache[id]);
+    const missing = ids.filter(id => !profilesCache[id]);
 
-    if (toLoad.length === 0) return;
+    if (missing.length === 0) return;
 
     const { data } = await supabase
       .from("profiles")
       .select("id,name,username,avatar_url")
-      .in("id", toLoad);
+      .in("id", missing);
 
-    if (data) {
+    if (!data) return;
 
-      setProfilesCache(prev => {
+    setProfilesCache(prev => {
 
-        const newCache = { ...prev };
+      const updated = { ...prev };
 
-        data.forEach(p => {
-          newCache[p.id] = p;
-        });
-
-        return newCache;
-
+      data.forEach(p => {
+        updated[p.id] = p;
       });
 
-    }
+      return updated;
+
+    });
 
   };
 
-  /* ------------------------------
-     Buscar usuarios
-  ------------------------------ */
+  /* --------------------------
+     SEARCH
+  -------------------------- */
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = async (q: string) => {
 
-    setSearchQuery(query);
+    setSearchQuery(q);
 
-    if (!query.trim()) {
+    if (!q.trim()) {
       setSearchResults([]);
       return;
     }
@@ -248,7 +217,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
     const { data } = await supabase
       .from("profiles")
       .select("id,name,username,avatar_url")
-      .ilike("username", `%${query}%`)
+      .ilike("username", `%${q}%`)
       .limit(10);
 
     const filtered = (data || []).filter(u =>
@@ -259,20 +228,13 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   };
 
-  /* ------------------------------
-     Abrir chat
-  ------------------------------ */
+  /* -------------------------- */
 
   const openChat = (userId: string) => {
-
     setChatUserId(userId);
-    setNewMatches(prev => prev.filter(id => id !== userId));
-
   };
 
-  /* ------------------------------
-     Render perfil
-  ------------------------------ */
+  /* -------------------------- */
 
   const renderProfile = (id: string) => {
 
@@ -285,30 +247,19 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
         <div className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden flex items-center justify-center text-white">
 
           {p?.avatar_url ? (
-
             <img
               src={p.avatar_url}
-              alt="avatar"
               className="w-full h-full object-cover"
             />
-
           ) : (
-
             p?.username?.[0]
-
           )}
 
         </div>
 
-        <div className="text-white text-sm">
-          {p?.username || id.slice(0, 8)}
-        </div>
-
-        {newMatches.includes(id) && (
-          <span className="text-xs bg-green-500 px-1 rounded">
-            nuevo
-          </span>
-        )}
+        <span className="text-white text-sm">
+          {p?.username || id.slice(0,6)}
+        </span>
 
       </div>
 
@@ -316,31 +267,25 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   };
 
-  /* ------------------------------
-     Abrir ChatWindow
-  ------------------------------ */
+  /* -------------------------- */
 
   if (chatUserId && currentUserId) {
 
     return (
-
       <ChatWindow
         currentUserId={currentUserId}
         otherUserId={chatUserId}
         onBack={() => setChatUserId(null)}
       />
-
     );
 
   }
 
-  /* ------------------------------
-     UI
-  ------------------------------ */
+  /* -------------------------- */
 
   return (
 
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col overflow-hidden">
 
       <div className="flex justify-between mb-3">
 
@@ -350,7 +295,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-white"
+          className="text-gray-400"
         >
           Cerrar
         </button>
@@ -371,9 +316,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
           onClick={() => openChat(u.id)}
           className="p-2 hover:bg-gray-700 rounded cursor-pointer"
         >
-
           {renderProfile(u.id)}
-
         </div>
 
       ))}
@@ -382,7 +325,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
         {loading ? (
 
-          <p className="text-gray-400 text-center mt-4">
+          <p className="text-gray-400 text-center">
             Cargando...
           </p>
 
@@ -410,19 +353,11 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
                 {renderProfile(otherId)}
 
-                <div className="flex gap-2 items-center">
-
-                  {unread > 0 && (
-                    <span className="bg-red-600 text-xs px-2 rounded-full">
-                      {unread}
-                    </span>
-                  )}
-
-                  <span className="text-gray-400 text-sm">
-                    {c.last_message}
+                {unread > 0 && (
+                  <span className="bg-red-600 text-xs px-2 rounded-full">
+                    {unread}
                   </span>
-
-                </div>
+                )}
 
               </div>
 
