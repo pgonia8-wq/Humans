@@ -37,7 +37,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
-  // Observer para registrar vistas
+  // Registrar vistas
   useEffect(() => {
     if (!postRef.current || viewRegistered.current) return;
     const observer = new IntersectionObserver(
@@ -442,13 +442,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                   <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
                     <p className="font-bold">{c.profiles?.username || `@anon-${c.user_id.slice(0, 8)}`}</p>
                     <p className="text-gray-300">{c.content}</p>
-                    <p className="text-xs text-gray-500 mt-1">{new Date(c.timestamp).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 mt-1">{new Date <p className="text-xs text-gray-500 mt-1">{new Date(c.timestamp).toLocaleString()}</p>
                   </div>
                 ))
               )}
             </div>
           )}
         </div>
+      )}
+
       {/* Chat */}
       {currentUserId && (
         <button
@@ -475,14 +477,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 {t("repost")}
               </button>
               <button
-                onClick={() => {
-                  setShowRepostModal(false);
-                  alert(t("escribe_para_citar")); // placeholder para el modal de cita
-                }}
+                onClick={confirmQuote}
                 className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
               >
                 {t("citar_post")}
               </button>
+              <input
+                type="text"
+                value={quoteInput}
+                onChange={(e) => setQuoteInput(e.target.value)}
+                placeholder={t("escribe_para_citar")}
+                className="w-full p-2 rounded bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
               <button
                 onClick={() => setShowRepostModal(false)}
                 className="py-3 text-gray-400 hover:text-gray-300 transition"
