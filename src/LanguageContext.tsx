@@ -12,10 +12,10 @@ interface LanguageContextProps {
   t: (key: string) => string;
 }
 
-// Traducciones completas para PostCard
+// Traducciones completas: PostCard + ProfileModal
 const translations: Record<Language, Translations> = {
   es: {
-    // Botones y acciones
+    // --- PostCard / Feed ---
     seguir: "Seguir",
     siguiendo: "Siguiendo",
     enviar: "Enviar",
@@ -27,15 +27,12 @@ const translations: Record<Language, Translations> = {
     cancelar: "Cancelar",
     ver_comentarios: "Ver",
     ocultar_comentarios: "Ocultar",
-    // Placeholders
     escribe_comentario: "Escribe un comentario...",
-    // Alerts y mensajes
     tip_enviado: "¡Tip enviado!",
     pago_cancelado: "Pago cancelado o fallido",
     boost_enviado: "¡Boost enviado!",
     post_citado: "¡Post citado!",
     escribe_para_citar: "Escribe tu comentario para citar el post",
-    // Errores
     debes_estar_logueado: "Debes estar logueado",
     min_wld: "Mínimo 1 WLD",
     error_registrando_view: "Error registrando vista",
@@ -47,12 +44,40 @@ const translations: Record<Language, Translations> = {
     error_en_tip: "Error en tip: ",
     error_en_boost: "Error en boost: ",
     error_procesar_pago: "Error al procesar pago: ",
-    // Estados
     cargando_comentarios: "Cargando comentarios...",
     no_hay_comentarios: "No hay comentarios aún",
+
+    // --- ProfileModal ---
+    tu_perfil: "Tu Perfil",
+    perfil_guardado: "Perfil guardado",
+    cargando_perfil: "Cargando perfil...",
+    cerrar_modal: "Cerrar modal",
+    avatar_actualizado: "Avatar actualizado",
+    error_guardar: "Error al guardar",
+    subiendo: "Subiendo...",
+    cambiar_avatar: "Cambiar avatar",
+    nombre_usuario: "Nombre de usuario",
+    nombre: "Nombre",
+    biografia: "Biografía ({count})",
+    cuentanos_sobre_ti: "Cuéntanos sobre ti",
+    fecha_nacimiento: "Fecha de nacimiento",
+    ciudad: "Ciudad",
+    pais: "País",
+    perfil_visible: "Perfil visible",
+    guardando: "Guardando...",
+    guardar: "Guardar",
+    cerrar: "Cerrar",
+    id_no_encontrado: "ID no encontrado",
+    minikit_no_detectado: "MiniKit no detectado",
+    suscripcion_chat_exclusivo: "Suscripción chat exclusivo",
+    pago_cancelado: "Pago cancelado",
+    error_pago: "Error en el pago",
+    suscripcion_exitosa: "Suscripción exitosa",
+    suscribirse_chat_premium: "Suscribirse al chat premium ({amount} WLD)",
+    chat_exclusivo_creadores_tokens: "Chat Exclusivo Creadores de Tokens",
   },
   en: {
-    // Botones y acciones
+    // --- PostCard / Feed ---
     seguir: "Follow",
     siguiendo: "Following",
     enviar: "Send",
@@ -64,15 +89,12 @@ const translations: Record<Language, Translations> = {
     cancelar: "Cancel",
     ver_comentarios: "View",
     ocultar_comentarios: "Hide",
-    // Placeholders
     escribe_comentario: "Write a comment...",
-    // Alerts y mensajes
     tip_enviado: "Tip sent!",
     pago_cancelado: "Payment canceled or failed",
     boost_enviado: "Boost sent!",
     post_citado: "Post quoted!",
     escribe_para_citar: "Write your comment to quote the post",
-    // Errores
     debes_estar_logueado: "You must be logged in",
     min_wld: "Minimum 1 WLD",
     error_registrando_view: "Error registering view",
@@ -84,9 +106,37 @@ const translations: Record<Language, Translations> = {
     error_en_tip: "Tip error: ",
     error_en_boost: "Boost error: ",
     error_procesar_pago: "Payment processing error: ",
-    // Estados
     cargando_comentarios: "Loading comments...",
     no_hay_comentarios: "No comments yet",
+
+    // --- ProfileModal ---
+    tu_perfil: "Your Profile",
+    perfil_guardado: "Profile saved",
+    cargando_perfil: "Loading profile...",
+    cerrar_modal: "Close modal",
+    avatar_actualizado: "Avatar updated",
+    error_guardar: "Error saving",
+    subiendo: "Uploading...",
+    cambiar_avatar: "Change avatar",
+    nombre_usuario: "Username",
+    nombre: "Name",
+    biografia: "Biography ({count})",
+    cuentanos_sobre_ti: "Tell us about yourself",
+    fecha_nacimiento: "Birthdate",
+    ciudad: "City",
+    pais: "Country",
+    perfil_visible: "Profile visible",
+    guardando: "Saving...",
+    guardar: "Save",
+    cerrar: "Close",
+    id_no_encontrado: "ID not found",
+    minikit_no_detectado: "MiniKit not detected",
+    suscripcion_chat_exclusivo: "Exclusive chat subscription",
+    pago_cancelado: "Payment canceled",
+    error_pago: "Payment error",
+    suscripcion_exitosa: "Subscription successful",
+    suscribirse_chat_premium: "Subscribe to premium chat ({amount} WLD)",
+    chat_exclusivo_creadores_tokens: "Exclusive Token Creators Chat",
   },
 };
 
