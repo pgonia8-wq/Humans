@@ -6,12 +6,11 @@ import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
 import Inbox from "./chat/Inbox";
 
-const [newPostImage, setNewPostImage] = useState<File | null>(null);
-const [imagePreview, setImagePreview] = useState<string | null>(null);
+
 
 const PAGE_SIZE = 8;
 
-const HomePage = ({ userId }: { userId: string | null }) => {
+  const HomePage = ({ userId }: { userId: string | null }) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,10 +28,13 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
   const [newPostContent, setNewPostContent] = useState("");
 
+  const [newPostImage, setNewPostImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [newMessage, setNewMessage] = useState("");
-  const [newMessageAttachments, setNewMessageAttachments] = useState<string[]>([]);
+  const [newMessageAttachments, setNewMessageAttachments] = useState<File[]>([]);
 
   // FUNCIONES DE MENSAJES
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -402,15 +404,16 @@ const HomePage = ({ userId }: { userId: string | null }) => {
               <input
               type="file"
               accept="image/*"
-              onChange={(e) => {
-              if (!e.target.files || !e.target.files[0]) return;
+               onChange={(e) => {
 
-              const file = e.target.files[0];
+             if (!e.target.files || !e.target.files[0]) return;
 
-              setNewPostImage(file);
-              setImagePreview(URL.createObjectURL(file));
-               }}
-              />
+             const file = e.target.files[0];
+
+             setNewMessageAttachments([file]);
+
+             }}
+            />
               <span className="text-gray-400 text-sm">
                 {newMessage.length} / {profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 3000 : 1000}
               </span>
@@ -461,38 +464,42 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   maxLength={maxChars}
 />
 
-      {/* SUBIDA DE IMAGEN */}
-      <div className="flex flex-col gap-2">
-        {newMessageAttachments[0] ? (
-          <div className="relative w-40 h-40">
-            <img
-              src={newMessageAttachments[0]}
-              alt="Preview"
-              className="w-full h-full object-cover rounded-xl border border-gray-700"
-            />
-            <button
-              onClick={() => setNewMessageAttachments([])}
-              className="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold hover:bg-red-700 transition-colors"
-              title="Eliminar imagen"
-            >
-              ✕
-            </button>
-          </div>
-        ) : (
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                const file = e.target.files[0];
-                // Guardamos en state para enviar a backend + preview
-                setNewMessageAttachments([URL.createObjectURL(file)]);
-              }
-            }}
-            className="text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700"
-          />
-        )}
-      </div>
+    {/* SUBIDA DE IMAGEN */}
+<div className="flex flex-col gap-2">
+  {imagePreview ? (
+    <div className="relative w-40 h-40">
+      <img
+        src={imagePreview}
+        alt="Preview"
+        className="w-full h-full object-cover rounded-xl border border-gray-700"
+      />
+      <button
+        onClick={() => {
+          setNewPostImage(null);
+          setImagePreview(null);
+        }}
+        className="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold hover:bg-red-700 transition-colors"
+        title="Eliminar imagen"
+      >
+        ✕
+      </button>
+    </div>
+  ) : (
+    <input
+      type="file"
+      accept="image/*"
+      onChange={(e) => {
+        if (!e.target.files || !e.target.files[0]) return;
+
+        const file = e.target.files[0];
+        setNewPostImage(file);
+        setImagePreview(URL.createObjectURL(file));
+      }}
+      className="text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700"
+    />
+  )}
+</div>
+      
 
       {/* PIE DEL MODAL */}
       <div className="flex justify-between items-center text-sm text-gray-400">
@@ -500,10 +507,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         <div className="flex gap-3">
           <button
             onClick={() => { 
-              setShowNewPostModal(false); 
-              setNewPostContent("");
-              setNewMessageAttachments([]);
-            }}
+            setShowNewPostModal(false); 
+            setNewPostContent("");
+            setNewPostImage(null);
+            setImagePreview(null);
+             }}
             className="px-5 py-2 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
           >
             Cancelar
