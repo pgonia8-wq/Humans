@@ -55,7 +55,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   showUpgradeButton,
   onOpenChat,
 }) => {
-  const { t } = useTranslation();
+  
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
