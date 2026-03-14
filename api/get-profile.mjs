@@ -6,29 +6,44 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  res.setHeader("Content-Type", "application/json");
+  console.log("[BACKEND] Llamada a get-profile.mjs");
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET") {
+    console.log("[BACKEND] Método no permitido:", req.method);
+    return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const { userId } = req.body;
+  const userId = req.query?.userId;
+  console.log("[BACKEND] userId recibido:", userId);
+
   if (!userId) {
-    return res.status(400).json({ error: "No userId provided" });
+    console.log("[BACKEND] No se recibió userId");
+    return res.status(400).json({ success: false, error: "Missing userId" });
   }
 
   try {
-    const { data, error } = await supabase
+    // Obtener perfil desde Supabase
+    const { data: profile, error } = await supabase
       .from("profiles")
-      .select("username, avatar_url")
+      .select("*")
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error("[BACKEND] Error al consultar profile:", error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
 
-    return res.status(200).json({ profile: data });
+    if (!profile) {
+      console.log("[BACKEND] Perfil no encontrado para userId:", userId);
+      return res.status(404).json({ success: false, error: "Profile not found" });
+    }
+
+    console.log("[BACKEND] Perfil encontrado:", profile);
+
+    return res.status(200).json({ success: true, profile });
   } catch (err) {
-    console.error("[GET-PROFILE] Error:", err);
-    return res.status(500).json({ error: err.message });
+    console.error("[BACKEND] Error completo get-profile.mjs:", err);
+    return res.status(500).json({ success: false, error: err.message || "Internal server error" });
   }
 }
