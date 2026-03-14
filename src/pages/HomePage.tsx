@@ -46,6 +46,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       ? 4000
       : 280;
 
+  // -- Fetch Posts, Profile, Realtime Posts, Scroll Handling --
   const fetchPosts = useCallback(async (reset = false) => {
     if (!hasMore && !reset) return;
     try {
@@ -54,7 +55,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       const to = from + PAGE_SIZE - 1;
 
       const { data, error } = await supabase.rpc("get_trending_posts");
-
       if (error) throw error;
 
       const newPosts = data || [];
@@ -241,7 +241,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       const { error } = await supabase.from("messages").insert({
         sender_id: userId,
-        receiver_id: selectedChatUserId, 
+        receiver_id: selectedChatUserId,
         content: newMessage,
         attachments: attachmentsUrls,
         timestamp: new Date().toISOString(),
@@ -270,8 +270,9 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         <img src="/logo.png" className="w-11 h-11 object-contain" alt="Logo" />
 
         <div className="flex gap-3">
+          {/* --- ActionButton con idioma --- */}
           <ActionButton
-            label={t("post")}
+            labelKey="post"
             onClick={() => setShowNewPostModal(true)}
             className="px-5 py-2 bg-gray-800 rounded-full"
           />
@@ -341,6 +342,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         />
       )}
 
+      {/* MODAL NUEVO POST */}
       {showNewPostModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-gray-900 rounded-2xl w-full max-w-md p-6">
@@ -384,6 +386,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         </div>
       )}
 
+      {/* MODAL INBOX */}
       {showInbox && userId && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
           <div className="bg-gray-900 rounded-2xl w-full max-w-md h-[90vh] flex flex-col border border-white/10 shadow-lg">
@@ -440,6 +443,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         </div>
       )}
 
+      {/* MODAL NOTIFICACIONES */}
       {showNotifications && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-gray-900 rounded-xl w-[90%] max-w-md p-4">
