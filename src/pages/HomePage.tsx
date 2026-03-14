@@ -184,7 +184,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     try {
       if (newPostImage) {
         const fileExt = newPostImage.name.split(".").pop() || "png";
-        // 🔥 CORRECCIÓN REAL AQUÍ (template string correcto)
         const fileName = `\( {userId}- \){Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
@@ -216,6 +215,47 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       fetchPosts(true);
     } catch (err: any) {
       console.error("Error creando post", err);
+      alert(err.message);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() && newMessageAttachments.length === 0) return;
+
+    try {
+      let attachmentsUrls: string[] = [];
+
+      for (const file of newMessageAttachments) {
+        const ext = file.name.split(".").pop() || "bin";
+        const key = `\( {userId}- \){Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("message-attachments")
+          .upload(key, file);
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage.from("message-attachments").getPublicUrl(key);
+        attachmentsUrls.push(data.publicUrl);
+      }
+
+      // Nota: necesitas el receiver_id (aquí uso un placeholder, cámbialo por el chat activo)
+      const receiverId = "placeholder-receiver-id"; // ← CAMBIAR POR EL ID DEL USUARIO DESTINATARIO
+
+      const { error } = await supabase.from("messages").insert({
+        sender_id: userId,
+        receiver_id: receiverId,
+        content: newMessage,
+        attachments: attachmentsUrls,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+
+      setNewMessage("");
+      setNewMessageAttachments([]);
+      loadUnread(); // refresca contador
+      alert("✅ Mensaje enviado correctamente");
+    } catch (err: any) {
+      console.error("Error enviando mensaje", err);
       alert(err.message);
     }
   };
@@ -304,7 +344,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
               value={newPostContent}
               onChange={(e) => setNewPostContent(e.target.value)}
               className={`w-full h-32 p-3 rounded-xl resize-y focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-black"
+                theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-black border border-gray-300"
               }`}
               placeholder="¿Qué está pasando?"
               maxLength={maxChars}
@@ -362,7 +402,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Escribe un mensaje..."
                   className={`flex-1 p-3 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-black"
+                    theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-black border border-gray-300"
                   }`}
                 />
                 <label className="cursor-pointer p-3 bg-gray-700 rounded-full">
@@ -380,13 +420,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
                   />
                 </label>
                 <button
-                  onClick={() => {
-                    if (newMessage.trim() || newMessageAttachments.length > 0) {
-                      alert("✅ Mensaje enviado correctamente");
-                      setNewMessage("");
-                      setNewMessageAttachments([]);
-                    }
-                  }}
+                  onClick={handleSendMessage}
                   className="p-3 bg-indigo-600 rounded-full"
                 >
                   <span role="img" aria-label="send">➤</span>
@@ -394,7 +428,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
               </div>
               {newMessageAttachments.length > 0 && (
                 <div className="mt-2 text-xs text-gray-400">
-                  Adjuntos: {newMessageAttachments.map((f) => f.name).join(", ")}
+                  Adjuntos: {newMessageAttachments.map(f => f.name).join(", ")}
                 </div>
               )}
             </div>
@@ -413,7 +447,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
               </button>
             </div>
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              <p className="text-gray-500 text-sm dark:text-gray-400">
+              <p className={`${theme === "dark" ? "text-gray-400" : "text-black"} text-sm`}>
                 Aún no tienes notificaciones.
               </p>
             </div>
