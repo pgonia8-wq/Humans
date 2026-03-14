@@ -2,14 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import { verifyCloudProof } from "@worldcoin/idkit-core";
 
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 const APP_ID = "app_6a98c88249208506dcd4e04b529111fc"; // Tu App ID real
 
 export default async function handler(req, res) {
-  console.log("[BACKEND] Verificando World ID...");
+  console.log("[BACKEND] Llamada a verify.mjs");
 
   if (req.method !== "POST") {
     console.log("[BACKEND] Método no permitido:", req.method);
@@ -25,7 +25,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Validar el proof con Worldcoin
+    console.log("[BACKEND] Payload recibido:", payload);
+
+    // 1. Validar proof con Worldcoin
     const cloudProof = {
       merkle_root: payload.merkle_root,
       nullifier_hash: payload.nullifier_hash,
@@ -36,8 +38,10 @@ export default async function handler(req, res) {
     const verification = await verifyCloudProof(
       cloudProof,
       APP_ID,
-      "verify-user" // debe coincidir exactamente con la action que usas en frontend
+      "verify-user"
     );
+
+    console.log("[BACKEND] Resultado verifyCloudProof:", verification);
 
     if (!verification.success) {
       console.log("[BACKEND] Proof inválido:", verification);
@@ -50,7 +54,7 @@ export default async function handler(req, res) {
 
     const nullifierHash = payload.nullifier_hash;
 
-    // 2. Intentar obtener perfil existente
+    // 2. Buscar perfil existente
     const { data: existing, error: selectError } = await supabase
       .from("profiles")
       .select("*")
@@ -61,7 +65,6 @@ export default async function handler(req, res) {
 
     let profile = existing;
 
-    // 3. Si no existe → crear
     if (!profile) {
       console.log("[BACKEND] No existe profile, creando...");
 
@@ -70,7 +73,7 @@ export default async function handler(req, res) {
         .insert({
           id: nullifierHash,
           tier: "free",
-          username: `@anon-${nullifierHash.slice(0, 8)}`, // fallback inicial
+          username: `@anon-${nullifierHash.slice(0, 8)}`,
           avatar_url: "",
           created_at: new Date().toISOString(),
           profile_visible: true,
@@ -81,19 +84,20 @@ export default async function handler(req, res) {
       if (insertError) throw insertError;
 
       profile = inserted;
-      console.log("[BACKEND] Perfil creado:", profile.id);
+      console.log("[BACKEND] Perfil creado:", profile);
     } else {
-      console.log("[BACKEND] Perfil existente encontrado:", profile.id);
+      console.log("[BACKEND] Perfil existente encontrado:", profile);
     }
 
-    // 4. Devolver perfil completo al frontend
+    console.log("[BACKEND] Devolviendo perfil al frontend:", profile);
+
     return res.status(200).json({
       success: true,
       nullifier_hash: nullifierHash,
       profile,
     });
-  } catch (err: any) {
-    console.error("[BACKEND] Error completo:", err);
+  } catch (err) {
+    console.error("[BACKEND] Error completo verify.mjs:", err);
     return res.status(500).json({
       success: false,
       error: err.message || "Error interno al procesar verificación",
