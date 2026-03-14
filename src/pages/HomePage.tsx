@@ -354,159 +354,89 @@ const PAGE_SIZE = 8;
   </main>
 
   {/* MODAL INBOX */}
-  {showInbox && userId && (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
-      <div className="bg-gray-900 rounded-2xl w-full max-w-md h-[80vh] flex flex-col border border-white/10 shadow-lg">
-        <div className="flex items-center justify-between p-4 border-b border-white/20">
-          <h2 className="text-white font-bold text-lg">Mensajes</h2>
-          <button
-            onClick={() => setShowInbox(false)}
-            className="text-gray-400 hover:text-white"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* MENSAJES */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          <Inbox currentUserId={userId} />
-        </div>
-
-        {/* NUEVO MENSAJE / ADJUNTOS */}
-        <div className="p-4 border-t border-white/20 flex flex-col gap-2">
-          <textarea
-            value={newMessage}
-            onChange={(e) => {
-              const maxChars =
-                profile?.tier === "premium+"
-                  ? 10000
-                  : profile?.tier === "premium"
-                  ? 3000
-                  : 1000;
-              if (e.target.value.length <= maxChars) setNewMessage(e.target.value);
-            }}
-            className="w-full p-2 bg-gray-800 text-white rounded resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[80px]"
-            placeholder="Escribe tu mensaje..."
-          />
-          <div className="flex items-center justify-between mt-2">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                if (!e.target.files || !e.target.files[0]) return;
-                const file = e.target.files[0];
-                setNewMessageAttachments([file]);
-              }}
-            />
-            <span className="text-gray-400 text-sm">
-              {newMessage.length} / {profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 3000 : 1000}
-            </span>
-            <button
-              onClick={sendMessage}
-              className="px-4 py-1 bg-purple-600 rounded-full text-white font-medium"
-            >
-              Enviar
-            </button>
-          </div>
-        </div>
+{showInbox && userId && (
+  <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
+    <div className="bg-gray-900 rounded-2xl w-full max-w-md h-[80vh] flex flex-col border border-white/10 shadow-lg">
+      
+      {/* HEADER */}
+      <div className="flex items-center justify-between p-4 border-b border-white/20">
+        <h2 className="text-white font-bold text-lg">Mensajes</h2>
+        <button
+          onClick={() => setShowInbox(false)}
+          className="text-gray-400 hover:text-white"
+        >
+          ✕
+        </button>
       </div>
-    </div>
-  )}
 
-  {/* MODAL NUEVO POST */}
-  {showNewPostModal && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-3xl p-6 w-full max-w-lg border border-white/20 shadow-xl flex flex-col gap-4">
-        <h2 className="text-2xl font-bold text-white">Nuevo Post</h2>
+      {/* MENSAJES */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <Inbox currentUserId={userId} />
+      </div>
+
+      {/* NUEVO MENSAJE / ADJUNTOS */}
+      <div className="p-4 border-t border-white/20 flex flex-col gap-2">
         <textarea
-          value={newPostContent}
+          value={newMessage}
           onChange={(e) => {
-            if (e.target.value.length <= maxChars) {
-              setNewPostContent(e.target.value);
-            }
+            const maxChars =
+              profile?.tier === "premium+"
+                ? 10000
+                : profile?.tier === "premium"
+                ? 3000
+                : 1000;
+            if (e.target.value.length <= maxChars) setNewMessage(e.target.value);
           }}
-          className={`w-full border rounded-xl p-4 resize-none min-h-[140px] focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-            theme === "dark"
-              ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
-              : "bg-white border-gray-300 text-black placeholder-gray-500"
+          className={`w-full p-2 rounded resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[80px] ${
+            theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-black"
           }`}
-          placeholder="¿Qué estás pensando?"
-          maxLength={maxChars}
+          placeholder="Escribe tu mensaje..."
         />
-        <div className="flex flex-col gap-2">
-          {imagePreview ? (
-            <div className="relative w-40 h-40">
-              <img src={imagePreview} alt="Preview" className="w-full h-full object-cover rounded-xl border border-gray-700" />
-              <button
-                onClick={() => {
-                  setNewPostImage(null);
-                  setImagePreview(null);
-                }}
-                className="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold hover:bg-red-700 transition-colors"
-                title="Eliminar imagen"
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                if (!e.target.files || !e.target.files[0]) return;
-                const file = e.target.files[0];
-                setNewPostImage(file);
-                setImagePreview(URL.createObjectURL(file));
-              }}
-              className="text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700"
-            />
-          )}
-        </div>
-
-        {/* PIE DEL MODAL */}
-        <div className="flex justify-between items-center text-sm text-gray-400">
-          <span>{newPostContent.length} / {maxChars}</span>
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                setShowNewPostModal(false);
-                setNewPostContent("");
-                setNewPostImage(null);
-                setImagePreview(null);
-              }}
-              className="px-5 py-2 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleCreatePost}
-              className="px-6 py-2 bg-purple-600 rounded-full font-medium hover:bg-purple-700 transition-colors"
-            >
-              Publicar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-
-  {/* MODAL NOTIFICACIONES */}
-  {showNotifications && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-900 rounded-xl w-[90%] max-w-md p-4">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Notificaciones</h2>
-          <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-gray-700">
-            ✕
+        <div className="flex items-center justify-between mt-2">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              if (!e.target.files || !e.target.files[0]) return;
+              const file = e.target.files[0];
+              setNewMessageAttachments([file]);
+            }}
+          />
+          <span className="text-gray-400 text-sm">
+            {newMessage.length} / {profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 3000 : 1000}
+          </span>
+          <button
+            onClick={sendMessage}
+            className="px-4 py-1 bg-purple-600 rounded-full text-white font-medium"
+          >
+            Enviar
           </button>
         </div>
-        <div className="space-y-2 max-h-[400px] overflow-y-auto">
-          <p className="text-gray-500 text-sm">Aún no tienes notificaciones.</p>
-        </div>
       </div>
     </div>
-  )}
-                      
+  </div>
+)}
+
+{/* MODAL NOTIFICACIONES */}
+{showNotifications && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="bg-white dark:bg-gray-900 rounded-xl w-[90%] max-w-md p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold">Notificaciones</h2>
+        <button
+          onClick={() => setShowNotifications(false)}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+        <p className="text-gray-500 text-sm">Aún no tienes notificaciones.</p>
+      </div>
+    </div>
+  </div>
+)}
+          
 );
 };  
   export default HomePage;
