@@ -226,7 +226,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       let attachmentsUrls: string[] = [];
 
       for (const file of newMessageAttachments) {
-        const ext = file.name.split(".").pop() || "bin";
+        const ext = file.name.split(".").pop();
         const key = `\( {userId}- \){Date.now()}-${file.name}`;
         const { error: uploadError } = await supabase.storage
           .from("message-attachments")
@@ -237,12 +237,9 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         attachmentsUrls.push(data.publicUrl);
       }
 
-      // Nota: necesitas el receiver_id (aquí uso un placeholder, cámbialo por el chat activo)
-      const receiverId = "placeholder-receiver-id"; // ← CAMBIAR POR EL ID DEL USUARIO DESTINATARIO
-
       const { error } = await supabase.from("messages").insert({
         sender_id: userId,
-        receiver_id: receiverId,
+        receiver_id: selectedChatUserId, // Debes tener a quién le envías
         content: newMessage,
         attachments: attachmentsUrls,
         timestamp: new Date().toISOString(),
@@ -253,7 +250,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       setNewMessage("");
       setNewMessageAttachments([]);
       loadUnread(); // refresca contador
-      alert("✅ Mensaje enviado correctamente");
     } catch (err: any) {
       console.error("Error enviando mensaje", err);
       alert(err.message);
