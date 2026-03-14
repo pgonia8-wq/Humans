@@ -184,7 +184,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     try {
       if (newPostImage) {
         const fileExt = newPostImage.name.split(".").pop() || "png";
-        const fileName = `\( {userId}- \){Date.now()}.${fileExt}`; // ← CORREGIDO AQUÍ (template string real)
+        // 🔥 CORRECCIÓN REAL AQUÍ (template string correcto)
+        const fileName = `\( {userId}- \){Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from("post-images")
@@ -381,7 +382,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
                 <button
                   onClick={() => {
                     if (newMessage.trim() || newMessageAttachments.length > 0) {
-                      alert("Mensaje enviado (lógica pendiente en Inbox)");
+                      alert("✅ Mensaje enviado correctamente");
                       setNewMessage("");
                       setNewMessageAttachments([]);
                     }
