@@ -491,4 +491,4 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      export default PostCard;
+      
