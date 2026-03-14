@@ -506,7 +506,6 @@ const PAGE_SIZE = 8;
       </div>
     </div>
   )}
-</div>
                       
 );
 };  
