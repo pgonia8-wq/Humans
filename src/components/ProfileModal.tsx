@@ -2,6 +2,7 @@ import React, { useEffect, useState, useContext, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
+import { useTranslation } from "react-i18next";
 
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
@@ -54,6 +55,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   showUpgradeButton,
   onOpenChat,
 }) => {
+  const { t } = useTranslation();
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -148,10 +150,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       if (error) throw error;
 
       await refreshProfile();
-      setToast({ message: "✅ Perfil guardado correctamente", type: "success" });
+      setToast({ message: t("perfil_guardado"), type: "success" });
       setEditMode(false);
     } catch (err: any) {
-      setToast({ message: "❌ Error al guardar: " + err.message, type: "error" });
+      setToast({ message: t("error_guardar") + ": " + err.message, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -209,7 +211,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         })
       );
 
-      setToast({ message: "✅ Avatar actualizado", type: "success" });
+      setToast({ message: t("avatar_actualizado"), type: "success" });
     } catch (err: any) {
       setToast({ message: err.message, type: "error" });
     } finally {
@@ -223,7 +225,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const handlePremiumChat = async () => {
     if (!currentUserId) {
-      setToast({ message: "No se encontró tu ID", type: "error" });
+      setToast({ message: t("id_no_encontrado"), type: "error" });
       return;
     }
 
@@ -233,17 +235,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     }
 
     try {
-      if (!MiniKit.isInstalled()) throw new Error("MiniKit no detectado");
+      if (!MiniKit.isInstalled()) throw new Error(t("minikit_no_detectado"));
 
       const payRes = await MiniKit.commandsAsync.pay({
         reference: "premium-chat-" + Date.now(),
         to: RECEIVER,
         tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
-        description: "Suscripción Chat Exclusivo",
+        description: t("suscripcion_chat_exclusivo"),
       });
 
       if (payRes?.finalPayload?.status !== "success") {
-        throw new Error("Pago cancelado");
+        throw new Error(t("pago_cancelado"));
       }
 
       await fetch("/api/subscribePremiumChat", {
@@ -252,10 +254,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         body: JSON.stringify({ userId: currentUserId, transactionId: payRes.finalPayload.transaction_id }),
       });
 
-      alert("¡Suscripción exitosa!");
+      alert(t("suscripcion_exitosa"));
       window.location.href = "/chat/premium";
     } catch (err: any) {
-      setToast({ message: err.message || "Error en pago", type: "error" });
+      setToast({ message: err.message || t("error_pago"), type: "error" });
     }
   };
 
@@ -272,17 +274,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl"
-          aria-label="Cerrar modal"
+          aria-label={t("cerrar_modal")}
         >
           ×
         </button>
 
         {loading ? (
-          <p className="text-white text-center py-8">Cargando perfil...</p>
+          <p className="text-white text-center py-8">{t("cargando_perfil")}</p>
         ) : (
           <>
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-white">Tu Perfil</h2>
+              <h2 className="text-xl font-bold text-white">{t("tu_perfil")}</h2>
               <span className={`px-3 py-1 text-xs rounded-full ${profile.tier === "premium+" ? "bg-yellow-500 text-black" : profile.tier === "premium" ? "bg-purple-600 text-white" : "bg-gray-600 text-white"}`}>
                 {profile.tier.toUpperCase()}
               </span>
@@ -300,7 +302,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 {profile.avatar_url ? (
                   <img
                     src={profile.avatar_url}
-                    alt="Avatar"
+                    alt={t("avatar")}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -311,25 +313,25 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <input
-  id="avatarUpload"
-  type="file"
-  accept="image/*"
-  onChange={handleAvatarUpload}
-  className="hidden"
-/>
+                id="avatarUpload"
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
 
               <label
-  htmlFor="avatarUpload"
-  className="px-4 py-2 bg-gray-700 text-white rounded-full text-sm hover:bg-gray-600 transition cursor-pointer"
->
-  {uploadingAvatar ? "Subiendo..." : "Cambiar avatar"}
-</label>
+                htmlFor="avatarUpload"
+                className="px-4 py-2 bg-gray-700 text-white rounded-full text-sm hover:bg-gray-600 transition cursor-pointer"
+              >
+                {uploadingAvatar ? t("subiendo") : t("cambiar_avatar")}
+              </label>
             </div>
 
             {/* Campos editables */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Nombre de usuario</label>
+                <label className="block text-sm text-gray-400 mb-1">{t("nombre_usuario")}</label>
                 <input
                   type="text"
                   value={profile.username}
@@ -339,18 +341,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Nombre</label>
+                <label className="block text-sm text-gray-400 mb-1">{t("nombre")}</label>
                 <input
                   type="text"
                   value={profile.name}
                   onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full bg-gray-800 p-3 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Tu nombre"
+                  placeholder={t("tu_nombre")}
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Biografía ({bioLength}/160)</label>
+                <label className="block text-sm text-gray-400 mb-1">{t("biografia", { count: bioLength })}</label>
                 <textarea
                   value={profile.bio}
                   onChange={e => {
@@ -360,13 +362,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     }
                   }}
                   className="w-full bg-gray-800 p-3 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none h-24"
-                  placeholder="Cuéntanos sobre ti..."
+                  placeholder={t("cuentanos_sobre_ti")}
                 />
               </div>
 
+              {/* Fecha, ciudad, país */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Fecha de nacimiento</label>
+                  <label className="block text-sm text-gray-400 mb-1">{t("fecha_nacimiento")}</label>
                   <input
                     type="date"
                     value={profile.birthdate}
@@ -376,30 +379,31 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Ciudad</label>
+                  <label className="block text-sm text-gray-400 mb-1">{t("ciudad")}</label>
                   <input
                     type="text"
                     value={profile.city}
                     onChange={e => setProfile(prev => ({ ...prev, city: e.target.value }))}
                     className="w-full bg-gray-800 p-3 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Tu ciudad"
+                    placeholder={t("tu_ciudad")}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">País</label>
+                  <label className="block text-sm text-gray-400 mb-1">{t("pais")}</label>
                   <input
                     type="text"
                     value={profile.country}
                     onChange={e => setProfile(prev => ({ ...prev, country: e.target.value }))}
                     className="w-full bg-gray-800 p-3 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Tu país"
+                    placeholder={t("tu_pais")}
                   />
                 </div>
               </div>
 
+              {/* Perfil visible */}
               <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-400">Perfil visible</label>
+                <label className="text-sm text-gray-400">{t("perfil_visible")}</label>
                 <input
                   type="checkbox"
                   checked={profile.profile_visible}
@@ -409,21 +413,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             </div>
 
-            {/* Botones */}
+            {/* Botones Guardar / Cancelar */}
             <div className="flex gap-3">
               <button
                 onClick={handleSave}
                 disabled={saving}
                 className="flex-1 py-3 bg-green-600 text-white rounded-full disabled:opacity-50"
               >
-                {saving ? "Guardando..." : "Guardar"}
+                {saving ? t("guardando") : t("guardar")}
               </button>
 
               <button
                 onClick={onClose}
                 className="flex-1 py-3 bg-red-600 text-white rounded-full"
               >
-                Cancelar
+                {t("cancelar")}
               </button>
             </div>
 
@@ -433,7 +437,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 onClick={onClose}
                 className="mt-4 w-full py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition"
               >
-                Cerrar
+                {t("cerrar")}
               </button>
             )}
 
@@ -443,7 +447,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 onClick={handlePremiumChat}
                 className="w-full py-3 bg-purple-600 text-white rounded-full mt-4 hover:bg-purple-700 transition"
               >
-                Suscribirse a Chat Premium (5 WLD)
+                {t("suscribirse_chat_premium", { amount: 5 })}
               </button>
             )}
 
@@ -452,9 +456,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               onClick={() => window.location.href = "/chat/tokens"}
               className="w-full py-3 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 transition"
             >
-              Chat Exclusivo Creadores de Tokens
+              {t("chat_exclusivo_creadores_tokens")}
             </button>
-
           </>
         )}
 
