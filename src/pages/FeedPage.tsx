@@ -12,7 +12,6 @@ interface FeedPageProps {
   currentUserId: string | null;
   userTier: "free" | "basic" | "premium" | "premium+";
   onUpgradeSuccess?: () => void;
-  t: (key: string) => string; // <-- idioma
 }
 
 const FeedPage: React.FC<FeedPageProps> = ({
@@ -21,9 +20,9 @@ const FeedPage: React.FC<FeedPageProps> = ({
   error,
   currentUserId,
   userTier,
-  onUpgradeSuccess,
-  t
+  onUpgradeSuccess
 }) => {
+
   const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
   const [selectedTier, setSelectedTier] = useState<"premium" | "premium+" | null>(null);
   const [showSlideModal, setShowSlideModal] = useState(false);
@@ -33,17 +32,24 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
   // ---- Algoritmo de ranking avanzado ----
   const sortedPosts = [...posts].sort((a, b) => {
+
     const now = Date.now();
+
     const calculateScore = (post: any) => {
+
       const weightLikes = 1;
       const weightComments = 2;
       const weightReposts = 2;
       const weightTips = 3;
       const weightBoost = 15;
 
-      const ageHours = (now - new Date(post.timestamp).getTime()) / 3600000;
+      const ageHours =
+        (now - new Date(post.timestamp).getTime()) / 3600000;
+
+      // Recency decay
       const recencyDecay = Math.exp(-ageHours / 24);
 
+      // Engagement base
       const likes = post.likes || 0;
       const comments = post.comments || 0;
       const reposts = post.reposts || 0;
@@ -55,21 +61,34 @@ const FeedPage: React.FC<FeedPageProps> = ({
         reposts * weightReposts +
         tips * weightTips;
 
+      // Normalización por edad
       const engagementScore = engagement / (1 + ageHours);
 
+      // Boost pagado
       const boost =
-        post.boosted_until && new Date(post.boosted_until) > new Date()
+        post.boosted_until &&
+        new Date(post.boosted_until) > new Date()
           ? weightBoost
           : 0;
 
+      // Score por tags
       const tagScore = post.tags ? post.tags.length * 0.5 : 0;
 
+      // Velocity (posts que se vuelven virales)
       const velocity =
-        (likes + comments * 2 + reposts * 2 + tips * 3) / Math.max(ageHours, 1);
+        (likes + comments * 2 + reposts * 2 + tips * 3) /
+        Math.max(ageHours, 1);
 
       const velocityScore = velocity * 0.5;
 
-      return engagementScore + recencyDecay + boost + tagScore + velocityScore;
+      const score =
+        engagementScore +
+        recencyDecay +
+        boost +
+        tagScore +
+        velocityScore;
+
+      return score;
     };
 
     return calculateScore(b) - calculateScore(a);
@@ -102,11 +121,15 @@ const FeedPage: React.FC<FeedPageProps> = ({
     fetchSlots();
   }, [selectedTier]);
 
-  const handleUpgrade = () => setShowUpgradeOptions(true);
+  const handleUpgrade = () => {
+    setShowUpgradeOptions(true);
+  };
+
   const selectTier = (tier: "premium" | "premium+") => {
     setSelectedTier(tier);
     setShowSlideModal(true);
   };
+
   const cancelUpgrade = () => {
     setShowSlideModal(false);
     setSelectedTier(null);
@@ -117,23 +140,24 @@ const FeedPage: React.FC<FeedPageProps> = ({
     setUpgradeError(null);
 
     if (!price) {
-      setUpgradeError(t("calculating_price_try_again"));
+      setUpgradeError("Calculando precio, intenta nuevamente.");
       return;
     }
 
     if (!currentUserId || !selectedTier) {
-      setUpgradeError(t("no_user_or_tier"));
+      setUpgradeError("No se encontró tu ID o tier seleccionado");
       return;
     }
 
     if (!MiniKit.isInstalled()) {
-      setUpgradeError(t("minikit_not_detected"));
+      setUpgradeError("MiniKit no detectado dentro de World App");
       return;
     }
 
     setLoadingUpgrade(true);
 
     try {
+
       const payRes = await MiniKit.commandsAsync.pay({
         reference: "upgrade-" + Date.now(),
         to: RECEIVER,
@@ -149,7 +173,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
       console.log("[UPGRADE] pay response:", payRes);
 
       if (payRes?.finalPayload?.status !== "success") {
-        throw new Error(payRes?.finalPayload?.description || t("payment_cancelled"));
+        throw new Error(payRes?.finalPayload?.description || "Pago cancelado");
       }
 
       const transactionId = payRes?.finalPayload?.transaction_id;
@@ -167,23 +191,31 @@ const FeedPage: React.FC<FeedPageProps> = ({
       const data = await res.json();
 
       if (!data.success) {
-        throw new Error(data.error || t("upgrade_error"));
+        throw new Error(data.error || "Error al procesar upgrade");
       }
 
-      alert(`Upgrade ${selectedTier}`); // <-- literal, no t()
+      alert(`Upgrade ${selectedTier} exitoso`);
 
       onUpgradeSuccess?.();
+
       cancelUpgrade();
+
     } catch (err: any) {
+
       console.error("[UPGRADE] error:", err);
-      setUpgradeError(err.message || t("upgrade_error"));
+
+      setUpgradeError(err.message || "Error en el upgrade");
+
     } finally {
+
       setLoadingUpgrade(false);
+
     }
   };
 
   return (
     <div className="flex flex-col p-4">
+
       <div className="mb-6">
         <button
           onClick={handleUpgrade}
@@ -195,62 +227,77 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       {showUpgradeOptions && (
         <div className="space-y-4 mb-6">
+
           <button
             onClick={() => selectTier("premium")}
             className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold"
           >
             Premium
           </button>
+
           <button
             onClick={() => selectTier("premium+")}
             className="w-full py-4 rounded-xl bg-purple-600 text-white font-bold"
           >
             Premium+
           </button>
+
         </div>
       )}
 
       {loading ? (
-        <p className="text-center py-10">{t("loading")}</p>
+        <p className="text-center py-10">Cargando...</p>
       ) : error ? (
         <p className="text-red-500 text-center py-10">{error}</p>
       ) : (
         <div className="space-y-5">
           {sortedPosts?.map((post) => (
-            <PostCard key={post.id} post={post} currentUserId={currentUserId} t={t} />
+            <PostCard key={post.id} post={post} currentUserId={currentUserId} />
           ))}
         </div>
       )}
 
-      {upgradeError && <p className="text-red-500 text-center py-4">{upgradeError}</p>}
+      {upgradeError && (
+        <p className="text-red-500 text-center py-4">{upgradeError}</p>
+      )}
 
       {showSlideModal && selectedTier && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+
           <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6">
+
             <h2 className="text-xl font-bold text-white mb-4">
-              Beneficios de {selectedTier} {/* <-- literal, no t() */}
+              Beneficios de {selectedTier}
             </h2>
+
             <p className="text-white text-center mb-4">
-              {t("price")}: {price} WLD
+              Precio: {price} WLD
             </p>
+
             <div className="flex gap-4">
+
               <button
                 onClick={cancelUpgrade}
                 className="flex-1 py-3 bg-gray-700 text-white rounded-2xl"
               >
-                {t("cancel")}
+                Cancelar
               </button>
+
               <button
                 onClick={confirmUpgrade}
                 disabled={loadingUpgrade}
                 className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
               >
-                {loadingUpgrade ? t("processing") : t("accept")}
+                {loadingUpgrade ? "Procesando..." : "Aceptar"}
               </button>
+
             </div>
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 };
