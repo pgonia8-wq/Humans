@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { useFollow } from "../lib/useFollow";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
+import { useLanguage } from "../lib/LanguageContext";
 
 interface PostCardProps {
   post: any;
@@ -13,37 +14,39 @@ const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const { theme } = useContext(ThemeContext);
-const postRef = useRef<HTMLDivElement | null>(null);
-const viewRegistered = useRef(false);
+  const { t } = useLanguage();
+  const postRef = useRef<HTMLDivElement | null>(null);
+  const viewRegistered = useRef(false);
 
-useEffect(() => {
-  if (!postRef.current || viewRegistered.current) return;
+  useEffect(() => {
+    if (!postRef.current || viewRegistered.current) return;
 
-  const observer = new IntersectionObserver(
-    async (entries) => {
-      const entry = entries[0];
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        const entry = entries[0];
 
-      if (entry.isIntersecting && !viewRegistered.current) {
-        viewRegistered.current = true;
+        if (entry.isIntersecting && !viewRegistered.current) {
+          viewRegistered.current = true;
 
-        try {
-          await supabase.rpc("increment_post_views", {
-            post_id_input: post.id,
-          });
-        } catch (err) {
-          console.error("Error registrando view", err);
+          try {
+            await supabase.rpc("increment_post_views", {
+              post_id_input: post.id,
+            });
+          } catch (err) {
+            console.error(t("error_registrando_view"), err);
+          }
+
+          observer.disconnect();
         }
+      },
+      { threshold: 0.6 }
+    );
 
-        observer.disconnect();
-      }
-    },
-    { threshold: 0.6 }
-  );
+    observer.observe(postRef.current);
 
-  observer.observe(postRef.current);
+    return () => observer.disconnect();
+  }, [post.id, t]);
 
-  return () => observer.disconnect();
-}, [post.id]);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(post.likes || 0);
   const [comments, setComments] = useState(post.comments || 0);
@@ -117,18 +120,18 @@ useEffect(() => {
 
           setCommentsList(enriched);
         } catch (err: any) {
-          console.error("Error cargando comentarios:", err);
-          setError("No se pudieron cargar los comentarios");
+          console.error(t("error_cargando_comentarios"), err);
+          setError(t("error_cargando_comentarios"));
         } finally {
           setLoadingComments(false);
         }
       };
       fetchComments();
     }
-  }, [showComments, post.id]);
+  }, [showComments, post.id, t]);
 
   const handleLike = async () => {
-    if (!currentUserId) return setError("Debes estar logueado");
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
     setLoadingAction("like");
 
     try {
@@ -151,15 +154,15 @@ useEffect(() => {
         setLikes(likes + 1);
       }
     } catch (err: any) {
-      setError("Error al dar like: " + err.message);
+      setError(t("error_al_dar_like") + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
 
   const handleComment = async () => {
-    if (!currentUserId) return setError("Debes estar logueado");
-    if (!commentInput.trim()) return setError("Escribe un comentario");
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
+    if (!commentInput.trim()) return setError(t("escribe_comentario"));
 
     setLoadingAction("comment");
 
@@ -179,7 +182,7 @@ useEffect(() => {
       setShowCommentInput(false);
       setComments(comments + 1);
     } catch (err: any) {
-      setError("Error al comentar: " + err.message);
+      setError(t("error_al_comentar") + err.message);
     } finally {
       setLoadingAction(null);
     }
@@ -190,7 +193,7 @@ useEffect(() => {
   };
 
   const confirmRepost = async () => {
-    if (!currentUserId) return setError("Debes estar logueado");
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
 
     setLoadingAction("repost");
     setShowRepostModal(false);
@@ -206,17 +209,17 @@ useEffect(() => {
 
       await supabase.from("posts").update({ reposts: reposts + 1 }).eq("id", post.id);
       setReposts(reposts + 1);
-      alert("¡Reposteado!");
+      alert(t("repostear") + "!");
     } catch (err: any) {
-      setError("Error al repostear: " + err.message);
+      setError(t("error_al_repostear") + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
 
   const confirmQuote = async () => {
-    if (!currentUserId) return setError("Debes estar logueado");
-    if (!quoteInput.trim()) return setError("Escribe algo para citar");
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
+    if (!quoteInput.trim()) return setError(t("escribe_para_citar"));
 
     setLoadingAction("repost");
     setShowRepostModal(false);
@@ -231,18 +234,18 @@ useEffect(() => {
 
       if (error) throw error;
 
-      alert("¡Post citado!");
+      alert(t("post_citado"));
       setQuoteInput("");
     } catch (err: any) {
-      setError("Error al citar: " + err.message);
+      setError(t("error_al_citar") + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
 
   const handleTip = async () => {
-    if (!currentUserId) return setError("Debes estar logueado");
-    if (tipAmount === "" || Number(tipAmount) < 1) return setError("Mínimo 1 WLD");
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
+    if (tipAmount === "" || Number(tipAmount) < 1) return setError(t("min_wld"));
 
     setLoadingAction("tip");
     setError(null);
@@ -255,23 +258,23 @@ useEffect(() => {
           symbol: Tokens.WLD,
           token_amount: tokenToDecimals(Number(tipAmount), Tokens.WLD).toString()
         }],
-        description: "Tip al post"
+        description: t("tip"),
       });
 
       if (payRes?.finalPayload?.status === "success") {
-        alert("¡Tip enviado!");
+        alert(t("tip_enviado"));
       } else {
-        alert("Pago cancelado o fallido");
+        alert(t("pago_cancelado"));
       }
     } catch (err: any) {
-      setError("Error en tip: " + (err.message || "No se pudo iniciar el pago"));
+      setError(t("error_en_tip") + (err.message || t("pago_cancelado")));
     } finally {
       setLoadingAction(null);
     }
   };
 
   const handleBoost = async () => {
-    if (!currentUserId) return setError("Debes estar logueado");
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
 
     setLoadingAction("boost");
     setError(null);
@@ -284,16 +287,16 @@ useEffect(() => {
           symbol: Tokens.WLD,
           token_amount: tokenToDecimals(5, Tokens.WLD).toString()
         }],
-        description: "Boost al post"
+        description: t("boost_5_wld")
       });
 
       if (payRes?.finalPayload?.status === "success") {
-        alert("¡Boost enviado!");
+        alert(t("boost_enviado"));
       } else {
-        alert("Pago cancelado o fallido");
+        alert(t("pago_cancelado"));
       }
     } catch (err: any) {
-      setError("Error en boost: " + (err.message || "No se pudo iniciar el pago"));
+      setError(t("error_en_boost") + (err.message || t("pago_cancelado")));
     } finally {
       setLoadingAction(null);
     }
@@ -311,16 +314,16 @@ useEffect(() => {
           symbol: Tokens.WLD,
           token_amount: tokenToDecimals(5, Tokens.WLD).toString()
         }],
-        description: "Suscripción Chat Creadores"
+        description: t("chat_exclusivo")
       });
 
       if (payRes?.finalPayload?.status === "success") {
         window.location.href = "/chat/tokens";
       } else {
-        alert("Pago cancelado");
+        alert(t("pago_cancelado"));
       }
     } catch (err: any) {
-      setError("Error al procesar pago: " + (err.message || "No se pudo iniciar el pago"));
+      setError(t("error_procesar_pago") + (err.message || t("pago_cancelado")));
     } finally {
       setLoadingAction(null);
     }
@@ -369,7 +372,7 @@ useEffect(() => {
               isFollowing ? "bg-gray-700 text-gray-300" : "bg-purple-600 text-white"
             } hover:opacity-90`}
           >
-            {isFollowing ? "Siguiendo" : "Seguir"}
+            {isFollowing ? t("siguiendo") : t("seguir")}
           </button>
         )}
       </div>
@@ -420,7 +423,7 @@ useEffect(() => {
               disabled={loadingAction === "tip"}
               className="px-4 py-1 bg-yellow-600 text-white rounded-full text-xs hover:bg-yellow-700 transition disabled:opacity-50"
             >
-              Tip
+              {t("tip")}
             </button>
           </div>
 
@@ -429,7 +432,7 @@ useEffect(() => {
             disabled={loadingAction === "boost"}
             className="px-4 py-1 bg-purple-600 text-white rounded-full text-xs hover:bg-purple-700 transition disabled:opacity-50"
           >
-            Boost 5 WLD
+            {t("boost_5_wld")}
           </button>
         </div>
       </div>
@@ -441,7 +444,7 @@ useEffect(() => {
             type="text"
             value={commentInput}
             onChange={(e) => setCommentInput(e.target.value)}
-            placeholder="Escribe un comentario..."
+            placeholder={t("escribe_comentario")}
             className="flex-1 bg-gray-800 p-2 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
           <button
@@ -449,7 +452,7 @@ useEffect(() => {
             disabled={loadingAction === "comment" || !commentInput.trim()}
             className="px-4 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50"
           >
-            {loadingAction === "comment" ? "..." : "Enviar"}
+            {loadingAction === "comment" ? "..." : t("enviar")}
           </button>
         </div>
       )}
@@ -461,15 +464,15 @@ useEffect(() => {
             onClick={() => setShowComments(!showComments)}
             className="text-blue-400 hover:text-blue-300 text-sm"
           >
-            {showComments ? "Ocultar" : "Ver"} {comments} comentario{comments !== 1 ? "s" : ""}
+            {showComments ? t("ocultar_comentarios") : t("ver_comentarios")} {comments} {comments !== 1 ? t("comentarios") : t("comentario")}
           </button>
 
           {showComments && (
             <div className="mt-2 space-y-3 max-h-60 overflow-y-auto">
               {loadingComments ? (
-                <p className="text-gray-500 text-sm">Cargando comentarios...</p>
+                <p className="text-gray-500 text-sm">{t("cargando_comentarios")}</p>
               ) : commentsList.length === 0 ? (
-                <p className="text-gray-500 text-sm">No hay comentarios aún</p>
+                <p className="text-gray-500 text-sm">{t("no_hay_comentarios")}</p>
               ) : (
                 commentsList.map((c) => (
                   <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
@@ -488,53 +491,4 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Chat Exclusivo Creadores de Tokens */}
-      {currentUserId && (
-        <button
-          onClick={handleChatCreadores}
-          className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
-        >
-          Chat Exclusivo Creadores de Tokens
-        </button>
-      )}
-
-      {/* Error */}
-      {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
-
-      {/* Modal Repost */}
-      {showRepostModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-white text-xl font-bold mb-4 text-center">Repostear</h3>
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={confirmRepost}
-                className="py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
-              >
-                Repostear
-              </button>
-              <button
-                onClick={() => {
-                  setShowRepostModal(false);
-                  // Abrir modal de citar
-                  alert("Escribe tu comentario para citar el post (implementar modal completo si lo deseas)");
-                }}
-                className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
-              >
-                Citar post
-              </button>
-              <button
-                onClick={() => setShowRepostModal(false)}
-                className="py-3 text-gray-400 hover:text-gray-300 transition"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default PostCard;
+      {/*
