@@ -3,8 +3,7 @@ import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { useFollow } from "../lib/useFollow";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
-import { useLanguage } from "../lib/LanguageContext"; // <-- Importa tu LanguageContext
-
+import { useLanguage } from "../LanguageContext";
 interface PostCardProps {
   post: any;
   currentUserId: string | null;
