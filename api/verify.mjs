@@ -1,124 +1,83 @@
-// /api/verify.mjs
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("[VERIFY] Missing Supabase env vars");
-  // NO usamos return fuera de función
-  // lanzamos error para detener la carga
-  throw new Error("Missing Supabase env vars");
-}
+export default async function handler(req, res) {
+  console.log("[BACKEND] Verificando World ID...");
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-export default async function handler(request) {
-  console.log("[VERIFY] Request recibida:", {
-    method: request.method,
-    timestamp: new Date().toISOString(),
-  });
-
-  if (request.method !== "POST") {
-    return new Response(
-      JSON.stringify({ success: false, error: "Method not allowed" }),
-      { status: 405, headers: { "Content-Type": "application/json" } }
-    );
+  if (req.method !== "POST") {
+    console.log("[BACKEND] Método no permitido:", req.method);
+    return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
+  const body = req.body || {};
+  const { payload } = body;
+
+  if (!payload || !payload.nullifier_hash || !payload.proof || !payload.merkle_root || !payload.verification_level) {
+    console.error("[BACKEND] Faltan campos en proof:", body);
+    return res.status(400).json({ success: false, error: "Faltan campos en proof" });
+  }
+
+  const nullifierHash = payload.nullifier_hash;
+  console.log("[BACKEND] nullifier_hash recibido:", nullifierHash);
+
+  // Verificar en Worldcoin API (agregamos action requerido)
+  let verifyData;
   try {
-    // --- CORRECCIÓN: obtenemos el body directamente ---
-    const body = typeof request.body === "object" ? request.body : JSON.parse(request.body || "{}");
-    console.log("[VERIFY] Body parseado - keys:", Object.keys(body));
-
-    // Según docs Worldcoin, payload viene directo
-    const payload = body.payload;
-    if (!payload) {
-      console.error("[VERIFY] Missing payload");
-      return new Response(
-        JSON.stringify({ success: false, error: "Missing payload" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Verificamos status
-    if (payload.status !== "success") {
-      console.warn("[VERIFY] Verification failed:", payload.status);
-      return new Response(
-        JSON.stringify({ success: false, error: "Verification failed" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const nullifierHash = payload.nullifier_hash;
-    const userId = body.userId || nullifierHash;
-
-    console.log("[VERIFY] Buscando perfil...");
-    let { data: profile, error: fetchError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("nullifier_hash", nullifierHash)
-      .single();
-
-    if (fetchError) {
-      if (fetchError.code === "PGRST116") {
-        console.log("[VERIFY] Perfil no encontrado - creando...");
-      } else {
-        console.error("[VERIFY] Fetch error:", fetchError.message);
-        throw fetchError;
-      }
-    }
-
-    if (!profile) {
-      const { data: newProfile, error: insertError } = await supabase
-        .from("profiles")
-        .insert({
-          id: userId,
+    const verifyResponse = await fetch(
+      "https://developer.worldcoin.org/api/v2/verify/app_6a98c88249208506dcd4e04b529111fc",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "verify-user",  // ← CAMBIO CLAVE: campo requerido agregado
+          merkle_root: payload.merkle_root,
+          proof: payload.proof,
           nullifier_hash: nullifierHash,
-          username: body.username || `user_${nullifierHash.slice(0, 8)}`,
-          verified: true,
-          verified_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error("[VERIFY] Insert error:", insertError.message);
-        throw insertError;
+          verification_level: payload.verification_level,
+        }),
       }
-      profile = newProfile;
-    } else {
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          verified: true,
-          verified_at: new Date().toISOString(),
-        })
-        .eq("id", profile.id);
+    );
 
-      if (updateError) {
-        console.error("[VERIFY] Update error:", updateError.message);
-        throw updateError;
-      }
+    verifyData = await verifyResponse.json();
+    console.log("[BACKEND] Respuesta de Worldcoin:", verifyData);
+
+    if (!verifyResponse.ok || !verifyData.success) {
+      console.error("[BACKEND] Worldcoin rechazó:", verifyData);
+      return res.status(verifyResponse.status || 400).json({ success: false, error: verifyData.detail || "Verificación fallida en Worldcoin" });
+    }
+  } catch (err) {
+    console.error("[BACKEND] Error al verificar con Worldcoin:", err);
+    return res.status(500).json({ success: false, error: "Error al contactar Worldcoin" });
+  }
+
+  // Guardar/actualizar en profiles (upsert)
+  try {
+    const { error: upsertError } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: nullifierHash,
+          tier: "free",
+          verified: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
+
+    if (upsertError) {
+      console.error("[BACKEND] Error upsert profiles:", upsertError);
+      return res.status(500).json({ success: false, error: upsertError.message });
     }
 
-    console.log("[VERIFY] Éxito - respondiendo 200");
-    return new Response(
-      JSON.stringify({
-        success: true,
-        nullifier_hash: nullifierHash,
-        profile,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    console.log("[BACKEND] Perfil creado/actualizado:", nullifierHash);
   } catch (err) {
-    console.error("[VERIFY] CRASH:", err.message, err.stack);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: err.message || "Internal server error",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    console.error("[BACKEND] Supabase profiles error:", err);
+    return res.status(500).json({ success: false, error: "Error al guardar perfil" });
   }
-       }
+
+  return res.status(200).json({ success: true, nullifier_hash: nullifierHash });
+                                 }
