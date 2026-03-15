@@ -95,7 +95,7 @@ const HomePage: React.FC<HomePageProps> = ({
         .upsert(
           {
             id: userId,
-            username: username || `user_${userId.slice(0, 8)}`,
+            username: username || `user_${userId.slice(0, 8)}`, // <-- modificación: usamos username de App.tsx
             wallet: wallet || null,
             verified: verified,
             verified_at: new Date().toISOString(),
@@ -358,6 +358,7 @@ const HomePage: React.FC<HomePageProps> = ({
           loading={loading}
           error={error}
           currentUserId={userId}
+          username={username}  {/* <-- modificación: pasamos username */}
           userTier={profile?.tier || "free"}
           onUpgradeSuccess={() => fetchOrUpsertProfile()}
         />
@@ -367,6 +368,7 @@ const HomePage: React.FC<HomePageProps> = ({
       {showProfileModal && (
         <ProfileModal
           currentUserId={userId}
+          username={username}  {/* <-- modificación: pasamos username */}
           onClose={() => setShowProfileModal(false)}
         />
       )}
@@ -472,75 +474,6 @@ const HomePage: React.FC<HomePageProps> = ({
           </div>
         </div>
       )}
-
-      import React from "react";
-import { useTheme } from "../lib/ThemeContext"; // <-- importamos ThemeContext
-import Inbox from "./Inbox"; // asegúrate de que esta ruta sea correcta
-
-const HomePage = ({
-  userId,
-  setSelectedChatUserId,
-  newMessage,
-  setNewMessage,
-  newMessageAttachments,
-  setNewMessageAttachments,
-  handleSendMessage,
-  showNotifications,
-  setShowNotifications,
-  t,
-  theme,
-}: any) => {
-  const { username } = useTheme(); // <-- obtenemos username global
-
-  return (
-    <div className="flex flex-col h-full">
-      <Inbox
-        currentUserId={userId}
-        setSelectedChatUserId={setSelectedChatUserId}
-        username={username} // <-- pasamos username a Inbox si lo necesita
-      />
-
-      <div className="p-4 border-t border-white/20 bg-gray-900">
-        <div className="flex items-center gap-2 relative">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={t("write_a_message")}
-            className={`flex-1 p-3 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-              theme === "dark"
-                ? "bg-gray-800 text-white"
-                : "bg-white text-black border border-gray-300"
-            }`}
-          />
-          <label className="cursor-pointer p-3 bg-gray-700 rounded-full">
-            <span role="img" aria-label="attach">📎</span>
-            <input
-              type="file"
-              multiple
-              accept="image/*,video/*,.pdf"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files) {
-                  setNewMessageAttachments(Array.from(e.target.files));
-                }
-              }}
-            />
-          </label>
-          <button
-            onClick={handleSendMessage}
-            className="p-3 bg-indigo-600 rounded-full"
-          >
-            <span role="img" aria-label="send">➤</span>
-          </button>
-        </div>
-
-        {newMessageAttachments.length > 0 && (
-          <div className="mt-2 text-xs text-gray-400">
-            {t("attachments")}: {newMessageAttachments.map(f => f.name).join(", ")}
-          </div>
-        )}
-      </div>
 
       {showNotifications && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
