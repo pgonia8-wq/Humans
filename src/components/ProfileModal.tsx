@@ -67,7 +67,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const { theme } = useContext(ThemeContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Cerrar con Escape
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -76,7 +75,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [onClose]);
 
-  // Auto-dismiss toast
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 3000);
@@ -318,6 +316,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 accept="image/*"
                 onChange={handleAvatarUpload}
                 className="hidden"
+                ref={fileInputRef}
               />
 
               <label
@@ -411,70 +410,55 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   className="w-5 h-5 accent-purple-600"
                 />
               </div>
+
+              {/* Botones Guardar / Cancelar */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-3 bg-green-600 text-white rounded-full disabled:opacity-50"
+              >
+                {saving ? t("guardando") : t("guardar")}
+              </button>
+
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 bg-red-600 text-white rounded-full"
+              >
+                {t("cancelar")}
+              </button>
             </div>
-             import React from "react";
-import { useTheme } from "../lib/ThemeContext"; // <-- importamos ThemeContext
 
-const ProfileModal = ({ onClose, showUpgradeButton, handleSave, saving, handlePremiumChat, toast }: any) => {
-  const { username } = useTheme(); // <-- obtenemos username global
+            {/* Botón Cerrar adicional */}
+            {!saving && (
+              <button
+                onClick={onClose}
+                className="mt-4 w-full py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition"
+              >
+                {t("cerrar")}
+              </button>
+            )}
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md">
-        {/* Mostrar username global */}
-        {username && (
-          <p className="text-white text-center mb-4 font-bold">
-            {`Usuario: ${username}`}
-          </p>
+            {/* Upgrade Premium Chat */}
+            {showUpgradeButton && (
+              <button
+                onClick={handlePremiumChat}
+                className="w-full py-3 bg-purple-600 text-white rounded-full mt-4 hover:bg-purple-700 transition"
+              >
+                {t("suscribirse_chat_premium", { amount: 5 })}
+              </button>
+            )}
+
+            {/* Chat Exclusivo Creadores de Tokens */}
+            <button
+              onClick={() => window.location.href = "/chat/tokens"}
+              className="w-full py-3 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 transition"
+            >
+              {t("chat_exclusivo_creadores_tokens")}
+            </button>
+          </>
         )}
 
-        {/* Botones Guardar / Cancelar */}
-        <div className="flex gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 py-3 bg-green-600 text-white rounded-full disabled:opacity-50"
-          >
-            {saving ? "Guardando..." : "Guardar"}
-          </button>
-
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 bg-red-600 text-white rounded-full"
-          >
-            Cancelar
-          </button>
-        </div>
-
-        {/* Botón Cerrar adicional */}
-        {!saving && (
-          <button
-            onClick={onClose}
-            className="mt-4 w-full py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition"
-          >
-            Cerrar
-          </button>
-        )}
-
-        {/* Upgrade Premium Chat */}
-        {showUpgradeButton && (
-          <button
-            onClick={handlePremiumChat}
-            className="w-full py-3 bg-purple-600 text-white rounded-full mt-4 hover:bg-purple-700 transition"
-          >
-            Suscribirse Chat Premium
-          </button>
-        )}
-
-        {/* Chat Exclusivo Creadores de Tokens */}
-        <button
-          onClick={() => window.location.href = "/chat/tokens"}
-          className="w-full py-3 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 transition"
-        >
-          Chat Exclusivo Creadores de Tokens
-        </button>
-
-        {/* Toast */}
         {toast && (
           <p className={`text-center py-2 rounded mt-4 ${
             toast.type === "success" ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"
