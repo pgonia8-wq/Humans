@@ -50,24 +50,18 @@ const App = () => {
         setMiniKitReady(true);
 
         const w = MiniKit.walletAddress;
-
         if (w) {
           setWallet(w);
           localStorage.setItem("wallet", w);
           console.log("[APP] Wallet detectada:", w);
         }
 
-        // ================================
-        // [MINIKIT USERNAME DIRECTO]
-        // ================================
         const directUsername = MiniKit.user?.username;
-
         if (directUsername) {
           console.log("[APP] Username detectado desde MiniKit.user:", directUsername);
           setUsername(directUsername);
           localStorage.setItem("username", directUsername);
         }
-        // ================================
       }
     } catch (err) {
       console.error("[APP] Error MiniKit:", err);
@@ -85,11 +79,7 @@ const App = () => {
 
       try {
         const nonceRes = await fetch("/api/nonce");
-
-        if (!nonceRes.ok) {
-          throw new Error("Error obteniendo nonce");
-        }
-
+        if (!nonceRes.ok) throw new Error("Error obteniendo nonce");
         const { nonce } = await nonceRes.json();
 
         const authResult = await Promise.race([
@@ -138,7 +128,6 @@ const App = () => {
   // Verificación World ID
   const verifyUser = async () => {
     if (verifying) return;
-
     if (userId) {
       console.log("[APP] Ya verificado:", userId);
       return;
@@ -148,9 +137,7 @@ const App = () => {
     setError(null);
 
     try {
-      if (!MiniKit.isInstalled()) {
-        throw new Error("Abre la app desde World App");
-      }
+      if (!MiniKit.isInstalled()) throw new Error("Abre la app desde World App");
 
       const verifyRes = await Promise.race([
         MiniKit.commandsAsync.verify({
@@ -166,18 +153,16 @@ const App = () => {
       console.log("[APP] Verify response:", verifyRes);
 
       const proof = verifyRes?.finalPayload;
+      if (!proof || proof.status !== "success") throw new Error("Verificación cancelada");
 
-      if (!proof || proof.status !== "success") {
-        throw new Error("Verificación cancelada");
-      }
-
+      // --- Cambio clave: enviar payload DIRECTO según docs Worldcoin ---
       const res = await fetch("/api/verify", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          payload: proof,
+          payload: proof,          // Payload directo
+          action: verifyRes.action, // Opcional, útil para logs
+          signal: verifyRes.signal, // Opcional
         }),
       });
 
@@ -187,17 +172,13 @@ const App = () => {
       }
 
       const backend = await res.json();
-
       console.log("[APP] Backend verify:", backend);
 
       if (backend.success) {
         const id = proof.nullifier_hash;
-
         localStorage.setItem("userId", id);
-
         setUserId(id);
         setVerified(true);
-
         console.log("[APP] Usuario verificado:", id);
       } else {
         throw new Error(backend.error || "Backend rechazó verificación");
