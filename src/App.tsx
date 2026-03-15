@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from "react";
 import HomePage from "./pages/HomePage";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
-import eruda from "eruda";
-
-// Eruda Debug
-if (typeof window !== "undefined") {
-  eruda.init();
-}
 
 const APP_ID = "app_6a98c88249208506dcd4e04b529111fc";
 
@@ -20,80 +14,64 @@ const App = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [miniKitReady, setMiniKitReady] = useState(false);
 
-  // Debug total: log de cada render
-  console.log("[RENDER APP] Estado actual:", {
-    userId,
-    username,
-    wallet,
-    verified,
-    verifying,
-    walletLoading,
-    error,
-    miniKitReady,
-  });
-
-  // Log props que se enviarán a HomePage
+  // -------------------------
+  // Bugs: log inicial de estado
+  // -------------------------
   useEffect(() => {
-    console.log("[DEBUG] Props que enviaremos a HomePage:", {
-      userId,
-      verified,
-      wallet,
-      username,
-      error,
-      verifying,
-      setUserId,
-    });
-  }, [userId, verified, wallet, username, error, verifying]);
+    console.log("[BUG] APP inicializando estados:", { wallet, username, verified, userId });
+  }, []);
 
-  // Cargar datos de localStorage
+  // Carga datos de localStorage
   useEffect(() => {
     const storedId = localStorage.getItem("userId");
     if (storedId) {
       setUserId(storedId);
       setVerified(true);
-      console.log("[APP] User ID cargado desde localStorage:", storedId);
+      console.log("[BUG] userId cargado desde localStorage:", storedId);
     }
 
     const storedWallet = localStorage.getItem("wallet");
     if (storedWallet) {
       setWallet(storedWallet);
-      console.log("[APP] Wallet cargada desde localStorage:", storedWallet);
+      console.log("[BUG] Wallet cargada desde localStorage:", storedWallet);
     }
 
     const storedUsername = localStorage.getItem("username");
     if (storedUsername) {
       setUsername(storedUsername);
-      console.log("[APP] Username cargado desde localStorage:", storedUsername);
+      console.log("[BUG] Username cargado desde localStorage:", storedUsername);
     }
   }, []);
 
   // Inicializar MiniKit
   useEffect(() => {
-    console.log("[APP] Inicializando MiniKit...");
+    console.log("[BUG] Inicializando MiniKit...");
 
     try {
       MiniKit.install({ appId: APP_ID });
+
       const installed = MiniKit.isInstalled();
-      console.log("[APP] MiniKit instalado:", installed);
+      console.log("[BUG] MiniKit instalado:", installed);
 
       if (installed) {
         setMiniKitReady(true);
+
         const w = MiniKit.walletAddress;
         if (w) {
           setWallet(w);
           localStorage.setItem("wallet", w);
-          console.log("[APP] Wallet detectada:", w);
+          console.log("[BUG] Wallet detectada desde MiniKit:", w);
         }
 
         const directUsername = MiniKit.user?.username;
         if (directUsername) {
           setUsername(directUsername);
           localStorage.setItem("username", directUsername);
-          console.log("[APP] Username detectado desde MiniKit.user:", directUsername);
+          console.log("[BUG] Username detectado desde MiniKit.user:", directUsername);
         }
       }
     } catch (err) {
-      console.error("[APP] Error MiniKit:", err);
+      console.error("[BUG] Error MiniKit:", err);
       setError("MiniKit no pudo inicializarse");
     }
   }, []);
@@ -102,13 +80,15 @@ const App = () => {
   useEffect(() => {
     const loadWallet = async () => {
       if (!verified || wallet || walletLoading || !miniKitReady) return;
+
       setWalletLoading(true);
-      console.log("[APP] Iniciando walletAuth...");
+      console.log("[BUG] Iniciando walletAuth...");
 
       try {
         const nonceRes = await fetch("/api/nonce");
         if (!nonceRes.ok) throw new Error("Error obteniendo nonce");
         const { nonce } = await nonceRes.json();
+        console.log("[BUG] Nonce obtenido:", nonce);
 
         const authResult = await Promise.race([
           MiniKit.commandsAsync.walletAuth({
@@ -116,14 +96,15 @@ const App = () => {
             requestId: "wallet-auth-" + Date.now(),
             expirationTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             notBefore: new Date(Date.now() - 24 * 60 * 60 * 1000),
-            statement: "Autenticar wallet para H humans y compartir mi username público",
+            statement:
+              "Autenticar wallet para H humans y compartir mi username público",
           }),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("Timeout walletAuth")), 30000)
           ),
         ]);
 
-        console.log("[APP] walletAuth resultado:", authResult);
+        console.log("[BUG] walletAuth resultado:", authResult);
 
         if (authResult?.finalPayload?.status === "success") {
           const w = authResult.finalPayload.address;
@@ -137,12 +118,12 @@ const App = () => {
             localStorage.setItem("username", u);
           }
 
-          console.log("[APP] Wallet cargada:", w, "Username:", u);
+          console.log("[BUG] Wallet y Username cargados post walletAuth:", { w, u });
         } else {
           throw new Error("walletAuth falló");
         }
       } catch (err: any) {
-        console.error("[APP] walletAuth error:", err);
+        console.error("[BUG] walletAuth error:", err);
         setError(err.message || "Error autenticando wallet");
       } finally {
         setWalletLoading(false);
@@ -156,12 +137,13 @@ const App = () => {
   const verifyUser = async () => {
     if (verifying) return;
     if (userId) {
-      console.log("[APP] Ya verificado:", userId);
+      console.log("[BUG] Ya verificado, userId existente:", userId);
       return;
     }
 
     setVerifying(true);
     setError(null);
+    console.log("[BUG] Iniciando verifyUser...");
 
     try {
       if (!MiniKit.isInstalled()) throw new Error("Abre la app desde World App");
@@ -177,7 +159,7 @@ const App = () => {
         ),
       ]);
 
-      console.log("[APP] Verify response:", verifyRes);
+      console.log("[BUG] verifyRes recibido:", verifyRes);
 
       const proof = verifyRes?.finalPayload;
       if (!proof || proof.status !== "success") throw new Error("Verificación cancelada");
@@ -198,19 +180,19 @@ const App = () => {
       }
 
       const backend = await res.json();
-      console.log("[APP] Backend verify:", backend);
+      console.log("[BUG] Backend verify response:", backend);
 
       if (backend.success) {
         const id = proof.nullifier_hash;
         localStorage.setItem("userId", id);
         setUserId(id);
         setVerified(true);
-        console.log("[APP] Usuario verificado:", id);
+        console.log("[BUG] Usuario verificado exitosamente:", id);
       } else {
         throw new Error(backend.error || "Backend rechazó verificación");
       }
     } catch (err: any) {
-      console.error("[APP] Error verify:", err);
+      console.error("[BUG] Error verifyUser:", err);
       setError(err.message || "Error verificando");
     } finally {
       setVerifying(false);
@@ -239,9 +221,7 @@ const App = () => {
 
       {(!userId || !verified) && !walletLoading && !verifying ? (
         <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white gap-6">
-          <p className="text-lg text-center">
-            Verifica tu identidad con World ID
-          </p>
+          <p className="text-lg text-center">Verifica tu identidad con World ID</p>
 
           <button
             onClick={verifyUser}
