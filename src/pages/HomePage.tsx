@@ -11,7 +11,6 @@ const PAGE_SIZE = 8;
 
 interface HomePageProps {
   userId: string | null;
-  username: string | null;  // recibido desde App.tsx
   wallet: string | null;
   verified: boolean;
   error: string | null;
@@ -22,7 +21,6 @@ interface HomePageProps {
 
 const HomePage: React.FC<HomePageProps> = ({
   userId,
-  username,
   wallet,
   verified,
   error,
@@ -49,7 +47,7 @@ const HomePage: React.FC<HomePageProps> = ({
   const [newMessageAttachments, setNewMessageAttachments] = useState<File[]>([]);
   const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null);
 
-  const { theme, toggleTheme } = useContext(ThemeContext);
+  const { theme, toggleTheme, username } = useContext(ThemeContext);
   const { language, setLanguage, t } = useContext(LanguageContext);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -358,7 +356,6 @@ const HomePage: React.FC<HomePageProps> = ({
           loading={loading}
           error={error}
           currentUserId={userId}
-          username={username}  {/* <-- modificación: pasamos username */}
           userTier={profile?.tier || "free"}
           onUpgradeSuccess={() => fetchOrUpsertProfile()}
         />
@@ -368,7 +365,6 @@ const HomePage: React.FC<HomePageProps> = ({
       {showProfileModal && (
         <ProfileModal
           currentUserId={userId}
-          username={username}  {/* <-- modificación: pasamos username */}
           onClose={() => setShowProfileModal(false)}
         />
       )}
