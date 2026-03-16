@@ -1,24 +1,26 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import HomePage from "./pages/HomePage";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
-import { useTheme } from "./lib/ThemeContext";
+import { ThemeContext } from "./lib/ThemeContext"; // ruta correcta
 
 const APP_ID = "app_6a98c88249208506dcd4e04b529111fc";
 
 const App = () => {
-  const { username, setUsername, setAvatar } = useTheme(); // <--- global desde ThemeContext
   const [wallet, setWallet] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [miniKitReady, setMiniKitReady] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
   const walletLoading = useRef(false);
+
+  const themeContext = useContext(ThemeContext);
 
   // Cargar ID de localStorage
   useEffect(() => {
     const storedId = localStorage.getItem("userId");
-
     if (storedId) {
       setUserId(storedId);
       setVerified(true);
@@ -34,7 +36,6 @@ const App = () => {
     const initMiniKit = async () => {
       try {
         console.log("[APP] Instalando MiniKit...");
-
         MiniKit.install({ appId: APP_ID });
 
         const installed = MiniKit.isInstalled();
@@ -48,12 +49,14 @@ const App = () => {
         setMiniKitReady(true);
         console.log("[APP] MiniKit listo");
 
-        // Obtener username y avatar desde MiniKit.user y actualizar ThemeContext
+        // --- NUEVO: pasar username y avatar a ThemeContext ---
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
           setUsername(u);
           setAvatar(a);
+          if (themeContext?.setUsername) themeContext.setUsername(u);
+          if ((themeContext as any)?.setAvatar) (themeContext as any).setAvatar(a);
           console.log("[APP] MiniKit user:", u, a);
         }
       } catch (err) {
@@ -63,7 +66,7 @@ const App = () => {
     };
 
     initMiniKit();
-  }, [setUsername, setAvatar]);
+  }, [themeContext]);
 
   // Obtener wallet usando walletAuth
   useEffect(() => {
@@ -102,12 +105,14 @@ const App = () => {
           console.warn("[APP] WalletAuth success pero sin address");
         }
 
-        // Actualizar username y avatar desde MiniKit.user después de walletAuth
+        // --- NUEVO: obtener username y avatar también después de walletAuth ---
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
           setUsername(u);
           setAvatar(a);
+          if (themeContext?.setUsername) themeContext.setUsername(u);
+          if ((themeContext as any)?.setAvatar) (themeContext as any).setAvatar(a);
           console.log("[APP] MiniKit user post-walletAuth:", u, a);
         }
       } catch (err: any) {
@@ -119,7 +124,7 @@ const App = () => {
     };
 
     loadWallet();
-  }, [verified, wallet, verifying, miniKitReady, setUsername, setAvatar]);
+  }, [verified, wallet, verifying, miniKitReady, themeContext]);
 
   // Función de verificación forzada
   const verifyUser = async () => {
@@ -193,7 +198,7 @@ const App = () => {
       verified={verified}
       wallet={wallet}
       username={username}
-      avatar={MiniKit.user?.avatar_url || null} // fallback en caso de no estar en context
+      avatar={avatar}
       error={error}
       verifying={verifying}
       setUserId={setUserId}
