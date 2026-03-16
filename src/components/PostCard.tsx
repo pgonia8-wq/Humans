@@ -341,11 +341,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
         <div className="flex-1">
           <p className="font-bold text-lg">
-            {globalUsername || post.profiles?.username}
-          </p>
-          <p className="text-sm text-gray-500">
-            @{globalUsername || post.profiles?.username}
-          </p>
+  {post.profiles?.username} {currentUserId === post.user_id ? "(Tú)" : ""}
+</p>
+<p className="text-sm text-gray-500">
+  @{post.profiles?.username}
+</p>
           <p className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-900"}`}>
             {getRelativeTime(post.timestamp)}
          </p>
