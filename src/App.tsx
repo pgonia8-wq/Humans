@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import HomePage from "./pages/HomePage";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
+import { useTheme } from "./lib/ThemeContext";
 
 const APP_ID = "app_6a98c88249208506dcd4e04b529111fc";
 
@@ -14,6 +15,8 @@ const App = () => {
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const walletLoading = useRef(false);
+
+  const { setUsername: setGlobalUsername } = useTheme();
 
   // Cargar ID de localStorage
   useEffect(() => {
@@ -54,6 +57,7 @@ const App = () => {
           const a = MiniKit.user.avatar_url || null;
           setUsername(u);
           setAvatar(a);
+          if (u) setGlobalUsername(u);
           console.log("[APP] MiniKit user:", u, a);
         }
       } catch (err) {
@@ -108,6 +112,7 @@ const App = () => {
           const a = MiniKit.user.avatar_url || null;
           setUsername(u);
           setAvatar(a);
+          if (u) setGlobalUsername(u);
           console.log("[APP] MiniKit user post-walletAuth:", u, a);
         }
       } catch (err: any) {
