@@ -64,7 +64,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [bioLength, setBioLength] = useState(0);
   const [editMode, setEditMode] = useState(false);
 
-  const { theme } = useContext(ThemeContext);
+  const { theme, username: globalUsername } = useContext(ThemeContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -101,7 +101,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         const updatedProfile = {
           ...emptyProfile,
           ...data,
-          username: data?.username || `@${id.slice(0, 10)}`,
+          username: data?.username || globalUsername || `@${id.slice(0, 10)}`,
         };
 
         setProfile(updatedProfile);
@@ -114,7 +114,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     };
 
     fetchProfile();
-  }, [id]);
+  }, [id, globalUsername]);
 
   const refreshProfile = async () => {
     if (!id) return;
@@ -123,7 +123,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       setProfile({
         ...emptyProfile,
         ...data,
-        username: data.username || `@${id.slice(0, 10)}`,
+        username: data.username || globalUsername || `@${id.slice(0, 10)}`,
       });
     }
   };
@@ -249,7 +249,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       await fetch("/api/subscribePremiumChat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUserId, transactionId: payRes.finalPayload.transaction_id }),
+        body: JSON.stringify({
+          userId: currentUserId,
+          transactionId: payRes.finalPayload.transaction_id
+        }),
       });
 
       alert(t("suscripcion_exitosa"));
@@ -283,7 +286,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           <>
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">{t("tu_perfil")}</h2>
-              <span className={`px-3 py-1 text-xs rounded-full ${profile.tier === "premium+" ? "bg-yellow-500 text-black" : profile.tier === "premium" ? "bg-purple-600 text-white" : "bg-gray-600 text-white"}`}>
+              <span className={`px-3 py-1 text-xs rounded-full ${
+                profile.tier === "premium+" ? "bg-yellow-500 text-black"
+                : profile.tier === "premium" ? "bg-purple-600 text-white"
+                : "bg-gray-600 text-white"
+              }`}>
                 {profile.tier.toUpperCase()}
               </span>
             </div>
@@ -305,7 +312,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-3xl text-white">
-                    {profile.username?.[1]?.toUpperCase() || "A"}
+                    {(globalUsername || profile.username)?.[1]?.toUpperCase() || "A"}
                   </div>
                 )}
               </div>
@@ -330,28 +337,36 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             {/* Campos editables */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">{t("nombre_usuario")}</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  {t("nombre_usuario")}
+                </label>
                 <input
                   type="text"
-                  value={profile.username}
+                  value={globalUsername || profile.username}
                   disabled
                   className="w-full bg-gray-800 p-3 rounded text-white cursor-not-allowed"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">{t("nombre")}</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  {t("nombre")}
+                </label>
                 <input
                   type="text"
                   value={profile.name}
-                  onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={e =>
+                    setProfile(prev => ({ ...prev, name: e.target.value }))
+                  }
                   className="w-full bg-gray-800 p-3 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder={t("tu_nombre")}
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">{t("biografia", { count: bioLength })}</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  {t("biografia", { count: bioLength })}
+                </label>
                 <textarea
                   value={profile.bio}
                   onChange={e => {
@@ -368,32 +383,53 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               {/* Fecha, ciudad, país */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">{t("fecha_nacimiento")}</label>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    {t("fecha_nacimiento")}
+                  </label>
                   <input
                     type="date"
                     value={profile.birthdate}
-                    onChange={e => setProfile(prev => ({ ...prev, birthdate: e.target.value }))}
+                    onChange={e =>
+                      setProfile(prev => ({
+                        ...prev,
+                        birthdate: e.target.value,
+                      }))
+                    }
                     className="w-full bg-gray-800 p-3 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">{t("ciudad")}</label>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    {t("ciudad")}
+                  </label>
                   <input
                     type="text"
                     value={profile.city}
-                    onChange={e => setProfile(prev => ({ ...prev, city: e.target.value }))}
+                    onChange={e =>
+                      setProfile(prev => ({
+                        ...prev,
+                        city: e.target.value,
+                      }))
+                    }
                     className="w-full bg-gray-800 p-3 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder={t("tu_ciudad")}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">{t("pais")}</label>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    {t("pais")}
+                  </label>
                   <input
                     type="text"
                     value={profile.country}
-                    onChange={e => setProfile(prev => ({ ...prev, country: e.target.value }))}
+                    onChange={e =>
+                      setProfile(prev => ({
+                        ...prev,
+                        country: e.target.value,
+                      }))
+                    }
                     className="w-full bg-gray-800 p-3 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder={t("tu_pais")}
                   />
@@ -402,7 +438,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
               {/* Perfil visible */}
               <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-400">{t("perfil_visible")}</label>
+                <label className="text-sm text-gray-400">
+                  {t("perfil_visible")}
+                </label>
                 <input
                   type="checkbox"
                   checked={profile.profile_visible}
@@ -412,57 +450,62 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               {/* Botones Guardar / Cancelar */}
-            <div className="flex gap-3">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 py-3 bg-green-600 text-white rounded-full disabled:opacity-50"
-              >
-                {saving ? t("guardando") : t("guardar")}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 py-3 bg-green-600 text-white rounded-full disabled:opacity-50"
+                >
+                  {saving ? t("guardando") : t("guardar")}
+                </button>
 
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-full"
+                >
+                  {t("cancelar")}
+                </button>
+              </div>
+
+              {/* Botón Cerrar adicional */}
+              {!saving && (
+                <button
+                  onClick={onClose}
+                  className="mt-4 w-full py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition"
+                >
+                  {t("cerrar")}
+                </button>
+              )}
+
+              {/* Upgrade Premium Chat */}
+              {showUpgradeButton && (
+                <button
+                  onClick={handlePremiumChat}
+                  className="w-full py-3 bg-purple-600 text-white rounded-full mt-4 hover:bg-purple-700 transition"
+                >
+                  {t("suscribirse_chat_premium", { amount: 5 })}
+                </button>
+              )}
+
+              {/* Chat Exclusivo Creadores de Tokens */}
               <button
-                onClick={onClose}
-                className="flex-1 py-3 bg-red-600 text-white rounded-full"
+                onClick={() => (window.location.href = "/chat/tokens")}
+                className="w-full py-3 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 transition"
               >
-                {t("cancelar")}
+                {t("chat_exclusivo_creadores_tokens")}
               </button>
             </div>
-
-            {/* Botón Cerrar adicional */}
-            {!saving && (
-              <button
-                onClick={onClose}
-                className="mt-4 w-full py-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition"
-              >
-                {t("cerrar")}
-              </button>
-            )}
-
-            {/* Upgrade Premium Chat */}
-            {showUpgradeButton && (
-              <button
-                onClick={handlePremiumChat}
-                className="w-full py-3 bg-purple-600 text-white rounded-full mt-4 hover:bg-purple-700 transition"
-              >
-                {t("suscribirse_chat_premium", { amount: 5 })}
-              </button>
-            )}
-
-            {/* Chat Exclusivo Creadores de Tokens */}
-            <button
-              onClick={() => window.location.href = "/chat/tokens"}
-              className="w-full py-3 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 transition"
-            >
-              {t("chat_exclusivo_creadores_tokens")}
-            </button>
           </>
         )}
 
         {toast && (
-          <p className={`text-center py-2 rounded mt-4 ${
-            toast.type === "success" ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"
-          }`}>
+          <p
+            className={`text-center py-2 rounded mt-4 ${
+              toast.type === "success"
+                ? "bg-green-900 text-green-300"
+                : "bg-red-900 text-red-300"
+            }`}
+          >
             {toast.message}
           </p>
         )}
@@ -472,3 +515,5 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 };
 
 export default ProfileModal;
+
+  
