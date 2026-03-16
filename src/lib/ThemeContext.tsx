@@ -25,9 +25,17 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   );
 
   // NUEVO: Username global
-  const [username, setUsername] = useState<string | null>(
-    (typeof window !== "undefined" && localStorage.getItem("username")) || null
-  );
+  const [username, setUsername] = useState<string | null>(null);
+
+  // --- NUEVO: Cargar username desde localStorage al montar ---
+  useEffect(() => {
+    if (typeof window === "undefined") return; // seguridad SSR
+    const storedUsername = localStorage.getItem("username");
+    if (storedUsername) {
+      setUsername(storedUsername);
+      console.log("[ThemeContext] username cargado desde localStorage:", storedUsername);
+    }
+  }, []);
 
   // Persistir cambios en localStorage
   useEffect(() => {
