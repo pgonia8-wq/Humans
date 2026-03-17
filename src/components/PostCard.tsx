@@ -291,13 +291,12 @@ const handleRepost = async () => {
     }
   };
 
-  // Reemplazar handleTip por esto
 const handleTip = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("tip");
   setError(null);
 
-  // Validar que el post no sea de usuario tier free
+  // Validar que el post no sea de usuario free
   if (post.tier === "free") {
     setError(t("no_tips_para_free"));
     setLoadingAction(null);
@@ -314,38 +313,37 @@ const handleTip = async () => {
   try {
     const amount = Number(tipAmount);
 
+    // Lógica idéntica a Creadores de Tokens
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `tip-${post.id}-${Date.now()}`,
-      to: RECEIVER,
+      reference: `tip-${post.id}-${Date.now()}`, // referencia única
+      to: RECEIVER, // dirección del receptor
       tokens: [
-        {
-          symbol: Tokens.WLD,
-          token_amount: tokenToDecimals(amount, Tokens.WLD).toString(),
-        },
+        { symbol: Tokens.WLD, token_amount: tokenToDecimals(amount, Tokens.WLD).toString() },
       ],
       description: t("tip"),
     });
 
+    // Verificar resultado exactamente como Creadores de Tokens
     if (payRes?.finalPayload?.status === "success") {
       alert(t("tip_enviado"));
-      setTipAmount(1); // opcional: reset al valor por defecto
+      setTipAmount(1); // reset opcional
     } else {
       alert(t("pago_cancelado"));
     }
   } catch (err: any) {
+    // Manejo de error igual que Creadores de Tokens
     setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
   } finally {
     setLoadingAction(null);
   }
-};
 
-// Reemplazar handleBoost por esto
+};
 const handleBoost = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("boost");
   setError(null);
 
-  // Validar que el post no sea de usuario tier free
+  // Validar que el post no sea free
   if (post.tier === "free") {
     setError(t("no_boost_para_free"));
     setLoadingAction(null);
@@ -353,18 +351,17 @@ const handleBoost = async () => {
   }
 
   try {
+    // Lógica idéntica a Creadores de Tokens
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `boost-${post.id}-${Date.now()}`,
-      to: RECEIVER,
+      reference: `boost-${post.id}-${Date.now()}`, // referencia única
+      to: RECEIVER, // dirección del receptor
       tokens: [
-        {
-          symbol: Tokens.WLD,
-          token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
-        },
+        { symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() },
       ],
       description: t("boost_5_wld"),
     });
 
+    // Verificar resultado exactamente como Creadores de Tokens
     if (payRes?.finalPayload?.status === "success") {
       alert(t("boost_enviado"));
     } else {
