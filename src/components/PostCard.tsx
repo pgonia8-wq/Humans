@@ -47,7 +47,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [loadingAction, setLoadingAction] = useState<
     "like" | "comment" | "repost" | "tip" | "boost" | "follow" | "subscription" | null
   >(null);
-
+const [originalPost, setOriginalPost] = useState<any | null>(null);
   useEffect(() => {
   setLikes(post.likes || 0);
 }, [post.likes]);
@@ -59,6 +59,26 @@ useEffect(() => {
 useEffect(() => {
   setReposts(post.reposts || 0);
 }, [post.reposts]);
+
+  useEffect(() => {
+  const fetchOriginalPost = async () => {
+    if (!post.reposted_post_id) return;
+
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .eq("id", post.reposted_post_id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching original post:", error);
+    } else {
+      setOriginalPost(data);
+    }
+  };
+
+  fetchOriginalPost();
+}, [post.reposted_post_id]);
   
   const [error, setError] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number | "">(1);
@@ -455,6 +475,8 @@ const handleChatCreadores = async () => {
          </p>
         </div>
 
+
+        
         {currentUserId && currentUserId !== post.user_id && (
           <button
             onClick={toggleFollow}
@@ -470,9 +492,37 @@ const handleChatCreadores = async () => {
       </div>
 
       {/* Content */}
-      <p className={`whitespace-pre-wrap mb-4 leading-relaxed ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-        {post.content}
-        </p>
+
+{post.reposted_post_id && (
+  <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+    <span>🔁</span>
+    <span>
+      Reposteado por <b>@{postProfile?.username}</b>
+    </span>
+  </div>
+)}
+
+<p className={`whitespace-pre-wrap mb-4 leading-relaxed ${
+  theme === "dark" ? "text-white" : "text-gray-900"
+}`}>
+  {post.content}
+</p>
+
+{originalPost && (
+  <div className="mt-3 p-3 border border-gray-700 rounded-xl">
+    <p className="text-sm text-gray-300">
+      {originalPost.content}
+    </p>
+
+    {originalPost.image_url && (
+      <img
+        src={originalPost.image_url}
+        className="mt-2 rounded-lg"
+        alt="original"
+      />
+    )}
+  </div>
+)}
 
       {/* Actions */}
       <div className="flex justify-between items-center text-gray-400 text-sm mt-4">
