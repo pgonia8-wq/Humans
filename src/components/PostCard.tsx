@@ -55,7 +55,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
    // Estado para el perfil del autor del post
   const [postProfile, setPostProfile] = useState<{ username: string; avatar_url: string } | null>(null);
-   +  // Cargar perfil del autor del post desde profiles
+    // Cargar perfil del autor del post desde profiles
   useEffect(() => {
     const fetchPostProfile = async () => {
      if (!post.user_id) return;
@@ -238,7 +238,6 @@ const handleLike = async () => {
   }
 };
   
-const handleRepost = async () => {
 const handleRepost = () => {
   if (!currentUserId) {
     setError(t("debes_estar_logueado"));
@@ -247,30 +246,27 @@ const handleRepost = () => {
   setShowRepostModal(true);
 };
 
-  const confirmRepost = async () => {
+const confirmRepost = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
 
   setLoadingAction("repost");
   setShowRepostModal(false);
 
   try {
-    // Crear nuevo post tipo repost
     const { error } = await supabase.from("posts").insert({
       user_id: currentUserId,
-      content: post.content, // o "" si quieres repost vacío
+      content: post.content,
       reposted_post_id: post.id,
       timestamp: new Date().toISOString(),
     });
 
     if (error) throw error;
 
-    // Incrementar contador de reposts
     await supabase
       .from("posts")
       .update({ reposts: reposts + 1 })
       .eq("id", post.id);
 
-    // Actualizar estado local (IMPORTANTE usar prev)
     setReposts((prev) => prev + 1);
 
   } catch (err: any) {
@@ -279,7 +275,6 @@ const handleRepost = () => {
     setLoadingAction(null);
   }
 };
-
   const confirmQuote = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
     if (!quoteInput.trim()) return setError(t("escribe_para_citar"));
