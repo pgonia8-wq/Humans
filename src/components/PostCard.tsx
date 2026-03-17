@@ -47,6 +47,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [loadingAction, setLoadingAction] = useState<
     "like" | "comment" | "repost" | "tip" | "boost" | "follow" | "subscription" | null
   >(null);
+
+  useEffect(() => {
+  setLikes(post.likes || 0);
+}, [post.likes]);
+
+useEffect(() => {
+  setComments(post.comments || 0);
+}, [post.comments]);
+
+useEffect(() => {
+  setReposts(post.reposts || 0);
+}, [post.reposts]);
+  
   const [error, setError] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number | "">(1);
   const [showRepostModal, setShowRepostModal] = useState(false);
