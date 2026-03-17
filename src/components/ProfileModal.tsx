@@ -59,7 +59,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [bioLength, setBioLength] = useState(0);
   const [editMode, setEditMode] = useState(false);
@@ -67,6 +67,89 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const { theme, username: globalUsername } = useContext(ThemeContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Estados para avatar
+const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
+const [selectedFile, setSelectedFile] = useState<File | null>(null);
+const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+// Handler para seleccionar imagen del teléfono
+const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (file) {
+    setSelectedFile(file);
+    setPreviewAvatar(URL.createObjectURL(file));
+  }
+};
+
+// Handler para subir avatar a Supabase Storage y actualizar perfil
+const handleUploadAvatar = async () => {
+  if (!selectedFile || !currentUserId || !isOwnProfile) return;
+
+  setUploadingAvatar(true);
+
+  try {
+    const fileExt = selectedFile.name.split(".").pop() || "jpg";
+    const fileName = `${currentUserId}-${Date.now()}.${fileExt}`;
+
+    // --- Crear imagen para canvas ---
+const img = document.createElement("img");
+img.src = URL.createObjectURL(selectedFile);
+await new Promise((resolve, reject) => {
+  img.onload = resolve;
+  img.onerror = reject;
+});
+
+// --- Redimensionar ---
+const canvas = document.createElement("canvas");
+const MAX = 512;
+let { width, height } = img;
+if (width > height) {
+  if (width > MAX) { height *= MAX / width; width = MAX; }
+} else {
+  if (height > MAX) { width *= MAX / height; height = MAX; }
+}
+canvas.width = width;
+canvas.height = height;
+const ctx = canvas.getContext("2d");
+ctx?.drawImage(img, 0, 0, width, height);
+
+// --- Convertir a Blob comprimido ---
+const compressedBlob: Blob = await new Promise((resolve, reject) => {
+  canvas.toBlob(blob => {
+    if (blob) resolve(blob);
+    else reject(new Error("Error comprimiendo imagen"));
+  }, "image/jpeg", 0.8);
+});
+
+// --- Subir a Supabase ---
+const { error: uploadError } = await supabase.storage
+  .from("avatars")
+  .upload(fileName, compressedBlob, { upsert: true });
+if (uploadError) throw uploadError;
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
+    const publicUrl = data.publicUrl;
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("id", currentUserId);
+
+    if (updateError) throw updateError;
+
+    setProfile((prev: any) => ({ ...prev, avatar_url: publicUrl }));
+    setPreviewAvatar(null);
+    setSelectedFile(null);
+
+    setToast({ message: t("avatar_subido_exito"), type: "success" });
+  } catch (err: any) {
+    console.error("[ProfileModal] Error subiendo avatar:", err);
+    setToast({ message: err.message || t("error_subir_avatar"), type: "error" });
+  } finally {
+    setUploadingAvatar(false);
+  }
+};
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -157,80 +240,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
-const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file || !id) return;
-  setUploadingAvatar(true);
 
-  try {
-    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file || !id) return;
-  setUploadingAvatar(true);
-
-  try {
-    // 1. Previsualización inmediata
-    const previewUrl = URL.createObjectURL(file);
-    setProfile(prev => ({ ...prev, avatar_url: previewUrl }));
-
-    // 2. Crear imagen para canvas
-    const img = document.createElement("img");
-    img.src = previewUrl;
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-    });
-
-    // 3. Redimensionar con canvas
-    const canvas = document.createElement("canvas");
-    const MAX = 512;
-    let { width, height } = img;
-    if (width > height) {
-      if (width > MAX) { height *= MAX / width; width = MAX; }
-    } else {
-      if (height > MAX) { width *= MAX / height; height = MAX; }
-    }
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    ctx?.drawImage(img, 0, 0, width, height);
-
-    // 4. Convertir a Blob comprimido
-    const compressedBlob: Blob = await new Promise((resolve, reject) => {
-      canvas.toBlob(blob => {
-        if (blob) resolve(blob);
-        else reject(new Error("Error comprimiendo imagen"));
-      }, "image/jpeg", 0.8);
-    });
-
-    // 5. Subir a Supabase
-    const fileName = `${id}-${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(fileName, compressedBlob, { upsert: true });
-    if (uploadError) throw uploadError;
-
-    // 6. Obtener URL pública
-    const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
-    const avatarUrl = data.publicUrl;
-
-    // 7. Actualizar perfil en Supabase y estado local
-    await supabase.from("profiles").update({ avatar_url: avatarUrl }).eq("id", id);
-    setProfile(prev => ({ ...prev, avatar_url: avatarUrl }));
-
-    // 8. Notificar cambios globales
-    window.dispatchEvent(
-      new CustomEvent("avatarUpdated", { detail: { userId: id, avatarUrl } })
-    );
-
-    setToast({ message: t("avatar_actualizado"), type: "success" });
-  } catch (err: any) {
-    setToast({ message: err.message, type: "error" });
-  } finally {
-    setUploadingAvatar(false);
-  }
-};
-  
       const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
       const avatarUrl = data.publicUrl;
 
@@ -339,12 +349,52 @@ const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   </div>
                 )}
 
-                {profile.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt={t("avatar")}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="relative group flex flex-col items-center gap-4">
+  <img
+    src={previewAvatar || profile.avatar_url || "/default-avatar.png"}
+    alt="Avatar"
+    className="w-32 h-32 rounded-full object-cover border-4 border-purple-500 shadow-lg transition-transform group-hover:scale-105"
+  />
+
+  {isOwnProfile && (
+    <label className="absolute bottom-2 right-2 bg-purple-600 text-white p-3 rounded-full cursor-pointer hover:bg-purple-700 shadow-md opacity-90 hover:opacity-100 transition">
+      <span className="text-xl">📷</span>
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarChange}
+        disabled={uploadingAvatar}
+      />
+    </label>
+  )}
+
+  {previewAvatar && isOwnProfile && (
+    <div className="flex gap-3 mt-2">
+      <button
+        onClick={() => {
+          setPreviewAvatar(null);
+          setSelectedFile(null);
+        }}
+        className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+      >
+        {t("cancelar")}
+      </button>
+
+      <button
+        onClick={handleUploadAvatar}
+        disabled={uploadingAvatar}
+        className={`px-4 py-2 rounded-lg font-medium ${
+          uploadingAvatar
+            ? "bg-gray-600 cursor-not-allowed"
+            : "bg-green-600 hover:bg-green-700 text-white"
+        }`}
+      >
+        {uploadingAvatar ? t("subiendo") : t("guardar_avatar")}
+      </button>
+    </div>
+  )}
+</div>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-3xl text-white">
                     {(globalUsername || profile.username)?.[1]?.toUpperCase() || "A"}
