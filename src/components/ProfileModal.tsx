@@ -66,7 +66,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const { theme, username: globalUsername } = useContext(ThemeContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const isOwnProfile = currentUserId && id && currentUserId === id;
   // Estados para avatar
 const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
 const [selectedFile, setSelectedFile] = useState<File | null>(null);
