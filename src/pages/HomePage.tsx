@@ -65,8 +65,10 @@ const HomePage: React.FC<HomePageProps> = ({
     if (!hasMore && !reset) return;
     try {
       setLoading(true);
-      const { data, error } = await supabase.rpc("get_trending_posts");
-      if (error) throw error;
+      const { data, error } = await supabase
+  .from("posts")
+  .select("*")
+  .order("timestamp", { ascending: false });
 
       const newPosts = data || [];
       setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
