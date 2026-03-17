@@ -54,65 +54,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const { theme, username: globalUsername } = useContext(ThemeContext);
   const { t } = useLanguage();
-  
-  useEffect(() => {
-    if (!post.id) return;
 
-    const channel = supabase
-      .channel(`post-${post.id}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "posts", filter: `id=eq.${post.id}` },
-        (payload) => {
-          if (payload.new.likes !== likes) setLikes(payload.new.likes);
-          if (payload.new.comments !== comments) setComments(payload.new.comments);
-          if (payload.new.reposts !== reposts) setReposts(payload.new.reposts);
-        }
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
-  }, [post.id, likes, comments, reposts]);
-
-  useEffect(() => {
-    if (!post.id) return;
-
-    const fetchComments = async () => {
-      try {
-        const { data: commentsData } = await supabase
-          .from("comments")
-          .select("*")
-          .eq("post_id", post.id)
-          .order("timestamp", { ascending: false })
-          .limit(10);
-
-        const userIds = [...new Set(commentsData?.map((c: any) => c.user_id) || [])];
-
-        const { data: profilesData } = await supabase
-          .from("profiles")
-          .select("id, username, avatar_url")
-          .in("id", userIds);
-
-        const profilesMap = (profilesData || []).reduce((acc: any, p: any) => {
-          acc[p.id] = p;
-          return acc;
-        }, {});
-
-        const enriched = (commentsData || []).map((c: any) => ({
-          ...c,
-          profiles: profilesMap[c.user_id] || null,
-        }));
-
-        setCommentsList(enriched);
-      } catch (err) {
-        console.error("Error cargando comentarios:", err);
-      }
-    };
-
-    fetchComments();
-  }, [post.id]);
-
-  
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
    // Estado para el perfil del autor del post
   const [postProfile, setPostProfile] = useState<{ username: string; avatar_url: string } | null>(null);
