@@ -549,7 +549,7 @@ if (uploadError) throw uploadError;
     </div>
   </div>
 );
-
+};
 export default ProfileModal;
 
   
