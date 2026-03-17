@@ -290,13 +290,13 @@ const handleRepost = async () => {
       setLoadingAction(null);
     }
   };
-// Tip igual que creadores
+// -------------------- HANDLE TIP --------------------
 const handleTip = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("tip");
   setError(null);
 
-  // Validar que el post no sea de usuario tier free (no puede recibir tip)
+  // Validar que el post no sea de usuario tier free
   if (post.tier === "free") {
     setError(t("no_tips_para_free"));
     setLoadingAction(null);
@@ -314,17 +314,15 @@ const handleTip = async () => {
     const amount = Number(tipAmount);
 
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `tip-${Date.now()}`, // referencia corta igual que chat creadores
+      reference: `tip-${Date.now()}`,
       to: RECEIVER,
-      tokens: [
-        { symbol: Tokens.WLD, token_amount: tokenToDecimals(amount, Tokens.WLD).toString() },
-      ],
+      tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(amount, Tokens.WLD).toString() }],
       description: t("tip"),
     });
 
     if (payRes?.finalPayload?.status === "success") {
       alert(t("tip_enviado"));
-      setTipAmount(1); // opcional: reset al valor por defecto
+      setTipAmount(1);
     } else {
       alert(t("pago_cancelado"));
     }
@@ -335,8 +333,7 @@ const handleTip = async () => {
   }
 };
 
-
-// Boost igual que creadores
+// -------------------- HANDLE BOOST --------------------
 const handleBoost = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("boost");
@@ -344,11 +341,9 @@ const handleBoost = async () => {
 
   try {
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `boost-${Date.now()}`, // igual que creadores
+      reference: `boost-${Date.now()}`,
       to: RECEIVER,
-      tokens: [
-        { symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() },
-      ],
+      tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
       description: t("boost_5_wld"),
     });
 
@@ -362,29 +357,32 @@ const handleBoost = async () => {
   } finally {
     setLoadingAction(null);
   }
-
 };
 
+// -------------------- HANDLE CHAT CREADORES --------------------
+const handleChatCreadores = async () => {
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("subscription");
+  setError(null);
 
-  const handleChatCreadores = async () => {
-    setLoadingAction("subscription");
-    setError(null);
-    try {
-      const payRes = await MiniKit.commandsAsync.pay({
-        reference: `chat-${Date.now()}`,
-        to: RECEIVER,
-        tokens: [
-          { symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() },
-        ],
-        description: t("chat_exclusivo"),
-      });
-      if (payRes?.finalPayload?.status === "success") window.location.href = "/chat/tokens";
-      else alert(t("pago_cancelado"));
-    } catch (err: any) {
-      setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
-    } finally {
-      setLoadingAction(null);
+  try {
+    const payRes = await MiniKit.commandsAsync.pay({
+      reference: `chat-${Date.now()}`,
+      to: RECEIVER,
+      tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
+      description: t("chat_exclusivo"),
+    });
+
+    if (payRes?.finalPayload?.status === "success") {
+      window.location.href = "/chat/tokens";
+    } else {
+      alert(t("pago_cancelado"));
     }
+  } catch (err: any) {
+    setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
+  } finally {
+    setLoadingAction(null);
+  }
   };
 
   const openUserProfile = () => {
