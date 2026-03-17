@@ -57,18 +57,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const postRef = useRef<HTMLDivElement | null>(null);
   const viewRegistered = useRef(false);
 
-  // --- Aquí van los otros useState existentes ---
-  const [tipAmount, setTipAmount] = useState<number | "">(1);
-  const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | "subscription" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // --- 🚀 PEGAR BLOQUE AQUÍ ---
-  const [liked, setLiked] = useState(false);
-  const [likes, setLikes] = useState(0);
-  const [comments, setComments] = useState(0);
-  const [reposts, setReposts] = useState(0);
-  const [commentsList, setCommentsList] = useState<any[]>([]);
-
+  
   useEffect(() => {
     if (!post.id || !currentUserId) return;
 
