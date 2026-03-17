@@ -321,60 +321,62 @@ if (uploadError) throw uploadError;
           </div>
 
           {/* Avatar */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative w-24 h-24 rounded-full overflow-hidden bg-gray-800 border-4 border-purple-600">
-              {uploadingAvatar && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
-                </div>
-              )}
+<div className="flex flex-col items-center gap-3">
+  <div className="relative w-32 h-32 rounded-full overflow-hidden bg-gray-800 border-4 border-purple-600">
+    {uploadingAvatar && (
+      <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    )}
 
-              <img
-                src={previewAvatar || profile.avatar_url || "/default-avatar.png"}
-                alt="Avatar"
-                className="w-32 h-32 rounded-full object-cover border-4 border-purple-500 shadow-lg transition-transform group-hover:scale-105"
-              />
+    <img
+      src={previewAvatar || profile.avatar_url || "/default-avatar.png"}
+      alt="Avatar"
+      className="w-full h-full rounded-full object-cover border-4 border-purple-500 shadow-lg transition-transform"
+    />
 
-              {isOwnProfile && (
-                <label className="absolute bottom-2 right-2 bg-purple-600 text-white p-3 rounded-full cursor-pointer hover:bg-purple-700 shadow-md opacity-90 hover:opacity-100 transition">
-                  <span className="text-xl">📷</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleAvatarChange}
-                    disabled={uploadingAvatar}
-                  />
-                </label>
-              )}
+    {/* Botón para seleccionar archivo, siempre visible si es tu perfil */}
+    {isOwnProfile && (
+      <label className="absolute bottom-2 right-2 bg-purple-600 text-white p-3 rounded-full cursor-pointer hover:bg-purple-700 shadow-md opacity-90 hover:opacity-100 transition">
+        <span className="text-xl">📷</span>
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+          disabled={uploadingAvatar}
+        />
+      </label>
+    )}
+  </div>
 
-              {previewAvatar && isOwnProfile && (
-                <div className="flex gap-3 mt-2">
-                  <button
-                    onClick={() => {
-                      setPreviewAvatar(null);
-                      setSelectedFile(null);
-                    }}
-                    className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
-                  >
-                    {t("cancelar")}
-                  </button>
+  {/* Botones de previsualización y subir, solo si hay archivo seleccionado */}
+  {selectedFile && isOwnProfile && (
+    <div className="flex gap-3 mt-2">
+      <button
+        onClick={() => {
+          setPreviewAvatar(null);
+          setSelectedFile(null);
+        }}
+        className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+      >
+        {t("cancelar")}
+      </button>
 
-                  <button
-                    onClick={handleUploadAvatar}
-                    disabled={uploadingAvatar}
-                    className={`px-4 py-2 rounded-lg font-medium ${
-                      uploadingAvatar
-                        ? "bg-gray-600 cursor-not-allowed"
-                        : "bg-green-600 hover:bg-green-700 text-white"
-                    }`}
-                  >
-                    {uploadingAvatar ? t("subiendo") : t("guardar_avatar")}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+      <button
+        onClick={handleUploadAvatar}
+        disabled={uploadingAvatar}
+        className={`px-4 py-2 rounded-lg font-medium ${
+          uploadingAvatar
+            ? "bg-gray-600 cursor-not-allowed"
+            : "bg-green-600 hover:bg-green-700 text-white"
+        }`}
+      >
+        {uploadingAvatar ? t("subiendo") : t("guardar_avatar")}
+      </button>
+    </div>
+  )}
+</div>
 
           {/* Campos editables */}
           <div className="space-y-4">
