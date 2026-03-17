@@ -380,23 +380,7 @@ if (uploadError) throw uploadError;
                 )}
               </div>
 
-              <input
-                id="avatarUpload"
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                className="hidden"
-                ref={fileInputRef}
-              />
-
-              <label
-                htmlFor="avatarUpload"
-                className="px-4 py-2 bg-gray-700 text-white rounded-full text-sm hover:bg-gray-600 transition cursor-pointer"
-              >
-                {uploadingAvatar ? t("subiendo") : t("cambiar_avatar")}
-              </label>
-            </div>
-
+              
             {/* Campos editables */}
             <div className="space-y-4">
               <div>
