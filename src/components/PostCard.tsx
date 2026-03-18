@@ -687,7 +687,6 @@ const handleChatCreadores = async () => {
       {/* Comments list */}
       {comments > 0 && (
         <div className="mt-4">
-          {/* Botón para mostrar/ocultar comentarios */}
           <button
             onClick={() => setShowComments(!showComments)}
             className="text-purple-400 hover:text-purple-300 text-sm font-medium flex items-center gap-1 transition"
@@ -723,10 +722,9 @@ const handleChatCreadores = async () => {
               )}
             </div>
           )}
-        </div> {/* ← Cierre correcto del contenedor que envuelve botón + comentarios */}
-      )} {/* ← Cierre del bloque condicional grande (probablemente el return o un fragmento anterior) */}
+        </div>
+      )}
 
-      {/* Botón de chat */}
       {currentUserId && (
         <button
           onClick={handleChatCreadores}
@@ -737,7 +735,6 @@ const handleChatCreadores = async () => {
         </button>
       )}
 
-      {/* Modal de error */}
       {error && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-gray-900 p-6 rounded-xl max-w-sm w-full text-center">
@@ -752,7 +749,6 @@ const handleChatCreadores = async () => {
         </div>
       )}
 
-      {/* Modal de repost */}
       {showRepostModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
@@ -794,7 +790,6 @@ const handleChatCreadores = async () => {
         </div>
       )}
 
-      {/* Chat global */}
       {showGlobalChat && (
         <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
           <button
@@ -814,4 +809,4 @@ const handleChatCreadores = async () => {
 };
 
 export default PostCard;
-      
+            
