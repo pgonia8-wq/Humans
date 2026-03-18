@@ -214,18 +214,10 @@ if (uploadError) throw uploadError;
   };
 
   const handleSave = async () => {
-  // Usamos profile.username como principal (el que se muestra en el modal y es único)
-  const userIdentifier = profile.username;
-
-  // Si por algún motivo está vacío (raro), fallback a otros valores que tengas
-  // pero en tu caso profile.username debería estar siempre presente
-  if (!userIdentifier) {
-    setToast({ message: "No se encontró username en el perfil", type: "error" });
+  if (!currentUserId) {
+    setToast({ message: "No se encontró userId", type: "error" });
     return;
   }
-
-  // Log para que veas que está usando el valor correcto (quítalo después si quieres)
-  console.log("[GUARDAR DEBUG] Usando username:", userIdentifier);
 
   setSaving(true);
 
@@ -233,19 +225,16 @@ if (uploadError) throw uploadError;
     const { error } = await supabase
       .from("profiles")
       .update({
-        name: profile.username,              // el "Nombre" editable
+        name: profile.name,
         bio: profile.bio,
         birthdate: profile.birthdate,
         city: profile.city,
         country: profile.country,
         profile_visible: profile.profile_visible,
       })
-      .eq("username", userIdentifier);   // ← clave: filtramos por la columna "username" en Supabase
+      .eq("id", currentUserId); // 👈 SOLO esto identifica al usuario
 
-    if (error) {
-      console.error("[ERROR Supabase update]:", error.message);
-      throw error;
-    }
+    if (error) throw error;
 
     await refreshProfile();
     setToast({ message: t("perfil_guardado"), type: "success" });
@@ -257,7 +246,6 @@ if (uploadError) throw uploadError;
     setSaving(false);
   }
 };
-
   const toggleProfileVisibility = () => {
     setProfile(prev => ({ ...prev, profile_visible: !prev.profile_visible }));
   };
