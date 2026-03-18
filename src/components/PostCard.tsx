@@ -742,94 +742,93 @@ const handleChatCreadores = async () => {
       )}
 
       {/* Botón de chat */}
-      {currentUserId && (
-        <button
-          onClick={handleChatCreadores}
-          disabled={loadingAction === "subscription" || checkingAccess}
-          className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition disabled:opacity-50"
-        >
-          {loadingAction === "subscription" ? "Procesando..." : t("chat_exclusivo")}
-        </button>
-      )}
+{currentUserId && (
+  <button
+    onClick={handleChatCreadores}
+    disabled={loadingAction === "subscription" || checkingAccess}
+    className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition disabled:opacity-50"
+  >
+    {loadingAction === "subscription" ? "Procesando..." : t("chat_exclusivo")}
+  </button>
+)}
 
-      {/* Error modal */}
-      {error && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-gray-900 p-6 rounded-xl max-w-sm w-full text-center">
-            <p className="text-white mb-4">{error}</p>
-            <button
-              onClick={() => setError(null)}
-              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de repost */}
-      {showRepostModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-white text-xl font-bold mb-4 text-center">
-              {t("repost")}
-            </h3>
-
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={confirmRepost}
-                className="py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
-              >
-                {t("repost")}
-              </button>
-
-              <button
-                onClick={confirmQuote}
-                className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
-              >
-                {t("citar_post")}
-              </button>
-
-              <input
-                type="text"
-                value={quoteInput}
-                onChange={(e) => setQuoteInput(e.target.value)}
-                placeholder={t("escribe_para_citar")}
-                className="w-full p-2 rounded bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-
-              <button
-                onClick={() => setShowRepostModal(false)}
-                className="py-3 text-gray-400 hover:text-gray-300 transition"
-              >
-                {t("cancelar")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+{/* Error modal */}
+{error && (
+  <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+    <div className="bg-gray-900 p-6 rounded-xl max-w-sm w-full text-center">
+      <p className="text-white mb-4">{error}</p>
+      <button
+        onClick={() => setError(null)}
+        className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+      >
+        OK
+      </button>
     </div>
+  </div>
+)}
 
-    
-    {showGlobalChat && (
-      <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
+{/* Modal de repost */}
+{showRepostModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
+      <h3 className="text-white text-xl font-bold mb-4 text-center">
+        {t("repost")}
+      </h3>
+
+      <div className="flex flex-col gap-4">
         <button
-          onClick={() => setShowGlobalChat(false)}
-          className="absolute top-5 right-5 z-20 bg-gray-900/90 text-white px-6 py-3 rounded-full backdrop-blur-md border border-gray-700 shadow-2xl text-base font-medium hover:bg-gray-800 transition"
+          onClick={confirmRepost}
+          className="py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
         >
-          ← Volver al feed
+          {t("repost")}
         </button>
 
-        <div className="flex-1 pt-16 overflow-hidden">
-          <GlobalChatRoom 
-            currentUserId={currentUserId!} 
-            roomId="premium_global_chat"
-          />
-        </div>
-      </div>
-    )}
-  </>
-);
-export default PostCard;
+        <button
+          onClick={confirmQuote}
+          className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
+        >
+          {t("citar_post")}
+        </button>
 
-        
+        <input
+          type="text"
+          value={quoteInput}
+          onChange={(e) => setQuoteInput(e.target.value)}
+          placeholder={t("escribe_para_citar")}
+          className="w-full p-2 rounded bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        />
+
+        <button
+          onClick={() => setShowRepostModal(false)}
+          className="py-3 text-gray-400 hover:text-gray-300 transition"
+        >
+          {t("cancelar")}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* ──────────────────────────────────────────────── */}
+{/*           Chat overlay – ahora cubre TODA la pantalla       */}
+{showGlobalChat && (
+  <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
+    <button
+      onClick={() => setShowGlobalChat(false)}
+      className="absolute top-5 right-5 z-20 bg-gray-900/90 text-white px-6 py-3 rounded-full backdrop-blur-md border border-gray-700 shadow-2xl text-base font-medium hover:bg-gray-800 transition"
+    >
+      ← Volver al feed
+    </button>
+
+    <div className="flex-1 pt-16 overflow-hidden">
+      <GlobalChatRoom 
+        currentUserId={currentUserId!} 
+        roomId="premium_global_chat"
+      />
+    </div>
+  </div>
+)} 
+</>
+);
+  
+   export defaul Postcard 
