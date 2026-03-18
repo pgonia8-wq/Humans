@@ -708,21 +708,20 @@ const handleChatCreadores = async () => {
                   {t("no_hay_comentarios")}
                 </p>
               ) : (
-                commentsList.map((c) => (
-                  <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
-                    <p className="font-bold">
-                      {globalUsername || c.profiles?.username}
-                    </p>
-                    <p className="text-gray-300">{c.content}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {new Date(c.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
+                {commentsList.map((c) => (
+                <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
+                  <p className="font-bold">
+                    {globalUsername || c.profiles?.username}
+                  </p>
+                  <p className="text-gray-300">{c.content}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(c.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div> {/* cierre de max-h-60 overflow-y-auto */}
           )}
-        </div>
+        </div> {/* cierre del div de comentarios */}
       )}
 
       {/* Botón de chat */}
@@ -792,26 +791,27 @@ const handleChatCreadores = async () => {
           </div>
         </div>
       )}
-    </div>
 
-    
-    {showGlobalChat && (
-      <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
-        <button
-          onClick={() => setShowGlobalChat(false)}
-          className="absolute top-5 right-5 z-20 bg-gray-900/90 text-white px-6 py-3 rounded-full backdrop-blur-md border border-gray-700 shadow-2xl text-base font-medium hover:bg-gray-800 transition"
-        >
-          ← Volver al feed
-        </button>
+      {/* Chat overlay */}
+      {showGlobalChat && (
+        <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
+          <button
+            onClick={() => setShowGlobalChat(false)}
+            className="absolute top-5 right-5 z-20 bg-gray-900/90 text-white px-6 py-3 rounded-full backdrop-blur-md border border-gray-700 shadow-2xl text-base font-medium hover:bg-gray-800 transition"
+          >
+            ← Volver al feed
+          </button>
 
-        <div className="flex-1 pt-16 overflow-hidden">
-          <GlobalChatRoom 
-            currentUserId={currentUserId!} 
-            roomId="premium_global_chat"
-          />
+          <div className="flex-1 pt-16 overflow-hidden">
+            <GlobalChatRoom 
+              currentUserId={currentUserId!} 
+              roomId="premium_global_chat"
+            />
+          </div>
         </div>
-      </div>
-    )}
-  </>
-);
-    export default Postcard;
+      )}
+    </div> {/* cierre del div principal del post */}
+  ); // cierre correcto del return
+};
+
+export default PostCard;
