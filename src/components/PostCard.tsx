@@ -4,6 +4,7 @@ import { ThemeContext } from "../lib/ThemeContext";
 import { useFollow } from "../lib/useFollow";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { useLanguage } from "../LanguageContext";
+import GlobalChatRoom from "../../../pages/chat/GlobalChatRoom";
 
 // Helper para mostrar la hora relativa
 const getRelativeTime = (timestamp: string | null) => {
