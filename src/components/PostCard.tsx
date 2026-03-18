@@ -428,7 +428,7 @@ const handleBoost = async () => {
 
 // --- HANDLE CHAT CREADORES ---
 const handleChatCreadores = async () => {
-const handleChatCreadores = async () => {
+
   if (!currentUserId) return setError(t("debes_estar_logueado"));
 
   if (checkingAccess) return; // evita conflictos mientras se consulta
