@@ -458,7 +458,7 @@ const handleChatCreadores = async () => {
         setError("Pago recibido, pero hubo un error. Contacta soporte.");
         return;
       }
-
+       setHasChatAccess(true);
       window.location.href = "/chat/tokens";
     } else {
       setError(t("pago_cancelado"));
