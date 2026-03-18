@@ -792,7 +792,7 @@ const handleChatCreadores = async () => {
           </div>
         </div>
       )}
-    
+    </div>
 
     
     {showGlobalChat && (
