@@ -47,37 +47,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [loadingAction, setLoadingAction] = useState<
     "like" | "comment" | "repost" | "tip" | "boost" | "follow" | "subscription" | null
   >(null);
+// --- STATES ---
 const [originalPost, setOriginalPost] = useState<any | null>(null);
-  useEffect(() => {
-  setLikes(post.likes || 0);
-}, [post.likes]);
+const [hasChatAccess, setHasChatAccess] = useState(false);
+const [checkingAccess, setCheckingAccess] = useState(true);
 
-useEffect(() => {
-  setComments(post.comments || 0);
-}, [post.comments]);
-
-useEffect(() => {
-  setReposts(post.reposts || 0);
-}, [post.reposts]);
-
-  useEffect(() => {
-  const fetchOriginalPost = async () => {
-    if (!post.reposted_post_id) return;
-
-    const { data, error } = await supabase
-      .from("posts")
-      .select("*")
-      .eq("id", post.reposted_post_id)
-      .single();
-
-    if (error) {
-      console.error("Error fetching original post:", error);
-    } else {
-      setOriginalPost(data);
-    }
-  };
-  const [hasChatAccess, setHasChatAccess] = useState(false);
-  // ✅ 1. Check chat access
+// --- 1. Check chat access ---
 useEffect(() => {
   const checkChatAccess = async () => {
     if (!currentUserId) {
@@ -102,7 +77,7 @@ useEffect(() => {
   checkChatAccess();
 }, [currentUserId]);
 
-// ✅ 2. Fetch original post
+// --- 2. Fetch original post ---
 useEffect(() => {
   const fetchOriginalPost = async () => {
     if (!post || !post.reposted_post_id) return;
@@ -121,7 +96,7 @@ useEffect(() => {
   };
 
   fetchOriginalPost();
-}, [post && post.reposted_post_id]); // no ?. aquíd]);
+}, [post && post.reposted_post_id]);
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number | "">(1);
