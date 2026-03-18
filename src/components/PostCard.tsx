@@ -792,11 +792,9 @@ const handleChatCreadores = async () => {
           </div>
         </div>
       )}
-    </div>
+    
 
-    {/* ──────────────────────────────────────────────── */}
-    {/*           ESTA PARTE ES LA IMPORTANTE             */}
-    {/* Chat overlay – ahora cubre TODA la pantalla       */}
+    
     {showGlobalChat && (
       <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
         <button
