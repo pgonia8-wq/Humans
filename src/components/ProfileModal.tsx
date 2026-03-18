@@ -367,14 +367,13 @@ if (uploadError) throw uploadError;
     />
 
     {/* Lápiz para editar avatar */}
-  {isOwnProfile ? (
-  <div className="absolute -bottom-5 -right-5 z-[100] bg-red-600 text-white p-5 rounded-full text-4xl shadow-2xl ring-4 ring-red-300">
+{isOwnProfile ? (
+  <div className="absolute -bottom-2 -right-2 z-[100] bg-red-600 text-white p-2 rounded-full text-sm shadow-md ring-2 ring-red-300">
     🛠️ DEBUG
-    {/* Tu lápiz original sigue aquí, pero ahora con más visibilidad */}
     <label 
       className="absolute inset-0 flex items-center justify-center bg-purple-600/80 hover:bg-purple-700 rounded-full cursor-pointer"
     >
-      <span className="text-5xl">✏️</span>
+      <span className="text-lg">✏️</span>
       <input
         type="file"
         accept="image/*"
