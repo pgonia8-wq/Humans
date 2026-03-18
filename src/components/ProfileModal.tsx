@@ -240,8 +240,7 @@ if (uploadError) throw uploadError;
         country: profile.country,
         profile_visible: profile.profile_visible,
       })
-      .eq("username", userIdentifier);   // ← clave: filtramos por la columna "username" en Supabase
-
+      
     if (error) {
       console.error("[ERROR Supabase update]:", error.message);
       throw error;
