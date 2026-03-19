@@ -54,7 +54,7 @@ const [originalPost, setOriginalPost] = useState<any | null>(null);
 const [hasChatAccess, setHasChatAccess] = useState(false);
 const [checkingAccess, setCheckingAccess] = useState(true);
 
-  const handleSend = (e?: any) => {
+const handleSend = (e?: any) => {
   if (e) e.preventDefault();
   console.log("Mensaje temporal (chat aún no conectado)");
 };
