@@ -107,7 +107,14 @@ useEffect(() => {
   const [tipAmount, setTipAmount] = useState<number | "">(1);
   const [showRepostModal, setShowRepostModal] = useState(false);
   const [quoteInput, setQuoteInput] = useState("");
-
+                // ── Objeto de usuario compatible con la versión bonita del chat ──
+const chatCurrentUser = {
+  id: currentUserId || "anon-" + Date.now().toString(36).slice(-6),
+  username: globalUsername || "UsuarioWorld",
+  avatarUrl: postProfile?.avatar_url || undefined,   // si tienes avatar global, úsalo aquí
+  role: hasChatAccess ? "gold" : "free",
+  isOnline: true,
+};
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
    // Estado para el perfil del autor del post
   const [postProfile, setPostProfile] = useState<{ username: string; avatar_url: string } | null>(null);
@@ -791,16 +798,11 @@ const handleChatCreadores = async () => {
       )}
 
       {showGlobalChat && (
-        <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
-          <button
-            onClick={() => setShowGlobalChat(false)}
-            className="absolute top-5 right-5 z-20 bg-gray-900/90 text-white px-6 py-3 rounded-full backdrop-blur-md border border-gray-700 shadow-2xl text-base font-medium hover:bg-gray-800 transition"
-          >
-            ← Volver al feed
-          </button>
-
-          <div className="flex-1 pt-16 overflow-hidden">
-            <GlobalChatRoom currentUserId={currentUserId!} roomId="premium_global_chat" />
+  <GlobalChatRoom
+    isOpen={showGlobalChat}
+    onClose={() => setShowGlobalChat(false)}
+    currentUser={chatCurrentUser}
+    supabase={supabase}
           </div>
         </div>
       )}
