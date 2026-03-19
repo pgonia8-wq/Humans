@@ -808,10 +808,6 @@ const handleChatCreadores = async () => {
     username: globalUsername || "user",
     role: userRole,
     isOnline: true,
-  }}
-/>
-  }}
-/>
           </div>
         </div>
       )}
