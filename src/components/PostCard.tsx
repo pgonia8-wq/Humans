@@ -798,14 +798,20 @@ const handleChatCreadores = async () => {
       )}
 
 {showGlobalChat && (
-        <GlobalChatRoom
-          isOpen={showGlobalChat}
-          onClose={() => setShowGlobalChat(false)}
-          currentUser={chatCurrentUser}
-          supabase={supabase}
-        />
+        <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
+          <button
+            onClick={() => setShowGlobalChat(false)}
+            className="absolute top-5 right-5 z-20 bg-gray-900/90 text-white px-6 py-3 rounded-full backdrop-blur-md border border-gray-700 shadow-2xl text-base font-medium hover:bg-gray-800 transition"
+          >
+            ← Volver al feed
+          </button>
+
+          <div className="flex-1 pt-16 overflow-hidden">
+            <GlobalChatRoom currentUserId={currentUserId!} roomId="premium_global_chat" />
+          </div>
+        </div>
       )}
-    </div> 
+    </div>
   );
 };
 
