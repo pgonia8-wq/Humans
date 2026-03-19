@@ -54,7 +54,13 @@ const [originalPost, setOriginalPost] = useState<any | null>(null);
 const [hasChatAccess, setHasChatAccess] = useState(false);
 const [checkingAccess, setCheckingAccess] = useState(true);
 const userRole = hasChatAccess ? "gold" : "free";
-const handleSend = (e?: any) => {
+const chatCurrentUser = {
+  id: currentUserId!,
+  username: globalUsername || "user",
+  role: hasChatAccess ? "gold" : "free",
+  isOnline: true,
+};
+  const handleSend = (e?: any) => {
   if (e) e.preventDefault();
   console.log("Mensaje temporal (chat aún no conectado)");
 };
