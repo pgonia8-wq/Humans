@@ -696,24 +696,7 @@ const switchRoom = useCallback((roomId: string) => {
   // No enviamos nada por WS → ya lo manejamos con Supabase después
 }, [currentUser.id, currentUser.username]);
 
-    // REST fallback
-    try {
-      await fetch(`${apiBaseUrl}/api/rooms/${selectedRoomId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUser.id, username: currentUser.username, avatarUrl: currentUser.avatarUrl, content, fileUrl, fileName, fileType }),
-      });
-    } catch { /* ignorar */ }
 
-    onSendMessage?.(msg);
-  }, [selectedRoomId, currentUser, apiBaseUrl, onSendMessage]);
-
-  // â”€â”€ Typing â”€â”€
-  const handleTyping = useCallback((isTyping: boolean) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "typing", payload: { userId: currentUser.id, username: currentUser.username, roomId: selectedRoomId, isTyping } }));
-    }
-  }, [currentUser.id, currentUser.username, selectedRoomId]);
 
   // â”€â”€ Crear sala â”€â”€
   const handleCreateRoom = (data: Omit<ChatRoom, "id">) => {
@@ -722,13 +705,6 @@ const switchRoom = useCallback((roomId: string) => {
     setMessages((p) => ({ ...p, [room.id]: [] }));
     setRoomType(room.type);
     switchRoom(room.id);
-
-    // Persistir en API
-    fetch(`${apiBaseUrl}/api/rooms`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, createdBy: currentUser.id }),
-    }).catch(() => {});
   };
 
   // â”€â”€ SuscripciÃ³n Gold â”€â”€
