@@ -1015,7 +1015,7 @@ export default function GlobalChatRoom({
     ? "Acceder a Gold / Platinum ✨" 
     : "Suscribirse a Platinum"}
 </button>
-)}
+
 {/* Cerrar */}
 <button onClick={onClose} data-testid="button-close-chat"
   className="flex-shrink-0 text-white/40 cursor-pointer p-1">
