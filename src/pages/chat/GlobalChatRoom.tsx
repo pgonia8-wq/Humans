@@ -985,25 +985,27 @@ export default function GlobalChatRoom({
                   ))}
                 </div>
               )}
+                        {/* Botón Platinum */}
+{!isSubscribed && (
+  <button
+    onClick={handleGoldSubscription}
+    disabled={loadingAction === "subscription"}
+    className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-2 py-1 text-[10px] font-bold text-white cursor-pointer shadow shadow-yellow-500/30"
+  >
+    <Crown className="h-3 w-3" /> 
+    {currentUser?.has_chat_gold ? "Acceder a funciones Platinum" : "Suscribirse a Platinum"}
+  </button>
+)}
 
-              {/* BotÃ³n upgrade Gold */}
-              {!isSubscribed && (
-                <Button
-  onClick={handleGoldSubscription}
-  disabled={loadingAction === "subscription"}
-  variant="gold"
+{/* Cerrar */}
+<button
+  onClick={onClose}
+  data-testid="button-close-chat"
+  className="flex-shrink-0 text-white/40 cursor-pointer p-1"
 >
-  {currentUser?.has_chat_gold ? "Acceder a funciones Platinum" : "Suscribirse a Platinum"}
-</Button>
-              )}
-
-              {/* Cerrar */}
-              <button onClick={onClose} data-testid="button-close-chat"
-                className="flex-shrink-0 text-white/40 cursor-pointer p-1">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
+  <X className="h-5 w-5" />
+</button>
+              
             {/* â•â• DROPDOWN LISTA DE SALAS â•â• */}
             <AnimatePresence>
               {showRooms && (
