@@ -24,7 +24,7 @@ import {
   Star, Twitter,
 } from "lucide-react";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
-import { supabase } from "../supabaseClient";
+import { supabase } from "../../supabaseClient";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTES
