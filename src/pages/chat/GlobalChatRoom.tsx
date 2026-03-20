@@ -1023,7 +1023,7 @@ export default function GlobalChatRoom({
   className="flex-shrink-0 text-white/40 cursor-pointer p-1">
   <X className="h-5 w-5" />
 </button>
-              
+     </div>         
             {/* â•â• DROPDOWN LISTA DE SALAS â•â• */}
             <AnimatePresence>
               {showRooms && (
