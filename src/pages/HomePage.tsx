@@ -154,16 +154,11 @@ const HomePage: React.FC<HomePageProps> = ({
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [newMessage, setNewMessage] = useState("");
-  const [newMessageAttachments, setNewMessageAttachments] = useState<File[]>(
-    [],
-  );
-  const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(
-    null,
-  );
+  const [newMessageAttachments, setNewMessageAttachments] = useState<File[]>([]);
+  const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
 
-  const [notifications, setNotifications] =
-    useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
   const { theme, toggleTheme, username } = useContext(ThemeContext);
@@ -175,8 +170,8 @@ const HomePage: React.FC<HomePageProps> = ({
     profile?.tier === "premium+"
       ? 10000
       : profile?.tier === "premium"
-        ? 4000
-        : 280;
+      ? 4000
+      : 280;
 
   const isDark = theme === "dark";
 
@@ -421,13 +416,8 @@ const HomePage: React.FC<HomePageProps> = ({
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
-  const handleOpenNotifications = () => {
-    setShowNotifications(true);
-  };
-
-  const handleCloseNotifications = () => {
-    setShowNotifications(false);
-  };
+  const handleOpenNotifications = () => setShowNotifications(true);
+  const handleCloseNotifications = () => setShowNotifications(false);
 
   return (
     <div
@@ -436,31 +426,34 @@ const HomePage: React.FC<HomePageProps> = ({
         isDark ? "bg-[#09090b] text-white" : "bg-[#fafafa] text-black"
       }`}
     >
-      {/* ── HEADER ── */}
+      {/* ── HEADER FLOTANTE ── */}
       <header
-        className={`sticky top-0 z-30 w-full flex items-center justify-between px-4 py-2.5 border-b ${
+        className={`fixed top-3 left-3 right-3 z-30 flex items-center justify-between px-4 py-2.5 rounded-2xl border ${
           isDark
-            ? "bg-[#09090b]/80 border-white/[0.07]"
-            : "bg-white/80 border-black/[0.06]"
+            ? "bg-[#09090b]/85 border-white/[0.09]"
+            : "bg-white/90 border-black/[0.07]"
         }`}
         style={{
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          boxShadow: isDark
+            ? "0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3)"
+            : "0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)",
         }}
       >
         {/* Logo */}
         <motion.img
-          src="/logo.png"
-          className="w-10 h-10 object-contain"
-          alt="Logo"
+          src="/logoh-carbono.png"
+          className="w-10 h-10 object-contain rounded-xl"
+          alt="Humans Logo"
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
           transition={{ type: "spring", stiffness: 400, damping: 22 }}
         />
 
-        {/* Center actions */}
+        {/* Botones centrales */}
         <div className="flex items-center gap-1.5">
-          {/* New Post */}
+          {/* Nuevo Post */}
           <motion.button
             onClick={() => setShowNewPostModal(true)}
             whileHover={{ scale: 1.04 }}
@@ -478,10 +471,7 @@ const HomePage: React.FC<HomePageProps> = ({
           {/* Inbox */}
           <div className="relative">
             <motion.button
-              onClick={() => {
-                setShowInbox(true);
-                setUnreadMessages(0);
-              }}
+              onClick={() => { setShowInbox(true); setUnreadMessages(0); }}
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.94 }}
               className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
@@ -508,7 +498,7 @@ const HomePage: React.FC<HomePageProps> = ({
             </AnimatePresence>
           </div>
 
-          {/* Notifications */}
+          {/* Notificaciones */}
           <div className="relative">
             <motion.button
               onClick={handleOpenNotifications}
@@ -521,9 +511,7 @@ const HomePage: React.FC<HomePageProps> = ({
               }`}
             >
               <motion.div
-                animate={
-                  unreadNotifCount > 0 ? { rotate: [0, -12, 12, -8, 8, 0] } : {}
-                }
+                animate={unreadNotifCount > 0 ? { rotate: [0, -12, 12, -8, 8, 0] } : {}}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
                 <Bell size={19} />
@@ -545,7 +533,7 @@ const HomePage: React.FC<HomePageProps> = ({
             </AnimatePresence>
           </div>
 
-          {/* Theme toggle */}
+          {/* Tema */}
           <motion.button
             onClick={toggleTheme}
             whileHover={{ scale: 1.08 }}
@@ -569,7 +557,7 @@ const HomePage: React.FC<HomePageProps> = ({
             </AnimatePresence>
           </motion.button>
 
-          {/* Language */}
+          {/* Idioma */}
           <motion.button
             onClick={() => setLanguage(language === "es" ? "en" : "es")}
             whileHover={{ scale: 1.06 }}
@@ -598,18 +586,11 @@ const HomePage: React.FC<HomePageProps> = ({
           style={{ background: isDark ? "#27272a" : "#e4e4e7" }}
         >
           {profile?.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              className="w-full h-full object-cover"
-              alt="Avatar"
-            />
+            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
           ) : (
             <div
               className="w-full h-full flex items-center justify-center text-sm font-bold"
-              style={{
-                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                color: "#fff",
-              }}
+              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
             >
               {(username || "H")[0].toUpperCase()}
             </div>
@@ -618,7 +599,7 @@ const HomePage: React.FC<HomePageProps> = ({
       </header>
 
       {/* ── FEED ── */}
-      <main className="w-full px-2 py-6 flex justify-center">
+      <main className="w-full px-2 pt-20 pb-6 flex justify-center">
         <FeedPage
           posts={posts}
           loading={loading}
@@ -629,7 +610,7 @@ const HomePage: React.FC<HomePageProps> = ({
         />
       </main>
 
-      {/* ── PROFILE MODAL ── */}
+      {/* ── MODAL PERFIL ── */}
       {showProfileModal && (
         <ProfileModal
           currentUserId={userId}
@@ -638,7 +619,7 @@ const HomePage: React.FC<HomePageProps> = ({
         />
       )}
 
-      {/* ── CREATE POST MODAL ── */}
+      {/* ── MODAL CREAR POST ── */}
       <AnimatePresence>
         {showNewPostModal && (
           <motion.div
@@ -648,19 +629,14 @@ const HomePage: React.FC<HomePageProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            style={{
-              backdropFilter: "blur(12px)",
-              background: "rgba(0,0,0,0.82)",
-            }}
+            style={{ backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.82)" }}
             onClick={() => setShowNewPostModal(false)}
           >
             <motion.div
               key="create-post-modal"
               className={
                 "relative w-full max-w-md rounded-3xl shadow-2xl overflow-hidden " +
-                (isDark
-                  ? "bg-gray-950 border border-white/10"
-                  : "bg-white border border-gray-200")
+                (isDark ? "bg-gray-950 border border-white/10" : "bg-white border border-gray-200")
               }
               initial={{ opacity: 0, scale: 0.92, y: 24 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -670,28 +646,17 @@ const HomePage: React.FC<HomePageProps> = ({
             >
               <div
                 className="absolute inset-x-0 top-0 h-1 rounded-t-3xl"
-                style={{
-                  background:
-                    "linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa)",
-                }}
+                style={{ background: "linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa)" }}
               />
-
               <div className="flex items-center justify-between px-6 pt-6 pb-4">
                 <div className="flex items-center gap-3">
                   <div
                     className="w-8 h-8 rounded-xl flex items-center justify-center"
-                    style={{
-                      background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                    }}
+                    style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
                   >
                     <Send size={14} className="text-white -rotate-12" />
                   </div>
-                  <h2
-                    className={
-                      "text-lg font-bold tracking-tight " +
-                      (isDark ? "text-white" : "text-gray-900")
-                    }
-                  >
+                  <h2 className={`text-lg font-bold tracking-tight ${isDark ? "text-white" : "text-gray-900"}`}>
                     {t("create_post")}
                   </h2>
                 </div>
@@ -719,16 +684,13 @@ const HomePage: React.FC<HomePageProps> = ({
                       ? "bg-gray-900 ring-1 ring-white/10 focus-within:ring-violet-500"
                       : "bg-gray-50 ring-1 ring-gray-200 focus-within:ring-violet-400")
                   }
-                  style={{ transition: "box-shadow 0.2s" }}
                 >
                   <textarea
                     value={newPostContent}
                     onChange={(e) => setNewPostContent(e.target.value)}
                     className={
                       "w-full h-32 p-4 resize-none focus:outline-none bg-transparent text-sm leading-relaxed " +
-                      (isDark
-                        ? "text-white placeholder-gray-500"
-                        : "text-gray-900 placeholder-gray-400")
+                      (isDark ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400")
                     }
                     placeholder={t("whats_happening")}
                     maxLength={maxChars}
@@ -738,9 +700,7 @@ const HomePage: React.FC<HomePageProps> = ({
                       "absolute bottom-3 right-3 text-xs font-medium tabular-nums " +
                       (newPostContent.length > maxChars * 0.85
                         ? "text-red-400"
-                        : isDark
-                          ? "text-gray-600"
-                          : "text-gray-400")
+                        : isDark ? "text-gray-600" : "text-gray-400")
                     }
                   >
                     {newPostContent.length}/{maxChars}
@@ -758,19 +718,12 @@ const HomePage: React.FC<HomePageProps> = ({
                     transition={{ duration: 0.25 }}
                   >
                     <div className="relative group rounded-2xl overflow-hidden shadow-lg max-h-60">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-full object-cover max-h-60 transition-transform duration-300 group-hover:scale-105"
-                      />
+                      <img src={imagePreview} alt="Preview" className="w-full object-cover max-h-60 transition-transform duration-300 group-hover:scale-105" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                       <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                          setNewPostImage(null);
-                          setImagePreview(null);
-                        }}
+                        onClick={() => { setNewPostImage(null); setImagePreview(null); }}
                         className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                       >
                         <X size={12} className="text-white" />
@@ -801,27 +754,20 @@ const HomePage: React.FC<HomePageProps> = ({
                     }}
                   />
                   <ImageIcon size={16} />
-                  <span className="hidden sm:inline">
-                    {t("add_image") || "Imagen"}
-                  </span>
+                  <span className="hidden sm:inline">{t("add_image") || "Imagen"}</span>
                 </label>
-
                 <div className="flex-1" />
-
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => setShowNewPostModal(false)}
                   className={
                     "px-4 py-2.5 rounded-xl text-sm font-medium transition-colors " +
-                    (isDark
-                      ? "text-gray-300 bg-white/5 hover:bg-white/10"
-                      : "text-gray-600 bg-gray-100 hover:bg-gray-200")
+                    (isDark ? "text-gray-300 bg-white/5 hover:bg-white/10" : "text-gray-600 bg-gray-100 hover:bg-gray-200")
                   }
                 >
                   {t("cancel")}
                 </motion.button>
-
                 <motion.button
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
@@ -830,18 +776,13 @@ const HomePage: React.FC<HomePageProps> = ({
                   className="relative px-5 py-2.5 rounded-xl text-sm font-semibold text-white overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
                     background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                    boxShadow: newPostContent.trim()
-                      ? "0 0 20px rgba(139,92,246,0.4)"
-                      : "none",
+                    boxShadow: newPostContent.trim() ? "0 0 20px rgba(139,92,246,0.4)" : "none",
                     transition: "box-shadow 0.3s",
                   }}
                 >
                   <motion.span
                     className="absolute inset-0 rounded-xl"
-                    style={{
-                      background:
-                        "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%)",
-                    }}
+                    style={{ background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%)" }}
                     initial={{ x: "-100%" }}
                     whileHover={{ x: "100%" }}
                     transition={{ duration: 0.5 }}
@@ -859,14 +800,10 @@ const HomePage: React.FC<HomePageProps> = ({
 
       {/* ── INBOX ── */}
       {userId && (
-        <Inbox
-          isOpen={showInbox}
-          onClose={() => setShowInbox(false)}
-          currentUserId={userId}
-        />
+        <Inbox isOpen={showInbox} onClose={() => setShowInbox(false)} currentUserId={userId} />
       )}
 
-      {/* ── NOTIFICATIONS MODAL ── */}
+      {/* ── MODAL NOTIFICACIONES ── */}
       <AnimatePresence>
         {showNotifications && (
           <motion.div
@@ -876,10 +813,7 @@ const HomePage: React.FC<HomePageProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            style={{
-              backdropFilter: "blur(10px)",
-              background: "rgba(0,0,0,0.6)",
-            }}
+            style={{ backdropFilter: "blur(10px)", background: "rgba(0,0,0,0.6)" }}
             onClick={handleCloseNotifications}
           >
             <motion.div
@@ -896,53 +830,32 @@ const HomePage: React.FC<HomePageProps> = ({
               transition={{ type: "spring", stiffness: 360, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Drag indicator (mobile) */}
               <div className="flex justify-center pt-3 pb-1 sm:hidden">
-                <div
-                  className={`w-10 h-1 rounded-full ${isDark ? "bg-white/20" : "bg-black/10"}`}
-                />
+                <div className={`w-10 h-1 rounded-full ${isDark ? "bg-white/20" : "bg-black/10"}`} />
               </div>
 
-              {/* Top gradient stripe */}
               <div
                 className="absolute inset-x-0 top-0 h-[2px]"
-                style={{
-                  background:
-                    "linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa, #6366f1)",
-                }}
+                style={{ background: "linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa, #6366f1)" }}
               />
 
-              {/* Header */}
-              <div
-                className={`flex items-center justify-between px-5 pt-5 pb-3 border-b ${
-                  isDark ? "border-white/[0.07]" : "border-gray-100"
-                }`}
-              >
+              <div className={`flex items-center justify-between px-5 pt-5 pb-3 border-b ${isDark ? "border-white/[0.07]" : "border-gray-100"}`}>
                 <div className="flex items-center gap-2.5">
                   <div
                     className="w-8 h-8 rounded-xl flex items-center justify-center"
-                    style={{
-                      background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                    }}
+                    style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
                   >
                     <Bell size={14} className="text-white" />
                   </div>
                   <div>
-                    <h2
-                      className={`text-base font-bold leading-tight ${
-                        isDark ? "text-white" : "text-gray-900"
-                      }`}
-                    >
+                    <h2 className={`text-base font-bold leading-tight ${isDark ? "text-white" : "text-gray-900"}`}>
                       {t("notifications") || "Notificaciones"}
                     </h2>
                     {unreadNotifCount > 0 && (
-                      <p className="text-xs text-violet-400 font-medium">
-                        {unreadNotifCount} sin leer
-                      </p>
+                      <p className="text-xs text-violet-400 font-medium">{unreadNotifCount} sin leer</p>
                     )}
                   </div>
                 </div>
-
                 <div className="flex items-center gap-2">
                   {unreadNotifCount > 0 && (
                     <motion.button
@@ -970,25 +883,13 @@ const HomePage: React.FC<HomePageProps> = ({
                 </div>
               </div>
 
-              {/* Notification list */}
               <div className="overflow-y-auto flex-1">
                 {notifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3">
-                    <div
-                      className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-                        isDark ? "bg-white/5" : "bg-gray-50"
-                      }`}
-                    >
-                      <Bell
-                        size={24}
-                        className={isDark ? "text-gray-600" : "text-gray-300"}
-                      />
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isDark ? "bg-white/5" : "bg-gray-50"}`}>
+                      <Bell size={24} className={isDark ? "text-gray-600" : "text-gray-300"} />
                     </div>
-                    <p
-                      className={`text-sm font-medium ${
-                        isDark ? "text-gray-500" : "text-gray-400"
-                      }`}
-                    >
+                    <p className={`text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>
                       {t("no_notifications") || "Sin notificaciones"}
                     </p>
                   </div>
@@ -1000,71 +901,46 @@ const HomePage: React.FC<HomePageProps> = ({
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.04, duration: 0.22 }}
-                        onClick={() => {
+                        onClick={() =>
                           setNotifications((prev) =>
-                            prev.map((n) =>
-                              n.id === notif.id ? { ...n, read: true } : n,
-                            ),
-                          );
-                        }}
+                            prev.map((n) => n.id === notif.id ? { ...n, read: true } : n)
+                          )
+                        }
                         className={`flex items-start gap-3 px-5 py-3.5 cursor-pointer transition-colors ${
                           !notif.read
                             ? isDark
                               ? "bg-violet-500/[0.06] hover:bg-violet-500/[0.1]"
                               : "bg-violet-50/80 hover:bg-violet-50"
                             : isDark
-                              ? "hover:bg-white/[0.03]"
-                              : "hover:bg-gray-50"
+                            ? "hover:bg-white/[0.03]"
+                            : "hover:bg-gray-50"
                         }`}
                       >
-                        {/* Avatar + type badge */}
                         <div className="relative flex-shrink-0 mt-0.5">
                           <img
                             src={notif.avatar}
                             alt={notif.user}
                             className="w-9 h-9 rounded-full object-cover"
-                            style={{
-                              background: isDark ? "#27272a" : "#e4e4e7",
-                            }}
+                            style={{ background: isDark ? "#27272a" : "#e4e4e7" }}
                           />
                           <span
                             className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 ${
                               isDark ? "border-[#111113]" : "border-white"
                             }`}
-                            style={{
-                              background: isDark ? "#1c1c1e" : "#f4f4f5",
-                            }}
+                            style={{ background: isDark ? "#1c1c1e" : "#f4f4f5" }}
                           >
                             {notifIcon(notif.type)}
                           </span>
                         </div>
-
-                        {/* Text */}
                         <div className="flex-1 min-w-0">
-                          <p
-                            className={`text-sm leading-snug ${
-                              isDark ? "text-gray-200" : "text-gray-800"
-                            }`}
-                          >
+                          <p className={`text-sm leading-snug ${isDark ? "text-gray-200" : "text-gray-800"}`}>
                             <span className="font-semibold">{notif.user}</span>{" "}
-                            <span
-                              className={
-                                isDark ? "text-gray-400" : "text-gray-500"
-                              }
-                            >
-                              {notif.message}
-                            </span>
+                            <span className={isDark ? "text-gray-400" : "text-gray-500"}>{notif.message}</span>
                           </p>
-                          <p
-                            className={`text-xs mt-0.5 ${
-                              isDark ? "text-gray-600" : "text-gray-400"
-                            }`}
-                          >
+                          <p className={`text-xs mt-0.5 ${isDark ? "text-gray-600" : "text-gray-400"}`}>
                             {notif.time}
                           </p>
                         </div>
-
-                        {/* Unread dot */}
                         {!notif.read && (
                           <motion.div
                             initial={{ scale: 0 }}
@@ -1078,17 +954,8 @@ const HomePage: React.FC<HomePageProps> = ({
                 )}
               </div>
 
-              {/* Footer */}
-              <div
-                className={`px-5 py-3 border-t ${
-                  isDark ? "border-white/[0.06]" : "border-gray-100"
-                }`}
-              >
-                <p
-                  className={`text-center text-xs ${
-                    isDark ? "text-gray-600" : "text-gray-400"
-                  }`}
-                >
+              <div className={`px-5 py-3 border-t ${isDark ? "border-white/[0.06]" : "border-gray-100"}`}>
+                <p className={`text-center text-xs ${isDark ? "text-gray-600" : "text-gray-400"}`}>
                   Notificaciones de las últimas 24 horas
                 </p>
               </div>
