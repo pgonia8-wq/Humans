@@ -544,9 +544,20 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           </div>
 
           {/* Post content */}
-          <p className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap ${isDark ? "text-gray-100" : "text-gray-800"}`}>
-            {post.content}
-          </p>
+<p className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap ${isDark ? "text-gray-100" : "text-gray-800"}`}>
+  {post.content}
+</p>
+
+{/* Post image */}
+{post.image_url && (
+  <img
+    src={post.image_url}
+    alt="post"
+    className="mt-3 rounded-xl w-full object-cover max-h-80 border border-gray-800"
+  />
+)}
+
+
 
           {/* Original reposted post */}
           {originalPost && (
