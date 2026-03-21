@@ -530,34 +530,33 @@ const handleProfileUpdated = (updatedProfile: { id: string; avatar_url?: string 
           )}
         </AnimatePresence>
 
-        {/* Input de archivo oculto */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files && e.target.files[0]) {
-              setNewPostImage(e.target.files[0]);
-              setImagePreview(URL.createObjectURL(e.target.files[0]));
-            }
-          }}
-        />
+        <label
+  className={
+    "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer " +
+    (theme === "dark"
+      ? "text-gray-400 hover:text-violet-400 hover:bg-violet-500/10"
+      : "text-gray-500 hover:text-violet-600 hover:bg-violet-50")
+  }
+>
+  <input
+    type="file"
+    accept="image/*"
+    className="hidden"
+    onChange={(e) => {
+      if (e.target.files && e.target.files[0]) {
+        setNewPostImage(e.target.files[0]);
+        setImagePreview(URL.createObjectURL(e.target.files[0]));
+      }
+    }}
+  />
+  <ImageIcon size={16} />
+  <span className="hidden sm:inline">{t("add_image") || "Imagen"}</span>
+</label>
+        
 
         {/* Footer */}
         <div className="flex items-center gap-3 px-6 py-5 mt-2">
-          {/* Botón adjuntar imagen */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => fileInputRef.current?.click()}
-            className={
-              "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors " +
-              (theme === "dark"
-                ? "text-gray-400 hover:text-violet-400 hover:bg-violet-500/10"
-                : "text-gray-500 hover:text-violet-600 hover:bg-violet-50")
-            }
-          >
+          
             <ImageIcon size={16} />
             <span className="hidden sm:inline">{t("add_image") || "Imagen"}</span>
           </motion.button>
