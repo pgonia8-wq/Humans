@@ -15,6 +15,7 @@ import {
   Check,
   CheckCheck,
   MessageCircle,
+  Smile,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -91,6 +92,16 @@ const avatarGradient = (id: string): string => {
   const idx = id.charCodeAt(0) % gradients.length;
   return gradients[idx];
 };
+
+// ─── Emoji list ───────────────────────────────────────────────────────────────
+
+const EMOJIS = [
+  "😀","😂","😍","🥰","😎","🤔","😭","🔥","❤️","👍",
+  "🙌","🎉","✨","💯","😅","🤣","😊","🥹","😏","🤩",
+  "😢","😡","🤯","😴","🥳","🤗","😱","🫡","💀","🙏",
+  "👏","💪","🫶","🤝","✌️","🖤","💜","💙","💚","💛",
+  "🍕","🍔","🍦","🎮","🎵","🏆","🌙","⭐","🌈","🦋",
+];
 
 // ─── Avatar ────────────────────────────────────────────────────────────────────
 
@@ -241,9 +252,11 @@ const ChatView: React.FC<ChatViewProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const room = roomId(currentUserId, otherUser?.id || "");
@@ -356,6 +369,7 @@ const ChatView: React.FC<ChatViewProps> = ({
     if (!text.trim() && attachments.length === 0) return;
     if (!otherUser?.id) return;
     setSending(true);
+    setShowEmojiPicker(false);
 
     try {
       let attachmentUrls: string[] = [];
@@ -404,6 +418,23 @@ const ChatView: React.FC<ChatViewProps> = ({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setText((prev) => prev + emoji);
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newText = text.slice(0, start) + emoji + text.slice(end);
+    setText(newText);
+    setTimeout(() => {
+      textarea.selectionStart = start + emoji.length;
+      textarea.selectionEnd = start + emoji.length;
+      textarea.focus();
+    }, 0);
   };
 
   const groupedMessages = messages.reduce<{ date: string; msgs: DmMessage[] }[]>(
@@ -597,7 +628,7 @@ const ChatView: React.FC<ChatViewProps> = ({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="flex gap-2 px-4 pb-2 overflow-x-auto"
+            className="flex gap-2 px-4 pb-2 overflow-x-auto flex-shrink-0"
           >
             {attachments.map((file, idx) => (
               <div key={idx} className="relative flex-shrink-0">
@@ -627,12 +658,38 @@ const ChatView: React.FC<ChatViewProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Emoji picker */}
+      <AnimatePresence>
+        {showEmojiPicker && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="px-3 pb-2 flex-shrink-0"
+          >
+            <div className="bg-[#15151f] border border-white/10 rounded-2xl p-3 flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+              {EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => insertEmoji(emoji)}
+                  className="text-xl w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/10 active:scale-90 transition-all"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Input bar */}
-      <div className="px-3 pb-3 pt-2 border-t border-white/10 flex-shrink-0">
+      <div className="px-3 pb-4 pt-2 border-t border-white/10 flex-shrink-0">
         <div className="flex items-end gap-2">
+          {/* File attachment */}
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors"
+            title="Attach file"
           >
             <Paperclip className="w-5 h-5" />
           </button>
@@ -645,6 +702,7 @@ const ChatView: React.FC<ChatViewProps> = ({
             onChange={(e) => handleFiles(e.target.files)}
           />
 
+          {/* Image picker */}
           <button
             onClick={() => {
               const inp = document.createElement("input");
@@ -656,11 +714,27 @@ const ChatView: React.FC<ChatViewProps> = ({
               inp.click();
             }}
             className="flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors"
+            title="Attach image"
           >
             <ImageIcon className="w-5 h-5" />
           </button>
 
+          {/* Emoji button */}
+          <button
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            className={`flex-shrink-0 p-2.5 rounded-full transition-colors ${
+              showEmojiPicker
+                ? "bg-indigo-600/40 text-indigo-300"
+                : "bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white"
+            }`}
+            title="Emoji"
+          >
+            <Smile className="w-5 h-5" />
+          </button>
+
+          {/* Textarea */}
           <textarea
+            ref={textareaRef}
             value={text}
             onChange={(e) => {
               setText(e.target.value);
@@ -673,11 +747,13 @@ const ChatView: React.FC<ChatViewProps> = ({
             style={{ scrollbarWidth: "none" }}
           />
 
+          {/* Send button */}
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={handleSend}
             disabled={sending || (!text.trim() && attachments.length === 0)}
             className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+            title="Send"
           >
             <Send className="w-4 h-4" />
           </motion.button>
@@ -820,25 +896,22 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}
         >
           <motion.div
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
+            initial={{ y: 40, opacity: 0, scale: 0.97 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 40, opacity: 0, scale: 0.97 }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="w-full max-w-md h-[92vh] sm:h-[85vh] bg-[#0a0a0f] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden border border-white/8 shadow-2xl shadow-black/80"
+            className="w-full max-w-md h-[85vh] max-h-[700px] bg-[#0a0a0f] rounded-3xl flex flex-col overflow-hidden border border-white/8 shadow-2xl shadow-black/80"
             style={{
               background:
                 "linear-gradient(160deg, #0d0d1a 0%, #0a0a0f 60%, #0a0010 100%)",
             }}
           >
-            {/* Drag indicator mobile */}
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-white/20 rounded-full sm:hidden" />
-
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 flex-shrink-0">
               <div className="flex items-center gap-2">
