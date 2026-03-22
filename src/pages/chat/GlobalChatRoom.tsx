@@ -997,9 +997,27 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
           const newMsg = rowToMessage(payload.new as Record<string, unknown>);
           setMessages((prev) => {
             const existing = prev[selectedRoomId] ?? [];
-            const withoutTemp = existing.filter((m) => !(m.id.startsWith("temp-") && m.userId === newMsg.userId && m.content === newMsg.content));
-            if (withoutTemp.some((m) => m.id === newMsg.id)) return prev;
-            return { ...prev, [selectedRoomId]: [...withoutTemp, newMsg] };
+            // Busca un optimistic temp que coincida (normaliza null/undefined a "")
+            const tempIdx = existing.findIndex(
+              (m) => m.id.startsWith("temp-") &&
+                     m.userId === newMsg.userId &&
+                     (m.content ?? "") === (newMsg.content ?? "")
+            );
+            if (tempIdx !== -1) {
+              // Reemplaza el temp preservando username/avatar que vienen del optimistic
+              const temp = existing[tempIdx];
+              const merged: ChatMessage = {
+                ...newMsg,
+                username: newMsg.username.startsWith("@") ? temp.username : newMsg.username,
+                avatarUrl: newMsg.avatarUrl ?? temp.avatarUrl,
+              };
+              const updated = [...existing];
+              updated[tempIdx] = merged;
+              return { ...prev, [selectedRoomId]: updated };
+            }
+            // Mensaje de otro usuario — evita duplicados
+            if (existing.some((m) => m.id === newMsg.id)) return prev;
+            return { ...prev, [selectedRoomId]: [...existing, newMsg] };
           });
         })
       // UPDATE (ediciones y eliminaciones)
@@ -1318,6 +1336,19 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
                   {!canUseGold && <span className="text-[8px] opacity-60">✦</span>}
                 </button>
               </div>
+
+              {/* Upgrade button — visible cuando Classic intenta usar Gold */}
+              {isGold && !canUseGold && (
+                <button
+                  onClick={handleGoldSubscribe}
+                  disabled={goldLoading}
+                  data-testid="button-upgrade-gold-header"
+                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-xl text-[9px] font-bold bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-md shadow-yellow-500/30 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {goldLoading ? "…" : "Upgrade 9.99 WLD"}
+                </button>
+              )}
 
               <button onClick={onClose} data-testid="button-close-chat"
                 className="flex-shrink-0 text-white/30 hover:text-white/60 cursor-pointer p-1 transition-colors">
