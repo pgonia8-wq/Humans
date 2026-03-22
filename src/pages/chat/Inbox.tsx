@@ -16,6 +16,8 @@ import {
   CheckCheck,
   MessageCircle,
   Smile,
+  Search,
+  UserPlus,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -53,8 +55,6 @@ interface InboxProps {
 }
 
 // ─── Supabase client ──────────────────────────────────────────────────────────
-// Si ya tienes un singleton, reemplaza estas 3 líneas con:
-//   import { supabase } from "../supabaseClient";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -140,18 +140,149 @@ const Avatar: React.FC<{ profile: Profile | null; size?: "sm" | "md" | "lg" }> =
   );
 };
 
+// ─── User Search Modal ────────────────────────────────────────────────────────
+
+interface UserSearchModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  currentUserId: string;
+  onSelectUser: (profile: Profile) => void;
+}
+
+const UserSearchModal: React.FC<UserSearchModalProps> = ({
+  isOpen,
+  onClose,
+  currentUserId,
+  onSelectUser,
+}) => {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setQuery("");
+      setResults([]);
+      setTimeout(() => searchRef.current?.focus(), 100);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, avatar_url")
+        .ilike("username", `%${query.trim()}%`)
+        .neq("id", currentUserId)
+        .limit(20);
+      setResults((data as Profile[]) || []);
+      setLoading(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, currentUserId]);
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="absolute inset-0 z-10 flex flex-col rounded-3xl overflow-hidden"
+          style={{
+            background:
+              "linear-gradient(160deg, #0d0d1a 0%, #0a0a0f 60%, #0a0010 100%)",
+          }}
+        >
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 pt-5 pb-3 flex-shrink-0 border-b border-white/8">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-base font-bold text-white">New Message</h2>
+          </div>
+
+          {/* Search input */}
+          <div className="px-4 py-3 flex-shrink-0">
+            <div className="flex items-center gap-2 bg-white/8 rounded-2xl px-3 py-2.5">
+              <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by username…"
+                className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
+              />
+              {loading && (
+                <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              )}
+            </div>
+          </div>
+
+          {/* Results */}
+          <div className="flex-1 overflow-y-auto">
+            {results.length === 0 && query.trim() && !loading && (
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-500">
+                <UserPlus className="w-10 h-10 opacity-30" />
+                <p className="text-sm">No users found</p>
+              </div>
+            )}
+            {results.length === 0 && !query.trim() && (
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-500">
+                <Search className="w-10 h-10 opacity-30" />
+                <p className="text-sm">Search for a user to start chatting</p>
+              </div>
+            )}
+            <div className="flex flex-col divide-y divide-white/5">
+              {results.map((profile) => (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectUser(profile);
+                    onClose();
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 w-full text-left hover:bg-white/5 active:bg-white/10 transition-colors"
+                >
+                  <Avatar profile={profile} size="md" />
+                  <span className="text-sm font-medium text-gray-200">
+                    {profile.username || profile.id.slice(0, 8)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 // ─── Conversation List ────────────────────────────────────────────────────────
 
 interface ConversationListProps {
   conversations: Conversation[];
   loading: boolean;
   onSelect: (conv: Conversation) => void;
+  onNewMessage: () => void;
 }
 
 const ConversationList: React.FC<ConversationListProps> = ({
   conversations,
   loading,
   onSelect,
+  onNewMessage,
 }) => {
   if (loading) {
     return (
@@ -174,9 +305,13 @@ const ConversationList: React.FC<ConversationListProps> = ({
       <div className="flex flex-col items-center justify-center h-full gap-4 py-16 text-gray-500">
         <MessageCircle className="w-12 h-12 opacity-30" />
         <p className="text-sm">No conversations yet</p>
-        <p className="text-xs opacity-60">
-          Send a message to start a conversation
-        </p>
+        <button
+          type="button"
+          onClick={onNewMessage}
+          className="mt-2 px-4 py-2 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+        >
+          Start a conversation
+        </button>
       </div>
     );
   }
@@ -282,6 +417,16 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
             />
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (messages.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-16 gap-3 text-gray-500">
+        <MessageCircle className="w-10 h-10 opacity-20" />
+        <p className="text-sm">No messages yet. Say hello!</p>
+        <div ref={messagesEndRef} />
       </div>
     );
   }
@@ -421,16 +566,18 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
 
-  // ── Input state (always visible) ──
+  // ── Input state ──
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showUserSearch, setShowUserSearch] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -625,7 +772,20 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
       )
     );
     setMessages([]);
+    setShowEmojiPicker(false);
     setActiveConv(conv);
+  };
+
+  // ── Select user from search (start new conversation) ──
+  const handleSelectUser = (profile: Profile) => {
+    const conv: Conversation = {
+      otherUserId: profile.id,
+      otherProfile: profile,
+      lastMessage: "",
+      lastMessageAt: new Date().toISOString(),
+      unread: 0,
+    };
+    handleSelectConv(conv);
   };
 
   // ── Go back to list ──
@@ -716,6 +876,9 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
       setText("");
       setAttachments([]);
       setPreviews([]);
+
+      // Refresh conversation list to update last message
+      fetchConversations();
     } catch (err) {
       console.error("Error sending DM:", err);
     } finally {
@@ -737,8 +900,8 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
       setText((prev) => prev + emoji);
       return;
     }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
+    const start = textarea.selectionStart ?? text.length;
+    const end = textarea.selectionEnd ?? text.length;
     const newText = text.slice(0, start) + emoji + text.slice(end);
     setText(newText);
     setTimeout(() => {
@@ -748,7 +911,16 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
     }, 0);
   };
 
-  const canSend = !!activeConv && (text.trim().length > 0 || attachments.length > 0);
+  // ── Auto-resize textarea ──
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    if (activeConv) broadcastTyping();
+    const ta = e.target;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 128) + "px";
+  };
+
+  const canSend = !!activeConv && (text.trim().length > 0 || attachments.length > 0) && !sending;
 
   return (
     <AnimatePresence>
@@ -768,12 +940,20 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 40, opacity: 0, scale: 0.97 }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="w-full max-w-md h-[85vh] max-h-[700px] flex flex-col rounded-3xl overflow-hidden border border-white/8 shadow-2xl shadow-black/80"
+            className="relative w-full max-w-md h-[85vh] max-h-[700px] flex flex-col rounded-3xl overflow-hidden border border-white/8 shadow-2xl shadow-black/80"
             style={{
               background:
                 "linear-gradient(160deg, #0d0d1a 0%, #0a0a0f 60%, #0a0010 100%)",
             }}
           >
+            {/* ── User search overlay ── */}
+            <UserSearchModal
+              isOpen={showUserSearch}
+              onClose={() => setShowUserSearch(false)}
+              currentUserId={currentUserId}
+              onSelectUser={handleSelectUser}
+            />
+
             {/* ── Header ── */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 flex-shrink-0">
               <div className="flex items-center gap-2">
@@ -781,6 +961,7 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                   {activeConv && (
                     <motion.button
                       key="back"
+                      type="button"
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -8 }}
@@ -835,12 +1016,26 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                 </AnimatePresence>
               </div>
 
-              <button
-                onClick={onClose}
-                className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                {/* New message button */}
+                {!activeConv && (
+                  <button
+                    type="button"
+                    onClick={() => setShowUserSearch(true)}
+                    className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                    title="New message"
+                  >
+                    <Search className="w-5 h-5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* ── Content area (list or chat messages) ── */}
@@ -854,6 +1049,7 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                     exit={{ x: "100%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 300 }}
                     className="h-full overflow-y-auto"
+                    style={{ overflowY: "scroll", WebkitOverflowScrolling: "touch" }}
                   >
                     <ChatMessages
                       messages={messages}
@@ -872,11 +1068,13 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                     exit={{ x: "-100%", opacity: 0 }}
                     transition={{ type: "spring", damping: 30, stiffness: 300 }}
                     className="h-full overflow-y-auto"
+                    style={{ overflowY: "scroll", WebkitOverflowScrolling: "touch" }}
                   >
                     <ConversationList
                       conversations={conversations}
                       loading={loadingConvs}
                       onSelect={handleSelectConv}
+                      onNewMessage={() => setShowUserSearch(true)}
                     />
                   </motion.div>
                 )}
@@ -909,6 +1107,7 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                         </div>
                       )}
                       <button
+                        type="button"
                         onClick={() => removeAttachment(idx)}
                         className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-800 border border-white/20 rounded-full flex items-center justify-center"
                       >
@@ -922,7 +1121,7 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
 
             {/* ── Emoji picker ── */}
             <AnimatePresence>
-              {showEmojiPicker && (
+              {showEmojiPicker && activeConv && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -933,6 +1132,7 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                     {EMOJIS.map((emoji) => (
                       <button
                         key={emoji}
+                        type="button"
                         onClick={() => insertEmoji(emoji)}
                         className="text-xl w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/10 active:scale-90 transition-all"
                       >
@@ -952,37 +1152,52 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                 </p>
               )}
               <div className="flex items-end gap-2">
-                {/* Attach file */}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={!activeConv}
-                  className="flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="Attach file"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
+                {/* Hidden file inputs */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
                   accept="image/*,video/*,.pdf,.doc,.docx,.txt"
                   className="hidden"
-                  onChange={(e) => handleFiles(e.target.files)}
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    e.target.value = "";
+                  }}
                 />
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+
+                {/* Attach file */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!activeConv) return;
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={!activeConv}
+                  className="flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Attach file"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
 
                 {/* Attach image */}
                 <button
-                  disabled={!activeConv}
+                  type="button"
                   onClick={() => {
                     if (!activeConv) return;
-                    const inp = document.createElement("input");
-                    inp.type = "file";
-                    inp.accept = "image/*";
-                    inp.multiple = true;
-                    inp.onchange = (e) =>
-                      handleFiles((e.target as HTMLInputElement).files);
-                    inp.click();
+                    imageInputRef.current?.click();
                   }}
+                  disabled={!activeConv}
                   className="flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   title="Attach image"
                 >
@@ -991,6 +1206,7 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
 
                 {/* Emoji toggle */}
                 <button
+                  type="button"
                   disabled={!activeConv}
                   onClick={() => setShowEmojiPicker((prev) => !prev)}
                   className={`flex-shrink-0 p-2.5 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
@@ -1007,27 +1223,33 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                 <textarea
                   ref={textareaRef}
                   value={text}
-                  onChange={(e) => {
-                    setText(e.target.value);
-                    if (activeConv) broadcastTyping();
-                  }}
+                  onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
                   disabled={!activeConv}
                   placeholder={activeConv ? "Message…" : "Select a conversation…"}
                   rows={1}
-                  className="flex-1 resize-none bg-white/10 text-white placeholder-gray-500 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 max-h-32 overflow-y-auto leading-relaxed disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ scrollbarWidth: "none" }}
+                  className="flex-1 resize-none bg-white/10 text-white placeholder-gray-500 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 overflow-y-auto leading-relaxed disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    scrollbarWidth: "none",
+                    maxHeight: "128px",
+                    minHeight: "40px",
+                  }}
                 />
 
                 {/* Send */}
                 <motion.button
+                  type="button"
                   whileTap={{ scale: canSend ? 0.9 : 1 }}
                   onClick={handleSend}
-                  disabled={!canSend || sending}
+                  disabled={!canSend}
                   className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
                   title="Send"
                 >
-                  <Send className="w-4 h-4" />
+                  {sending ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
                 </motion.button>
               </div>
             </div>
