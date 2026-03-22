@@ -255,7 +255,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         city: profile.city,
         state: profile.state,
         country: profile.country,
-        website: profile.website,
         location_text: profile.location_text,
         profile_visible: profile.profile_visible,
       };
@@ -281,42 +280,42 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const handleSendComplaint = async () => {
-  if (!complaintMessage.trim()) return;
-  setSendingComplaint(true);
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
+    if (!complaintMessage.trim()) return;
+    setSendingComplaint(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
 
-    const res = await fetch(
-      "https://vtjqfzpfehfofamhowjz.supabase.co/functions/v1/send-complaint",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          message: complaintMessage,
-          userId: currentUserId,
-          username: profile.username,
-        }),
+      const res = await fetch(
+        "https://vtjqfzpfehfofamhowjz.supabase.co/functions/v1/send-complaint",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            message: complaintMessage,
+            userId: currentUserId,
+            username: profile.username,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al enviar");
       }
-    );
 
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || "Error al enviar");
+      setToast({ message: t("queja_enviada") || "Mensaje enviado correctamente", type: "success" });
+      setComplaintMessage("");
+      setShowComplaintModal(false);
+    } catch (err: any) {
+      setToast({ message: err.message || "Error al enviar mensaje", type: "error" });
+    } finally {
+      setSendingComplaint(false);
     }
-
-    setToast({ message: t("queja_enviada") || "Mensaje enviado correctamente", type: "success" });
-    setComplaintMessage("");
-    setShowComplaintModal(false);
-  } catch (err: any) {
-    setToast({ message: err.message || "Error al enviar mensaje", type: "error" });
-  } finally {
-    setSendingComplaint(false);
-  }
-};
+  };
 
   const toggleProfileVisibility = () => {
     setProfile(prev => ({ ...prev, profile_visible: !prev.profile_visible }));
@@ -389,6 +388,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </span>
           </div>
 
+          {/* Input de archivo oculto fuera del label para mayor compatibilidad en WebView */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarChange}
+            disabled={uploadingAvatar}
+          />
+
           {/* Avatar overlapping cover */}
           <div className="px-5 pb-0">
             <div className="flex items-end justify-between -mt-14 mb-3">
@@ -406,16 +415,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   />
                 </div>
                 {isOwnProfile && (
-                  <label className="absolute bottom-0 right-0 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-7 h-7 flex items-center justify-center cursor-pointer shadow-md transition z-10">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="absolute bottom-0 right-0 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-md transition z-10"
+                  >
                     <span className="text-xs">✏️</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleAvatarChange}
-                      disabled={uploadingAvatar}
-                    />
-                  </label>
+                  </button>
                 )}
               </div>
 
@@ -444,7 +451,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             ) : (
               <>
                 <div className="mb-1">
-                  <p className="text-white text-lg font-bold leading-tight">{profile.name || t("sin_nombre")}</p>
+                  <p className="text-white text-lg font-bold leading-tight">{profile.name || `@${profile.username}`}</p>
                   <p className="text-gray-400 text-sm">@{profile.username}</p>
                 </div>
 
@@ -453,22 +460,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   <p className="text-gray-300 text-sm mb-2 leading-snug">{profile.bio}</p>
                 ) : null}
 
-                {/* Location & website quick info */}
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-4">
-                  {(profile.city || selectedCountryObj?.name) && (
+                {/* Location quick info */}
+                {(profile.city || selectedCountryObj?.name) && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-4">
                     <span>📍 {[profile.city, selectedCountryObj?.name].filter(Boolean).join(", ")}</span>
-                  )}
-                  {profile.website && (
-                    <a
-                      href={profile.website.startsWith("http") ? profile.website : `https://${profile.website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-purple-400 hover:underline"
-                    >
-                      🔗 {profile.website.replace(/^https?:\/\//, "")}
-                    </a>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Stats row */}
                 <div className="flex gap-6 text-center border-y border-white/10 py-3 mb-5">
@@ -544,18 +541,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                         }}
                         className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none h-20"
                         placeholder={t("cuentanos_sobre_ti") || "Cuéntanos sobre ti..."}
-                      />
-                    </div>
-
-                    {/* Website */}
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">{t("sitio_web") || "Sitio web"}</label>
-                      <input
-                        type="url"
-                        value={profile.website}
-                        onChange={e => setProfile(prev => ({ ...prev, website: e.target.value }))}
-                        className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        placeholder="https://tusitio.com"
                       />
                     </div>
 
@@ -708,7 +693,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     className="w-full py-3 bg-gray-800 hover:bg-gray-700 border border-white/10 text-gray-300 hover:text-white rounded-2xl text-sm transition flex items-center justify-center gap-2"
                   >
                     <span>💬</span>
-                    <span>{t("quejas_sugerencias") || "Quejas y sugerencias"}</span>
+                    <span>{t("contacto") || "Contacto"}</span>
                   </button>
                 </div>
               </>
