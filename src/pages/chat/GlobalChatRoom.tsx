@@ -501,7 +501,7 @@ function ActionBtn({ children, onClick, title, danger }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MODAL SUSCRIPCIÓN GOLD (sin cambios)
+// MODAL SUSCRIPCIÓN GOLD
 // ─────────────────────────────────────────────────────────────────────────────
 function GoldSubscribeModal({ onClose, onSubscribe, loading }: {
   onClose: () => void; onSubscribe: () => void; loading?: boolean;
@@ -542,7 +542,7 @@ function GoldSubscribeModal({ onClose, onSubscribe, loading }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MODAL CREAR SALA (sin cambios)
+// MODAL CREAR SALA
 // ─────────────────────────────────────────────────────────────────────────────
 function CreateRoomModal({ onClose, onCreate, canCreateGold }: {
   onClose: () => void; onCreate: (room: Omit<ChatRoom, "id">) => void; canCreateGold: boolean;
@@ -604,7 +604,7 @@ function CreateRoomModal({ onClose, onCreate, canCreateGold }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MODAL COMPARTIR (sin cambios)
+// MODAL COMPARTIR
 // ─────────────────────────────────────────────────────────────────────────────
 function ShareModal({ message, onClose }: { message: ChatMessage; onClose: () => void }) {
   const text = encodeURIComponent(`"${message.content}" — ${message.username} en GlobalChat`);
@@ -639,7 +639,7 @@ function ShareModal({ message, onClose }: { message: ChatMessage; onClose: () =>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CHAT INPUT (enhanced: voice, reply preview, ephemeral toggle)
+// CHAT INPUT
 // ─────────────────────────────────────────────────────────────────────────────
 function ChatInput({ onSend, onTyping, isGold, disabled, replyTo, onCancelReply }: {
   onSend: (content: string, file?: File, audioBlob?: Blob, ephemeral?: boolean, replyTo?: ChatMessage) => void;
@@ -684,21 +684,19 @@ function ChatInput({ onSend, onTyping, isGold, disabled, replyTo, onCancelReply 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Selecciona el mime type compatible con el navegador (incluye mp4/aac para Safari)
       const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4", ""]
         .find((m) => !m || MediaRecorder.isTypeSupported(m)) ?? "";
       const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       audioChunks.current = [];
       rec.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.current.push(e.data); };
       rec.onstop = () => {
-        // Bucket chat-files acepta: audio/webm, audio/ogg, audio/mpeg, audio/wav, audio/mp4
         const blob = new Blob(audioChunks.current, { type: rec.mimeType || "audio/webm" });
         onSend("", undefined, blob, ephemeral, replyTo ?? undefined);
         stream.getTracks().forEach((t) => t.stop());
         setRecSecs(0);
         if (recInterval.current) clearInterval(recInterval.current);
       };
-      rec.start(250); // slice cada 250ms para mejor compatibilidad
+      rec.start(250);
       mediaRecorder.current = rec;
       setIsRecording(true);
       recInterval.current = setInterval(() => setRecSecs((s) => s + 1), 1000);
@@ -745,7 +743,7 @@ function ChatInput({ onSend, onTyping, isGold, disabled, replyTo, onCancelReply 
         )}
       </AnimatePresence>
 
-      {/* Recording indicator */}
+            {/* Recording indicator */}
       <AnimatePresence>
         {isRecording && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
@@ -874,7 +872,6 @@ function DiscordIcon() {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: GlobalChatRoomProps) {
 
-  // ── Estado base (sin cambios) ──
   const [roomType,       setRoomType]       = useState<RoomType>("classic");
   const [rooms,          setRooms]          = useState<ChatRoom[]>(STATIC_ROOMS);
   const [selectedRoomId, setSelectedRoomId] = useState("classic-general");
@@ -891,7 +888,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const [myUsername,         setMyUsername]            = useState<string>("");
   const [userTier,           setUserTier]              = useState<string>("");
 
-  // ── Estado nuevo 2026 ──
   const [reactions,   setReactions]   = useState<Record<string, Record<string, string[]>>>({});
   const [pinnedIds,   setPinnedIds]   = useState<string[]>([]);
   const [replyTo,     setReplyTo]     = useState<ChatMessage | null>(null);
@@ -901,16 +897,13 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const [showSearch,  setShowSearch]  = useState(false);
   const [seenMsgIds,  setSeenMsgIds]  = useState<Set<string>>(new Set());
 
-  // ── Refs ──
   const bottomRef      = useRef<HTMLDivElement>(null);
   const realtimeRef    = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeouts = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // ── Derivados ──
-  const isGold      = roomType === "gold";
-  // Gold = suscripción estrictamente chat_gold en tabla subscriptions
-  const canUseGold  = isGoldSubscribed;
-  const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
+  const isGold     = roomType === "gold";
+  const canUseGold = isGoldSubscribed;
+  const selectedRoom  = rooms.find((r) => r.id === selectedRoomId);
   const filteredRooms = rooms.filter((r) => r.type === roomType);
 
   const now = Date.now();
@@ -929,30 +922,20 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     return `@${userId.slice(0, 8)}`;
   }, [messages]);
 
-  // ── Fetch perfil (tier) para canUseGold real ──
   useEffect(() => {
     if (!currentUserId || !isOpen) return;
     const fetchProfile = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("tier")
-        .eq("user_id", currentUserId)
-        .maybeSingle();
+      const { data } = await supabase.from("profiles").select("tier").eq("user_id", currentUserId).maybeSingle();
       if (data?.tier) setUserTier(String(data.tier));
     };
     fetchProfile();
   }, [currentUserId, isOpen]);
 
-  // ── Verificar suscripción Gold (solo marca el estado, NO fuerza el modo) ──
   useEffect(() => {
     if (!currentUserId || !isOpen) return;
     const check = async () => {
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("product")
-        .eq("user_id", currentUserId)
-        .eq("product", "chat_gold")
-        .maybeSingle();
+      const { data } = await supabase.from("subscriptions").select("product")
+        .eq("user_id", currentUserId).eq("product", "chat_gold").maybeSingle();
       if (data) setIsGoldSubscribed(true);
     };
     check();
@@ -964,7 +947,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     setReplyTo(null); setEditingId(null); setSearchQuery(""); setShowSearch(false);
   }, []);
 
-  // ── Cargar mensajes ──
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -982,7 +964,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     return () => { cancelled = true; };
   }, [isOpen, selectedRoomId]);
 
-  // ── Supabase Realtime ──
   useEffect(() => {
     if (!isOpen) return;
     if (realtimeRef.current) { supabase.removeChannel(realtimeRef.current); realtimeRef.current = null; }
@@ -991,20 +972,17 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
       .channel(`globalchat-${selectedRoomId}`, {
         config: { broadcast: { self: false }, presence: { key: currentUserId } },
       })
-      // INSERT de nuevos mensajes
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "global_chat_messages", filter: `room_id=eq.${selectedRoomId}` },
         (payload) => {
           const newMsg = rowToMessage(payload.new as Record<string, unknown>);
           setMessages((prev) => {
             const existing = prev[selectedRoomId] ?? [];
-            // Busca un optimistic temp que coincida (normaliza null/undefined a "")
             const tempIdx = existing.findIndex(
               (m) => m.id.startsWith("temp-") &&
                      m.userId === newMsg.userId &&
                      (m.content ?? "") === (newMsg.content ?? "")
             );
             if (tempIdx !== -1) {
-              // Reemplaza el temp preservando username/avatar que vienen del optimistic
               const temp = existing[tempIdx];
               const merged: ChatMessage = {
                 ...newMsg,
@@ -1015,12 +993,10 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
               updated[tempIdx] = merged;
               return { ...prev, [selectedRoomId]: updated };
             }
-            // Mensaje de otro usuario — evita duplicados
             if (existing.some((m) => m.id === newMsg.id)) return prev;
             return { ...prev, [selectedRoomId]: [...existing, newMsg] };
           });
         })
-      // UPDATE (ediciones y eliminaciones)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "global_chat_messages", filter: `room_id=eq.${selectedRoomId}` },
         (payload) => {
           const updated = rowToMessage(payload.new as Record<string, unknown>);
@@ -1029,7 +1005,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
             [selectedRoomId]: (prev[selectedRoomId] ?? []).map((m) => m.id === updated.id ? updated : m),
           }));
         })
-      // Typing broadcast
       .on("broadcast", { event: "typing" }, (payload) => {
         const { user, username } = payload.payload as { user: string; username?: string };
         if (user === currentUserId) return;
@@ -1040,7 +1015,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
           delete typingTimeouts.current[user];
         }, 2000);
       })
-      // Reaction broadcast
       .on("broadcast", { event: "reaction" }, (payload) => {
         const { messageId, emoji, userId, action } = payload.payload as { messageId: string; emoji: string; userId: string; action: "add" | "remove" };
         setReactions((prev) => {
@@ -1052,13 +1026,11 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
           return { ...prev, [messageId]: msg };
         });
       })
-      // Seen broadcast (read receipts)
       .on("broadcast", { event: "seen" }, (payload) => {
         const { userId, messageIds } = payload.payload as { userId: string; messageIds: string[] };
         if (userId === currentUserId) return;
         setSeenMsgIds((prev) => new Set([...prev, ...messageIds]));
       })
-      // Presence
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<ConnectedUser>();
         const users = Object.values(state).flat() as ConnectedUser[];
@@ -1079,29 +1051,20 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, selectedRoomId, currentUserId]);
 
-  // ── Auto-scroll ──
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [activeMessages.length, typingUsers.length]);
 
-  // ── Broadcast "seen" al abrir el chat y cada vez que llegan mensajes ──
   useEffect(() => {
     if (!isOpen) return;
-    // Pequeño delay para asegurar que el canal esté suscrito
     const timer = setTimeout(() => {
       if (!realtimeRef.current) return;
-      const myMsgIds = (messages[selectedRoomId] ?? [])
-        .filter((m) => m.userId === currentUserId)
-        .map((m) => m.id);
+      const myMsgIds = (messages[selectedRoomId] ?? []).filter((m) => m.userId === currentUserId).map((m) => m.id);
       if (!myMsgIds.length) return;
-      realtimeRef.current.send({
-        type: "broadcast", event: "seen",
-        payload: { userId: currentUserId, messageIds: myMsgIds },
-      });
+      realtimeRef.current.send({ type: "broadcast", event: "seen", payload: { userId: currentUserId, messageIds: myMsgIds } });
     }, 600);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, activeMessages.length, selectedRoomId]);
 
-  // ── Cambiar tipo ──
   const handleSwitchType = (type: RoomType) => {
     if (type === "gold" && !canUseGold) { setShowGoldModal(true); return; }
     setRoomType(type);
@@ -1109,7 +1072,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     if (first) switchRoom(first.id);
   };
 
-  // ── Pago Gold MiniKit (sin cambios) ──
   const handleGoldSubscribe = async () => {
     if (!currentUserId) return;
     setGoldLoading(true);
@@ -1131,7 +1093,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     finally { setGoldLoading(false); }
   };
 
-  // ── Enviar mensaje (con audio, reply, ephemeral) ──
   const handleSend = async (content: string, file?: File, audioBlob?: Blob, ephemeral?: boolean, replyMsg?: ChatMessage) => {
     if (!content.trim() && !file && !audioBlob) return;
     const username = displayUsername(currentUserId);
@@ -1176,13 +1137,11 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     }
   };
 
-  // ── Typing ──
   const handleTyping = useCallback((b: boolean) => {
     if (!b || !realtimeRef.current) return;
     realtimeRef.current.send({ type: "broadcast", event: "typing", payload: { user: currentUserId, username: displayUsername(currentUserId) } });
   }, [currentUserId, displayUsername]);
 
-  // ── Reacciones ──
   const handleReact = useCallback((messageId: string, emoji: string) => {
     const current = reactions[messageId]?.[emoji] ?? [];
     const hasReacted = current.includes(currentUserId);
@@ -1198,7 +1157,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     realtimeRef.current?.send({ type: "broadcast", event: "reaction", payload: { messageId, emoji, userId: currentUserId, action } });
   }, [reactions, currentUserId]);
 
-  // ── Pin ──
   const handlePin = useCallback((msgId: string) => {
     setPinnedIds((prev) => {
       if (prev.includes(msgId)) return prev.filter((id) => id !== msgId);
@@ -1207,7 +1165,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     });
   }, []);
 
-  // ── Editar ──
   const handleStartEdit = (msgId: string) => {
     const msg = (messages[selectedRoomId] ?? []).find((m) => m.id === msgId);
     if (!msg) return;
@@ -1224,7 +1181,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     setEditingId(null); setEditText("");
   };
 
-  // ── Eliminar ──
   const handleDelete = async (msgId: string) => {
     await supabase.from("global_chat_messages").update({ deleted_for_all: true, content: null }).eq("id", msgId);
     setMessages((prev) => ({
@@ -1233,7 +1189,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     }));
   };
 
-  // ── Crear sala ──
   const handleCreateRoom = async (data: Omit<ChatRoom, "id">) => {
     const localId = `room-${Date.now()}`;
     const room: ChatRoom = { ...data, id: localId };
@@ -1245,9 +1200,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     setRoomType(room.type); switchRoom(room.id);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <AnimatePresence>
       {isOpen && (
@@ -1273,13 +1225,11 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
             {/* ══ HEADER ══ */}
             <div className={cx("flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 backdrop-blur-sm",
               isGold ? "border-yellow-500/15 bg-yellow-900/15" : "border-violet-500/15 bg-indigo-950/40")}>
-
               <div className={cx("flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl",
                 isGold ? "bg-gradient-to-br from-yellow-400/20 to-amber-500/20 text-yellow-400"
                        : "bg-gradient-to-br from-indigo-500/20 to-violet-500/20 text-violet-400")}>
                 {isGold ? <Crown className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
               </div>
-
               <div className="flex-1 min-w-0">
                 <button onClick={() => setShowRooms(!showRooms)} data-testid="button-toggle-room-list"
                   className="flex items-center gap-1 cursor-pointer">
@@ -1294,62 +1244,35 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
                   {selectedRoom?.isPrivate && <Lock className="h-3 w-3 text-white/30" />}
                 </div>
               </div>
-
               <Avatar name={displayUsername(currentUserId)} gold={isGold} />
-
-              {/* Toggle search */}
               <button onClick={() => setShowSearch(!showSearch)}
                 className={cx("p-1.5 rounded-lg transition-colors cursor-pointer",
                   showSearch ? isGold ? "text-yellow-300 bg-yellow-500/15" : "text-violet-300 bg-violet-500/15" : "text-white/30 hover:text-white/60")}>
                 <Search className="h-4 w-4" />
               </button>
-
-              {/* Selector Classic / Gold — siempre visible */}
               <div className="flex rounded-xl border border-white/15 overflow-hidden shadow-sm">
-                <button
-                  onClick={() => handleSwitchType("classic")}
-                  data-testid="button-switch-classic"
-                  className={cx(
-                    "flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer",
-                    roomType === "classic"
-                      ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-inner"
-                      : "text-white/45 hover:text-white/70 hover:bg-white/6"
-                  )}
-                >
+                <button onClick={() => handleSwitchType("classic")} data-testid="button-switch-classic"
+                  className={cx("flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer",
+                    roomType === "classic" ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-inner" : "text-white/45 hover:text-white/70 hover:bg-white/6")}>
                   <MessageSquare className="h-3 w-3" /> Classic
                 </button>
                 <div className="w-px bg-white/10 self-stretch" />
-                <button
-                  onClick={() => handleSwitchType("gold")}
-                  data-testid="button-switch-gold"
-                  className={cx(
-                    "flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer",
-                    roomType === "gold"
-                      ? "bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-inner"
-                      : canUseGold
-                        ? "text-yellow-400/80 hover:text-yellow-300 hover:bg-yellow-500/8"
-                        : "text-yellow-500/50 hover:text-yellow-400/70 hover:bg-yellow-500/6"
-                  )}
-                >
-                  <Crown className="h-3 w-3" />
-                  Gold
+                <button onClick={() => handleSwitchType("gold")} data-testid="button-switch-gold"
+                  className={cx("flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer",
+                    roomType === "gold" ? "bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-inner"
+                      : canUseGold ? "text-yellow-400/80 hover:text-yellow-300 hover:bg-yellow-500/8"
+                      : "text-yellow-500/50 hover:text-yellow-400/70 hover:bg-yellow-500/6")}>
+                  <Crown className="h-3 w-3" /> Gold
                   {!canUseGold && <span className="text-[8px] opacity-60">✦</span>}
                 </button>
               </div>
-
-              {/* Upgrade button — visible cuando Classic intenta usar Gold */}
               {isGold && !canUseGold && (
-                <button
-                  onClick={handleGoldSubscribe}
-                  disabled={goldLoading}
-                  data-testid="button-upgrade-gold-header"
-                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-xl text-[9px] font-bold bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-md shadow-yellow-500/30 cursor-pointer disabled:opacity-50 whitespace-nowrap"
-                >
+                <button onClick={handleGoldSubscribe} disabled={goldLoading} data-testid="button-upgrade-gold-header"
+                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-xl text-[9px] font-bold bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-md shadow-yellow-500/30 cursor-pointer disabled:opacity-50 whitespace-nowrap">
                   <Sparkles className="h-3 w-3" />
                   {goldLoading ? "…" : "Upgrade 9.99 WLD"}
                 </button>
               )}
-
               <button onClick={onClose} data-testid="button-close-chat"
                 className="flex-shrink-0 text-white/30 hover:text-white/60 cursor-pointer p-1 transition-colors">
                 <X className="h-5 w-5" />
@@ -1396,9 +1319,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
 
             {/* ══ PINNED BAR ══ */}
             <AnimatePresence>
-              {pinnedMessages.length > 0 && (
-                <PinnedBar messages={pinnedMessages} isGold={isGold} onUnpin={handlePin} />
-              )}
+              {pinnedMessages.length > 0 && <PinnedBar messages={pinnedMessages} isGold={isGold} onUnpin={handlePin} />}
             </AnimatePresence>
 
             {/* ══ USUARIOS CONECTADOS ══ */}
@@ -1423,11 +1344,9 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
             {/* ══ MENSAJES ══ */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" data-testid="container-messages"
               style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
-
               {activeMessages.length === 0 && (
                 <div className="flex h-full flex-col items-center justify-center gap-4 text-center min-h-[200px]">
-                  <motion.div
-                    animate={{ scale: [1, 1.05, 1], opacity: [0.7, 1, 0.7] }} transition={{ duration: 3, repeat: Infinity }}
+                  <motion.div animate={{ scale: [1, 1.05, 1], opacity: [0.7, 1, 0.7] }} transition={{ duration: 3, repeat: Infinity }}
                     className={cx("flex h-16 w-16 items-center justify-center rounded-2xl shadow-2xl",
                       isGold ? "bg-gradient-to-br from-yellow-400/20 to-amber-500/20 text-yellow-400"
                              : "bg-gradient-to-br from-indigo-500/20 to-violet-500/20 text-violet-400")}>
@@ -1438,50 +1357,31 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
                       {showSearch && searchQuery ? "Sin resultados" : "No hay mensajes aún"}
                     </p>
                     <p className="text-xs text-white/30 mt-1">
-                      {showSearch && searchQuery ? `Prueba con otra búsqueda` : "Sé el primero en escribir algo"}
+                      {showSearch && searchQuery ? "Prueba con otra búsqueda" : "Sé el primero en escribir algo"}
                     </p>
                   </div>
                 </div>
               )}
-
               {activeMessages.map((msg) => (
                 <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  isOwn={msg.userId === currentUserId}
-                  isGold={isGold}
-                  currentUserId={currentUserId}
-                  reactions={reactions[msg.id] ?? {}}
-                  seenByOthers={seenMsgIds.has(msg.id)}
-                  editingId={editingId}
-                  editText={editText}
-                  setEditText={setEditText}
-                  onShare={setShareMsg}
-                  onReply={setReplyTo}
-                  onReact={handleReact}
-                  onEdit={handleStartEdit}
-                  onDelete={handleDelete}
-                  onPin={handlePin}
-                  onSaveEdit={handleSaveEdit}
-                  onCancelEdit={() => { setEditingId(null); setEditText(""); }}
+                  key={msg.id} message={msg} isOwn={msg.userId === currentUserId} isGold={isGold}
+                  currentUserId={currentUserId} reactions={reactions[msg.id] ?? {}} seenByOthers={seenMsgIds.has(msg.id)}
+                  editingId={editingId} editText={editText} setEditText={setEditText}
+                  onShare={setShareMsg} onReply={setReplyTo} onReact={handleReact}
+                  onEdit={handleStartEdit} onDelete={handleDelete} onPin={handlePin}
+                  onSaveEdit={handleSaveEdit} onCancelEdit={() => { setEditingId(null); setEditText(""); }}
                 />
               ))}
-
               <AnimatePresence>
                 {typingUsers.length > 0 && <TypingIndicator users={typingUsers} />}
               </AnimatePresence>
-
               <div ref={bottomRef} />
             </div>
 
             {/* ══ INPUT ══ */}
             <ChatInput
-              onSend={handleSend}
-              onTyping={handleTyping}
-              isGold={isGold}
-              disabled={isGold && !canUseGold}
-              replyTo={replyTo}
-              onCancelReply={() => setReplyTo(null)}
+              onSend={handleSend} onTyping={handleTyping} isGold={isGold}
+              disabled={isGold && !canUseGold} replyTo={replyTo} onCancelReply={() => setReplyTo(null)}
             />
 
             {/* ══ MODALES ══ */}
@@ -1497,32 +1397,4 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     </AnimatePresence>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  SETUP REQUERIDO EN SUPABASE
-// ─────────────────────────────────────────────────────────────────────────────
-//
-//  COLUMNAS NUEVAS (agrega a global_chat_messages si no existen):
-//
-//    ALTER TABLE public.global_chat_messages
-//      ADD COLUMN IF NOT EXISTS reply_to_id       text,
-//      ADD COLUMN IF NOT EXISTS reply_to_content  text,
-//      ADD COLUMN IF NOT EXISTS reply_to_username text,
-//      ADD COLUMN IF NOT EXISTS audio_url         text,
-//      ADD COLUMN IF NOT EXISTS edited_at         timestamptz,
-//      ADD COLUMN IF NOT EXISTS deleted_for_all   boolean DEFAULT false,
-//      ADD COLUMN IF NOT EXISTS ephemeral         boolean DEFAULT false;
-//
-//  TABLA PROFILES (necesaria para canUseGold por tier):
-//    Debe tener columnas: user_id text, tier text
-//    Valores de tier que dan acceso Gold: "premium+"
-//
-//  REALTIME UPDATE (habilita también UPDATE además de INSERT):
-//    En el dashboard de Supabase: Database → Replication → global_chat_messages
-//    Activa INSERT y UPDATE.
-//
-//  Todo lo demás (buckets, tablas, RLS, subscriptions) igual que antes.
-//
-// ─────────────────────────────────────────────────────────────────────────────
-// ✅ CHAT 100% FUNCIONAL 2026 - Listo para Worldcoin Mini App
-// ─────────────────────────────────────────────────────────────────────────────
+export default function GlobalChatRoom;
