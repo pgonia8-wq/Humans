@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { import { supabaseClient } from "../supabaseClient";
+import { supabase } from "../supabaseClient";
 import {
   XAxis,
   YAxis,
