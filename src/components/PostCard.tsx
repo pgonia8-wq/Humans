@@ -40,25 +40,30 @@ const CPC_BY_COUNTRY: Record<string, number> = {
 };
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   useEffect(() => {
-    const trackImpression = async () => {
-      if (!post?.id || !post.is_ad) return;
+  const trackImpression = async () => {
+    if (!post?.id || !post.is_ad) return;
 
-      await supabase.from("ad_metrics").insert({
-        post_id: post.id,
-        type: "impression",
-        created_at: new Date().toISOString(),
-      });
-    };
+    await supabase.from("ad_metrics").insert({
+      post_id: post.id,
+      type: "impression",
+      country: userData?.country || null,
+      language: userData?.language || null,
+      interests: userData?.interests || null,
+      created_at: new Date().toISOString(),
+    });
+  };
 
-    trackImpression();
-  }, []);
-
+  trackImpression();
+}, [post?.id, userData]);
   const trackClick = async () => {
   if (!post?.id || !post.is_ad) return;
 
   await supabase.from("ad_metrics").insert({
     post_id: post.id,
     type: "click",
+    country: userData?.country || null,
+    language: userData?.language || null,
+    interests: userData?.interests || null,
     created_at: new Date().toISOString(),
   });
 };
