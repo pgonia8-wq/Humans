@@ -29,6 +29,27 @@ interface PostCardProps {
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
+  useEffect(() => {
+    const trackImpression = async () => {
+      if (!post?.id || !post.is_ad) return;
+
+      await supabase.from("ad_metrics").insert({
+        post_id: post.id,
+        type: "impression",
+        created_at: new Date().toISOString(),
+      });
+    };
+
+    trackImpression();
+  }, []);
+
+  return (
+    <div>
+      ...
+    </div>
+  );
+};
+  
   const { theme, username: globalUsername } = useContext(ThemeContext);
   const { t } = useLanguage();
   const postRef = useRef<HTMLDivElement | null>(null);
@@ -210,6 +231,7 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
             return;
           }
 
+          
           const userIds = [...new Set(commentsData.map((c: any) => c.user_id))];
           const { data: profilesData } = await supabase
             .from("profiles")
@@ -708,8 +730,8 @@ return (
   </div>
 )}
           {/* Post content */}
-       {isAd && (
-  <div className="text-xs text-purple-500 mb-1 font-semibold">
+  {isAd && (
+  <div className="text-[10px] text-gray-400 mb-1 uppercase tracking-wide">
     Promoted
   </div>
 )}
