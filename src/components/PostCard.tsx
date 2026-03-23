@@ -42,12 +42,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
     trackImpression();
   }, []);
-
-  return (
-    <div>
-      ...
-    </div>
-  );
 };
   
   const { theme, username: globalUsername } = useContext(ThemeContext);
