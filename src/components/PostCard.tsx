@@ -38,6 +38,7 @@ const CPC_BY_COUNTRY: Record<string, number> = {
   IN: 0.02,
   DEFAULT: 0.03,
 };
+const [userData, setUserData] = useState<any>(null);
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   useEffect(() => {
   if (!post?.id || !post.is_ad || !userData) return;
@@ -115,7 +116,7 @@ const [reportReason, setReportReason] = useState("");
 const [reportSent, setReportSent] = useState(false);
 const [blocked, setBlocked] = useState(false);
 const [showOptionsMenu, setShowOptionsMenu] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
+  
   const handleSend = (e?: any) => {
     if (e) e.preventDefault();
     console.log("Mensaje temporal (chat aún no conectado)");
