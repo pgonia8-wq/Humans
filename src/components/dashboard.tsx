@@ -95,7 +95,7 @@ function getFlag(country: string) {
 function useCountUp(target: number, duration = 1200, decimals = 4) {
   const [value, setValue] = useState(0);
   const raf = useRef<number>(0);
-  const supabase = supabaseClient;
+  
   useEffect(() => {
     if (target === 0) { setValue(0); return; }
     const start = performance.now();
@@ -130,14 +130,10 @@ function emptyData(): DashboardData {
 }
 
 async function fetchDashboardData(userId: string): Promise<DashboardData> {
-  const supabase = getSupabase();
-  if (!supabase) throw new Error("Supabase no está configurado. Agrega VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.");
-
   const { data: posts, error: postsError } = await supabase
-    .select("*")
-.in("post_id", postIds)
-.order("created_at", { ascending: false })
-.limit(500)
+    .from("posts")
+    .select("id, content")
+    .eq("user_id", userId);
 
   if (postsError) throw new Error(postsError.message);
   if (!posts?.length) return emptyData();
@@ -152,18 +148,29 @@ async function fetchDashboardData(userId: string): Promise<DashboardData> {
   if (metricsError) throw new Error(metricsError.message);
   if (!metrics?.length) return emptyData();
 
-  const clicks = metrics.filter((m: AdMetric) => m.type === "click").length;
-  const impressions = metrics.filter((m: AdMetric) => m.type === "impression").length;
-  const totalEarnings = metrics.reduce((s: number, m: AdMetric) => s + (m.value || 0), 0);
+  const clicks = metrics.filter(m => m.type === "click").length;
+  const impressions = metrics.filter(m => m.type === "impression").length;
+  const totalEarnings = metrics.reduce((s, m) => s + (m.value || 0), 0);
   const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
 
   const postMap = new Map<string, PostStats>();
-  posts.forEach((p: Post) => postMap.set(p.id, { id: p.id, content: p.content, earnings: 0, clicks: 0, impressions: 0 }));
+  posts.forEach(p =>
+    postMap.set(p.id, {
+      id: p.id,
+      content: p.content,
+      earnings: 0,
+      clicks: 0,
+      impressions: 0,
+    })
+  );
 
-  metrics.forEach((m: AdMetric) => {
+  metrics.forEach(m => {
     const ps = postMap.get(m.post_id);
     if (!ps) return;
-    if (m.type === "click") { ps.clicks++; ps.earnings += m.value || 0; }
+    if (m.type === "click") {
+      ps.clicks++;
+      ps.earnings += m.value || 0;
+    }
     if (m.type === "impression") ps.impressions++;
   });
 
@@ -171,6 +178,20 @@ async function fetchDashboardData(userId: string): Promise<DashboardData> {
     .sort((a, b) => b.earnings - a.earnings)
     .slice(0, 5);
 
+  return {
+    totalEarnings,
+    impressions,
+    clicks,
+    ctr,
+    activeAds: 0,
+    chartData: [],
+    topPosts,
+    countries: [],
+    languages: [],
+    interests: [],
+    activity: [],
+  };
+    }
   const byDay = new Map<string, number>();
   metrics.forEach((m: AdMetric) => {
     if (m.value > 0) {
