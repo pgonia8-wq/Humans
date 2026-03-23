@@ -84,7 +84,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [sendingComplaint, setSendingComplaint] = useState(false);
 
   const { theme, username: globalUsername } = useContext(ThemeContext);
-  const isOwnProfile = currentUserId === id;
+  const isOwnProfile = !!currentUserId;
 
   const countries = Country.getAllCountries();
   const selectedCountryObj = countries.find(c => c.isoCode === profile.country);
@@ -144,7 +144,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         const updatedProfile: UserProfile = {
           ...emptyProfile,
           ...data,
-          username: data?.username || globalUsername || id.slice(0, 10),
+          username: data?.username || globalUsername || `@${id.slice(0, 10)}`,
         };
 
         setProfile(updatedProfile);
@@ -166,7 +166,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       setProfile({
         ...emptyProfile,
         ...data,
-        username: data.username || globalUsername || id.slice(0, 10),
+        username: data.username || globalUsername || `@${id.slice(0, 10)}`,
       });
     }
   };
@@ -346,7 +346,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           transactionId: payRes.finalPayload.transaction_id,
         }),
       });
-      setToast({ message: t("suscripcion_exitosa"), type: "success" });
+      alert(t("suscripcion_exitosa"));
       window.location.href = "/chat/premium";
     } catch (err: any) {
       setToast({ message: err.message || t("error_pago"), type: "error" });
@@ -586,24 +586,35 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                             state: "",
                             city: "",
                           }))}
-                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
                         >
                           <option value="">{t("seleccionar_pais") || "Seleccionar país"}</option>
                           {countries.map(c => (
-                            <option key={c.isoCode} value={c.isoCode}>{c.name}</option>
+                            <option key={c.isoCode} value={c.isoCode}>
+                              {c.flag} {c.name}
+                            </option>
                           ))}
                         </select>
                       )}
+                      {!isCountryLocked() && profile.country && (
+                        <p className="text-xs text-orange-400 mt-1">
+                          ⚠️ {t("aviso_pais_lock") || "Una vez guardado, no podrás cambiar el país durante 1 año."}
+                        </p>
+                      )}
                     </div>
 
-                    {/* Estado */}
-                    {states.length > 0 && (
+                    {/* Estado / Provincia */}
+                    {profile.country && states.length > 0 && (
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">{t("estado") || "Estado / Provincia"}</label>
                         <select
                           value={profile.state}
-                          onChange={e => setProfile(prev => ({ ...prev, state: e.target.value, city: "" }))}
-                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          onChange={e => setProfile(prev => ({
+                            ...prev,
+                            state: e.target.value,
+                            city: "",
+                          }))}
+                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
                         >
                           <option value="">{t("seleccionar_estado") || "Seleccionar estado"}</option>
                           {states.map(s => (
@@ -614,13 +625,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     )}
 
                     {/* Ciudad */}
-                    {cities.length > 0 && (
+                    {profile.state && cities.length > 0 && (
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">{t("ciudad") || "Ciudad"}</label>
                         <select
                           value={profile.city}
                           onChange={e => setProfile(prev => ({ ...prev, city: e.target.value }))}
-                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
                         >
                           <option value="">{t("seleccionar_ciudad") || "Seleccionar ciudad"}</option>
                           {cities.map(c => (
@@ -632,89 +643,103 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                 )}
 
-                {/* Save button (own profile only) */}
-                {isOwnProfile && (
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="w-full mt-4 mb-2 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold rounded-2xl transition text-sm"
-                  >
-                    {saving ? t("guardando") || "Guardando..." : t("guardar_cambios") || "Guardar cambios"}
-                  </button>
-                )}
+                {/* ── BOTONES DE ACCIÓN ── */}
+                <div className="space-y-3 mt-5 pb-5">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-semibold text-sm disabled:opacity-50 transition"
+                    >
+                      {saving ? t("guardando") : t("guardar")}
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl text-sm transition"
+                    >
+                      {t("cancelar")}
+                    </button>
+                  </div>
 
-                {/* Premium chat button */}
-                {showUpgradeButton && (
-                  <button
-                    onClick={handlePremiumChat}
-                    className="w-full mb-2 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 text-black font-semibold rounded-2xl transition text-sm"
-                  >
-                    {t("chat_premium") || "Chat Premium"}
-                  </button>
-                )}
+                  {showUpgradeButton && (
+                    <button
+                      onClick={handlePremiumChat}
+                      className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl font-semibold text-sm transition"
+                    >
+                      {t("suscribirse_chat_premium", { amount: 5 })}
+                    </button>
+                  )}
 
-                {/* Complaint button */}
-                {!isOwnProfile && (
                   <button
                     onClick={() => setShowComplaintModal(true)}
-                    className="w-full mb-4 py-2.5 border border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 font-medium rounded-2xl transition text-sm"
+                    className="w-full py-3 bg-gray-800 hover:bg-gray-700 border border-white/10 text-gray-300 hover:text-white rounded-2xl text-sm transition flex items-center justify-center gap-2"
                   >
-                    {t("enviar_queja") || "Enviar queja"}
+                    <span>💬</span>
+                    <span>{t("contacto") || "Contacto"}</span>
                   </button>
-                )}
+                </div>
               </>
             )}
           </div>
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl border transition-all ${
-            toast.type === "success"
-              ? "bg-green-900/90 border-green-500/40 text-green-200"
-              : "bg-red-900/90 border-red-500/40 text-red-200"
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
-
-      {/* Complaint modal */}
+      {/* ── MODAL QUEJAS Y SUGERENCIAS ── */}
       {showComplaintModal && (
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] px-4"
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[60] px-4"
           onClick={() => setShowComplaintModal(false)}
         >
           <div
-            className="bg-gray-950 rounded-3xl w-full max-w-sm border border-white/10 p-6 shadow-2xl"
+            className="bg-gray-950 border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="text-white font-bold text-base mb-1">{t("enviar_queja") || "Enviar queja"}</h3>
-            <p className="text-gray-500 text-xs mb-4">{t("queja_descripcion") || "Describe tu problema o queja."}</p>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-bold text-base">
+                {t("quejas_sugerencias") || "Quejas y sugerencias"}
+              </h3>
+              <button
+                onClick={() => setShowComplaintModal(false)}
+                className="text-gray-500 hover:text-white text-xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-gray-400 text-xs mb-4">
+              {t("quejas_descripcion") || "Tu mensaje nos ayuda a mejorar. Lo revisaremos a la brevedad."}
+            </p>
+
             <textarea
               value={complaintMessage}
               onChange={e => setComplaintMessage(e.target.value)}
-              rows={4}
+              rows={5}
               className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none mb-4"
-              placeholder={t("escribe_tu_mensaje") || "Escribe tu mensaje..."}
+              placeholder={t("escribe_tu_mensaje") || "Escribe tu mensaje aquí..."}
             />
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowComplaintModal(false)}
-                className="flex-1 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl transition text-sm"
-              >
-                {t("cancelar") || "Cancelar"}
-              </button>
-              <button
-                onClick={handleSendComplaint}
-                disabled={sendingComplaint || !complaintMessage.trim()}
-                className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold rounded-xl transition text-sm"
-              >
-                {sendingComplaint ? t("enviando") || "Enviando..." : t("enviar") || "Enviar"}
-              </button>
-            </div>
+
+            <button
+              onClick={handleSendComplaint}
+              disabled={sendingComplaint || !complaintMessage.trim()}
+              className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-semibold text-sm disabled:opacity-50 transition"
+            >
+              {sendingComplaint ? (t("enviando") || "Enviando...") : (t("enviar") || "Enviar")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4">
+          <div
+            className={`px-5 py-3 rounded-2xl text-sm font-medium shadow-xl ${
+              toast.type === "success"
+                ? "bg-green-800 text-green-200"
+                : "bg-red-900 text-red-200"
+            }`}
+          >
+            {toast.message}
           </div>
         </div>
       )}
