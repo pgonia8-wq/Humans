@@ -1,4 +1,4 @@
-import { getSupabase } from "./supabase";
+import { supabase } from "../../../src/supabaseClient";
 import { getFlag } from "./utils";
 import type { AdMetric, AudienceGroup, ChartPoint, DashboardData, Post, PostStats } from "./types";
 
@@ -19,8 +19,6 @@ function emptyData(): DashboardData {
 }
 
 export async function fetchDashboardData(userId: string): Promise<DashboardData> {
-  const supabase = getSupabase();
-  if (!supabase) throw new Error("Supabase no está configurado. Agrega VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.");
 
   const { data: posts, error: postsError } = await supabase
     .from("posts")
