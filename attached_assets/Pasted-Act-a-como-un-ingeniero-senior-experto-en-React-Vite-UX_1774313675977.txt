@@ -1,0 +1,249 @@
+Actúa como un ingeniero senior experto en React + Vite + UX de apps móviles tipo Instagram/TikTok/Web3 dashboards.
+
+⚠️ REGLA CRÍTICA:
+NO debes modificar ninguna lógica existente, ni romper:
+
+- conexión con Supabase
+- fetchDashboardData
+- estructura de datos
+- props actuales (especialmente currentUserId)
+- queries existentes
+- ni eliminar código actual
+
+Solo puedes:
+✔ mejorar UI/UX
+✔ agregar componentes nuevos
+✔ envolver lo existente
+✔ optimizar experiencia mobile
+✔ agregar features visuales y de interacción
+
+---
+
+🎯 OBJETIVO
+
+Convertir la app en una plataforma completa de monetización tipo Web3 + Ads ecosystem:
+
+- creadores ganan dinero
+- anunciantes compran tráfico
+- admin controla todo
+
+Nivel: APP NATIVA 2075 ultra premium
+
+---
+
+🔥 IMPLEMENTAR TODO ESTO
+
+1. CREATOR WALLET SYSTEM
+
+Crear:
+
+- WalletPanelModal
+- Mostrar:
+  - balance disponible (WLD)
+  - boost balance
+  - pending earnings
+- botón: Withdraw
+- botón: Reinvest (Boost)
+
+---
+
+2. WITHDRAW SYSTEM (CRÍTICO)
+
+Crear WithdrawModal:
+
+- input cantidad
+- wallet address (editable)
+- selector de método (WLD / USDC)
+- resumen:
+  - 70% creator
+  - 25% reinversión
+  - 5% pool
+
+Estados:
+
+- pending
+- processing
+- completed
+
+UI:
+
+- glassmorphism extremo
+- animaciones suaves
+- confirmación tipo fintech
+
+---
+
+3. TRANSACTION HISTORY
+
+Crear:
+
+- TransactionsModal
+- lista tipo banco:
+  - earning
+  - withdraw
+  - boost
+  - ad spend
+
+Diseño tipo:
+
+- timeline
+- badges de estado
+- colores por tipo
+
+---
+
+4. BOOST SYSTEM
+
+Crear BoostManagerModal:
+
+- mostrar crédito disponible
+- botón:
+  - boost post
+- slider de inversión
+- preview de impacto (fake AI)
+
+---
+
+5. ADVERTISER SYSTEM
+
+Crear Advertiser Dashboard:
+
+- métricas:
+  - spend
+  - impressions
+  - clicks
+  - CTR
+  - ROAS
+
+Crear CreateCampaignModal:
+
+- budget input
+- targeting:
+  - países
+  - intereses
+  - idioma
+- seleccionar post/ad
+- botón lanzar campaña
+
+Crear CampaignDetailsModal:
+
+- performance chart
+- estado:
+  - active
+  - paused
+
+---
+
+6. ADMIN PANEL (FULL)
+
+Crear AdminPanelModal:
+
+- tabs:
+  1. Users
+  2. Withdrawals
+  3. Campaigns
+  4. Metrics
+  5. Logs
+
+Funciones:
+
+- aprobar/rechazar retiros
+- ver balances
+- ver earnings globales
+- ver campañas activas
+- control manual (UI mock)
+
+---
+
+7. NOTIFICATIONS SYSTEM
+
+Crear NotificationsModal:
+
+- lista de eventos:
+  - nuevo earning
+  - retiro aprobado
+  - campaña activa
+- badge counter
+- animaciones suaves
+
+---
+
+8. UI / UX NIVEL 2075
+
+Aplicar a TODO:
+
+- glassmorphism avanzado
+- gradientes:
+  - emerald
+  - violet
+  - blue
+- sombras neón suaves
+- bordes rounded-2xl / 3xl
+- spacing tipo iOS
+
+---
+
+9. INTERACCIONES PRO
+
+- swipe down para cerrar modales
+- microinteracciones en botones
+- animaciones con Framer Motion
+- skeleton loaders
+- estados vacíos premium
+
+---
+
+10. FAB GLOBAL
+
+Agregar botón flotante con acciones:
+
+- open wallet
+- create campaign
+- view insights
+- refresh
+
+---
+
+11. PERFORMANCE
+
+- memo en componentes pesados
+- evitar renders innecesarios
+- lazy load charts
+
+---
+
+12. IMPORTANTE
+
+NO:
+
+❌ tocar Supabase
+❌ cambiar lógica existente
+❌ romper props
+❌ eliminar código
+
+SÍ:
+
+✔ crear nuevos componentes
+✔ envolver UI actual
+✔ mejorar UX brutalmente
+
+---
+
+🧠 RESULTADO ESPERADO
+
+- plataforma completa de monetización
+- creator + advertiser + admin ecosystem
+- UX tipo app real
+- visual premium extremo
+- lista para escalar
+
+---
+
+Hazlo como si fuera:
+
+- Apple
+- TikTok
+- Stripe
+- + Web3 startup unicornio
+
+Nivel: obsesivo, elegante, rápido, adictivo.
