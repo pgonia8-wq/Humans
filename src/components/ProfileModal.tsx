@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
-import Dashboard from "./dashboard";
+import Dashboard from "./dashboard/src/Dashboard";
 import { useLanguage } from '../LanguageContext';
 // npm install country-state-city
 import { Country, State, City } from "country-state-city";
