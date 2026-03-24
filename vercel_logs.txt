@@ -1,6 +1,0 @@
-Vercel CLI 50.22.1
-Retrieving project…
-Resolving deployment "h-zng7-9x9qfoev8-fers-projects-8f225470.vercel.app"
-Streaming logs for deployment dpl_EE958gLQvxWSWXYipwjMk2TGsQtF starting from 22:38:24.36
-
-waiting for new logs...
