@@ -1,41 +1,26 @@
-modules = ["nodejs-20", "web"]
-[agent]
-expertMode = true
+modules = ["nodejs-24"]
 
-[nix]
-channel = "stable-25_05"
-packages = ["zip"]
+[[artifacts]]
+id = "artifacts/api-server"
+
+[[artifacts]]
+id = "artifacts/mockup-sandbox"
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
 
 [workflows]
 runButton = "Project"
 
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[userenv]
-
-[userenv.shared]
-VITE_SUPABASE_URL = "https://vtjqfzpfehfofamhowjz.supabase.co"
-VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0anFmenBmZWhmb2ZhbWhvd2p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NDMxMTgsImV4cCI6MjA4NzIxOTExOH0.XShaoDlgVKT2LHk0fYOT5TWGgwkfn3bQQbuV2pcw_HM"
-
-[deployment]
-deploymentTarget = "static"
-publicDir = "dist"
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
