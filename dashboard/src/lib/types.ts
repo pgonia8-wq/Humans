@@ -12,6 +12,8 @@ export interface AdMetric {
   interests: string;
   value: number;
   created_at: string;
+  creator_earning?: number;
+  platform_earning?: number;
 }
 
 export interface PostStats {
