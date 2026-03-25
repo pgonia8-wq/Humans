@@ -35,7 +35,7 @@ export async function trackImpression({
     impressionCache.add(postId);
 
     await supabase.from("ad_metrics").insert({
-    await supabase.from("ad_metrics").insert({
+    
   post_id: postId,
   campaign_id: campaignId,
   type: "impression",
