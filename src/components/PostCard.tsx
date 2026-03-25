@@ -45,28 +45,33 @@ const CPC_BY_COUNTRY: Record<string, number> = {
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [userData, setUserData] = useState<any>(null);
   
-  useEffect(() => {
-  if (!post?.id || !post.is_ad || !userData) return;
+  const hasTrackedImpression = useRef(false);
+
+useEffect(() => {
+  if (!post?.id || !post.is_ad || !userData || hasTrackedImpression.current) return;
+
+  hasTrackedImpression.current = true;
 
   const trackImpression = async () => {
     await supabase.from("ad_metrics").insert({
-  post_id: post.id,
-  type: "impression",
-  country: userData.country || null,
-  language: userData.language || null,
-  interests: userData.interests || null,
-  value: 0.001, // 🔥 ESTE ES EL FIX REAL
-  created_at: new Date().toISOString(),
-});
+      post_id: post.id,
+      type: "impression",
+      country: userData.country || null,
+      language: userData.language || null,
+      interests: userData.interests || null,
+      value: 0.001,
+      created_at: new Date().toISOString(),
+    });
   };
 
   trackImpression();
 }, [post?.id, userData]);
   
   const trackClick = async () => {
+  console.log("CLICK TRACKING 🚀");
+
   if (!post?.id || !post.is_ad || !currentUserId) return;
 
-  // 🔒 Verificar si ya hizo click
   const { data: existing } = await supabase
     .from("ad_metrics")
     .select("id")
@@ -75,23 +80,30 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     .eq("user_id", currentUserId)
     .maybeSingle();
 
-  if (existing) return;
+  if (existing) {
+    console.log("CLICK YA EXISTE ❌");
+    return;
+  }
 
-  // 💰 calcular dinero por país
   const country = userData?.country || "DEFAULT";
   const cpc = CPC_BY_COUNTRY[country] || CPC_BY_COUNTRY.DEFAULT;
 
-  // ✅ registrar click + dinero
-  await supabase.from("ad_metrics").insert({
+  const { error } = await supabase.from("ad_metrics").insert({
     post_id: post.id,
     type: "click",
     user_id: currentUserId,
     country,
     language: userData?.language || null,
     interests: userData?.interests || null,
-    value: cpc, // 🔥 ESTO ES LO QUE FALTABA
+    value: cpc,
     created_at: new Date().toISOString(),
   });
+
+  if (error) {
+    console.error("ERROR CLICK ❌", error);
+  } else {
+    console.log("CLICK GUARDADO ✅", cpc);
+  }
 };
   
   const { theme, username: globalUsername } = useContext(ThemeContext);
