@@ -3,51 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>H humans</title>
+    <title>Human Mini App</title>
     <meta name="description" content="Mini App H - Human App dentro de World App" />
-    
-    <style>
-      body {
-        margin: 0;
-        padding: 0;
-        background: #000000;
-        font-family: system-ui, sans-serif;
-      }
-
-      #initial-loading {
-        position: fixed;
-        inset: 0;
-        background: #000000;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #ffffff;
-        z-index: 99999;
-      }
-
-      .spinner {
-        width: 56px;
-        height: 56px;
-        border: 6px solid rgba(255,255,255,0.2);
-        border-top-color: #6366f1;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-bottom: 24px;
-      }
-
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-    </style>
   </head>
-  <body>
-    <div id="initial-loading">
-      <div class="spinner"></div>
-      <div style="font-size:18px; font-weight:500;">Cargando H humans...</div>
-      <div style="font-size:14px; opacity:0.7; margin-top:8px;">Espera unos segundos</div>
-    </div>
-
+  <body class="bg-gradient-to-br from-purple-100 via-pink-50 to-blue-50">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
