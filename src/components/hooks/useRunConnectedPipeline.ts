@@ -32,9 +32,3 @@ export interface UseRunConnectedPipelineReturn {
 }
 
 // ─── Content templates (fallback when Edge Function not deployed) ─────────────
-
-const CONTENT_TEMPLATES: Record<Category, string[]> = {
-  crypto_news: [
-    "🚨 Breaking: {topic} — what this means for the market and how you can position yourself now.",
-    "📰 Latest on {topic}. Here's the breakdown and what analysts are watching closely.",
-    "💡 {topic} — the signal everyone in crypto missed this week.",
