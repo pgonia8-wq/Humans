@@ -1,12 +1,3 @@
-/**
- * 
- *
- * Fetches the current content queue (status = "queued") and
- * performance metrics for all published posts.
- *
- * Refreshes automatically every 60 seconds via polling.
- */
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../supabaseClient";
 import type { ContentQueueRow, PostMetricsRow } from "../lib/database.types";
@@ -29,8 +20,8 @@ export interface PostMetrics {
   impressions: number;
   clicks: number;
   wld_earned: number;
-  created_at: number; // unix ms — aligned with AutonomousGrowthBrain expectations
-  hour: number;       // 0–23
+  created_at: number;
+  hour: number;
 }
 
 export interface UseGetContentQueueReturn {
@@ -41,13 +32,13 @@ export interface UseGetContentQueueReturn {
   refetch: () => Promise<void>;
 }
 
-const POLL_INTERVAL_MS = 60_000; // 60 seconds
+const POLL_INTERVAL_MS = 60_000;
 
 export function useGetContentQueue(): UseGetContentQueueReturn {
-  const [queue, setQueue]     = useState<ContentQueueItem[]>([]);
+  const [queue, setQueue] = useState<ContentQueueItem[]>([]);
   const [metrics, setMetrics] = useState<PostMetrics[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -56,8 +47,8 @@ export function useGetContentQueue(): UseGetContentQueueReturn {
     setError(null);
 
     try {
-      // Fetch queued posts
-      const { data: queueData, error: queueErr } = await supabaseClient
+      // ✅ FIX 1
+      const { data: queueData, error: queueErr } = await supabase
         .from("content_queue")
         .select("id, category, account, topic, content, created_at, scheduled_at")
         .eq("status", "queued")
@@ -65,8 +56,8 @@ export function useGetContentQueue(): UseGetContentQueueReturn {
 
       if (queueErr) throw new Error(queueErr.message);
 
-      // Fetch performance metrics for published posts
-      const { data: metricsData, error: metricsErr } = await supabaseClient
+      // ✅ FIX 2
+      const { data: metricsData, error: metricsErr } = await supabase
         .from("post_metrics")
         .select(
           "id, queue_id, category, account, topic, impressions, clicks, wld_earned, published_at, hour_of_day"
@@ -78,27 +69,27 @@ export function useGetContentQueue(): UseGetContentQueueReturn {
 
       const mappedQueue: ContentQueueItem[] = (queueData ?? []).map(
         (row: ContentQueueRow) => ({
-          id:           row.id,
-          category:     row.category,
-          account:      row.account,
-          topic:        row.topic,
-          content:      row.content,
-          created_at:   row.created_at,
+          id: row.id,
+          category: row.category,
+          account: row.account,
+          topic: row.topic,
+          content: row.content,
+          created_at: row.created_at,
           scheduled_at: row.scheduled_at,
         })
       );
 
       const mappedMetrics: PostMetrics[] = (metricsData ?? []).map(
         (row: PostMetricsRow) => ({
-          id:          row.id,
-          category:    row.category,
-          account:     row.account,
-          topic:       row.topic,
+          id: row.id,
+          category: row.category,
+          account: row.account,
+          topic: row.topic,
           impressions: row.impressions,
-          clicks:      row.clicks,
-          wld_earned:  row.wld_earned,
-          created_at:  new Date(row.published_at).getTime(),
-          hour:        row.hour_of_day,
+          clicks: row.clicks,
+          wld_earned: row.wld_earned,
+          created_at: new Date(row.published_at).getTime(),
+          hour: row.hour_of_day,
         })
       );
 
