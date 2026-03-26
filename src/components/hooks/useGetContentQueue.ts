@@ -17,6 +17,7 @@ export interface PostMetrics {
   category: ContentQueueRow["category"];
   account: ContentQueueRow["account"];
   topic: string;
+  content: string; // 👈 NUEVO
   impressions: number;
   clicks: number;
   wld_earned: number;
@@ -47,7 +48,7 @@ export function useGetContentQueue(): UseGetContentQueueReturn {
     setError(null);
 
     try {
-      // ✅ FIX 1
+      // ── QUEUE (sin cambios) ─────────────────────────────
       const { data: queueData, error: queueErr } = await supabase
         .from("content_queue")
         .select("id, category, account, topic, content, created_at, scheduled_at")
@@ -56,12 +57,24 @@ export function useGetContentQueue(): UseGetContentQueueReturn {
 
       if (queueErr) throw new Error(queueErr.message);
 
-      // ✅ FIX 2
+      // ── METRICS + JOIN ─────────────────────────────────
       const { data: metricsData, error: metricsErr } = await supabase
         .from("post_metrics")
-        .select(
-          "id, queue_id, category, account, topic, impressions, clicks, wld_earned, published_at, hour_of_day"
-        )
+        .select(`
+          id,
+          queue_id,
+          category,
+          account,
+          topic,
+          impressions,
+          clicks,
+          wld_earned,
+          published_at,
+          hour_of_day,
+          content_queue (
+            content
+          )
+        `)
         .order("published_at", { ascending: false })
         .limit(500);
 
@@ -80,11 +93,12 @@ export function useGetContentQueue(): UseGetContentQueueReturn {
       );
 
       const mappedMetrics: PostMetrics[] = (metricsData ?? []).map(
-        (row: PostMetricsRow) => ({
+        (row: any) => ({
           id: row.id,
           category: row.category,
           account: row.account,
           topic: row.topic,
+          content: row.content_queue?.content ?? "", // 👈 AQUÍ ESTÁ LA MAGIA
           impressions: row.impressions,
           clicks: row.clicks,
           wld_earned: row.wld_earned,
