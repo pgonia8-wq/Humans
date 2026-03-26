@@ -132,8 +132,9 @@ const now      = (): number => Date.now();
 const currentHour = (): number => new Date().getHours();
 const randInt  = (min: number, max: number): number =>
   Math.floor(Math.random() * (max - min + 1)) + min;
-const randFrom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-
+function randFrom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
