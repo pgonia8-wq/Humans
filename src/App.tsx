@@ -18,7 +18,7 @@ const App = () => {
 
   const { setUsername: setGlobalUsername } = useTheme();
 
-  // Cargar ID de localStorage
+  // ✅ Cargar ID de localStorage (sin forzar verify)
   useEffect(() => {
     const storedId = localStorage.getItem("userId");
 
@@ -27,12 +27,11 @@ const App = () => {
       setVerified(true);
       console.log("[APP] ID cargado de localStorage:", storedId);
     } else {
-      console.log("[APP] No hay ID en localStorage, forzando verificación...");
-      if (miniKitReady) verifyUser();
+      console.log("[APP] No hay ID en localStorage");
     }
   }, [miniKitReady]);
 
-  // Inicializar MiniKit
+  // ✅ Inicializar MiniKit
   useEffect(() => {
     const initMiniKit = async () => {
       try {
@@ -51,7 +50,6 @@ const App = () => {
         setMiniKitReady(true);
         console.log("[APP] MiniKit listo");
 
-        // --- NUEVO: obtener username y avatar desde MiniKit.user ---
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
@@ -69,7 +67,7 @@ const App = () => {
     initMiniKit();
   }, []);
 
-  // Obtener wallet usando walletAuth
+  // ✅ WalletAuth (igual que antes)
   useEffect(() => {
     const loadWallet = async () => {
       if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) {
@@ -102,18 +100,14 @@ const App = () => {
         if (address) {
           setWallet(address);
           console.log("[APP] Wallet obtenida:", address);
-        } else {
-          console.warn("[APP] WalletAuth success pero sin address");
         }
 
-        // --- NUEVO: obtener username y avatar también después de walletAuth ---
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
           setUsername(u);
           setAvatar(a);
           if (u) setGlobalUsername(u);
-          console.log("[APP] MiniKit user post-walletAuth:", u, a);
         }
       } catch (err: any) {
         console.error("[APP] Error walletAuth:", err);
@@ -126,7 +120,7 @@ const App = () => {
     loadWallet();
   }, [verified, wallet, verifying, miniKitReady]);
 
-  // Función de verificación forzada
+  // ✅ Verify (sin cambios)
   const verifyUser = async () => {
     if (verifying || !miniKitReady) return;
 
@@ -145,10 +139,7 @@ const App = () => {
         verification_level: VerificationLevel.Device,
       });
 
-      console.log("[APP] Verify response:", verifyRes);
-
       const proof = verifyRes?.finalPayload;
-
       if (!proof) throw new Error("No se recibió proof");
 
       const res = await fetch("/api/verify", {
@@ -159,29 +150,27 @@ const App = () => {
 
       if (!res.ok) {
         const text = await res.text();
+
         if (text.includes("already verified") && proof.nullifier_hash) {
-          console.log("[APP] Usuario ya verificado, usando nullifier_hash existente");
           const id = proof.nullifier_hash;
           localStorage.setItem("userId", id);
           setUserId(id);
           setVerified(true);
           return;
-        } else {
-          throw new Error(`Backend error: ${text}`);
         }
+
+        throw new Error(text);
       }
 
       const backend = await res.json();
-      console.log("[APP] Backend verify:", backend);
 
       if (backend.success && proof.nullifier_hash) {
         const id = proof.nullifier_hash;
         localStorage.setItem("userId", id);
         setUserId(id);
         setVerified(true);
-        console.log("[APP] Usuario verificado:", id);
       } else {
-        throw new Error(backend.error || "Backend rechazó la prueba");
+        throw new Error(backend.error);
       }
     } catch (err: any) {
       console.error("[APP] Verify error:", err);
@@ -191,6 +180,37 @@ const App = () => {
     }
   };
 
+  // ✅ NUEVO: Pantalla inmediata (NO bloquea render)
+  if (!verified) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-black text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-white/10 animate-pulse" />
+
+          <p className="text-sm text-white/60">
+            {verifying ? "Verifying human..." : "Ready to verify"}
+          </p>
+
+          {!verifying && (
+            <button
+              onClick={verifyUser}
+              className="px-4 py-2 bg-white text-black rounded-xl"
+            >
+              Verify
+            </button>
+          )}
+
+          {error && (
+            <p className="text-red-400 text-sm text-center max-w-xs">
+              {error}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ App normal
   return (
     <HomePage
       userId={userId}
