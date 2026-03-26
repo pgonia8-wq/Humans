@@ -219,8 +219,7 @@ export const WithdrawPanel = memo(function WithdrawPanel({ userId, totalEarnings
 
   const handleOpen = () => { if (hasBalance) setShowModal(true); };
   const handleClose = () => {  setShowModal(false); };
-  const isOpen = showModal;
-
+  const isOpen = showModal || !!open;
   const handleSubmit = async (amount: number, wallet: string, token: "WLD" | "USDC") => {
     await createWithdrawal({ amount, wallet, token });
   };
@@ -328,10 +327,9 @@ export const WithdrawPanel = memo(function WithdrawPanel({ userId, totalEarnings
         </div>
       </SectionBlock>
 
-<AnimatePresence mode="wait">
+<AnimatePresence>
   {isOpen && (
     <WithdrawModal
-      key="withdraw-modal"
       balance={totalEarnings}
       onClose={handleClose}
       onSubmit={handleSubmit}
