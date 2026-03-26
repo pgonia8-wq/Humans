@@ -14,54 +14,77 @@ const App = () => {
   const [miniKitReady, setMiniKitReady] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
-
   const walletLoading = useRef(false);
+
   const { setUsername: setGlobalUsername } = useTheme();
 
-  // Cargar userId de localStorage de forma SINCRONA (lo más temprano posible)
+  // Cargar ID de localStorage
   useEffect(() => {
     const storedId = localStorage.getItem("userId");
+
     if (storedId) {
       setUserId(storedId);
       setVerified(true);
-      console.log("[APP] Usuario recurrente - ID cargado de localStorage:", storedId);
+      console.log("[APP] ID cargado de localStorage:", storedId);
+    } else {
+      console.log("[APP] No hay ID en localStorage, forzando verificación...");
+      if (miniKitReady) verifyUser();
     }
-  }, []);
+  }, [miniKitReady]);
 
   // Inicializar MiniKit
   useEffect(() => {
     const initMiniKit = async () => {
       try {
-        MiniKit.install({ appId: APP_ID });
-        if (MiniKit.isInstalled()) {
-          setMiniKitReady(true);
+        console.log("[APP] Instalando MiniKit...");
 
-          if (MiniKit.user) {
-            const u = MiniKit.user.username || null;
-            const a = MiniKit.user.avatar_url || null;
-            setUsername(u);
-            setAvatar(a);
-            if (u) setGlobalUsername(u);
-          }
+        MiniKit.install({ appId: APP_ID });
+
+        const installed = MiniKit.isInstalled();
+        console.log("[APP] MiniKit.isInstalled():", installed);
+
+        if (!installed) {
+          console.warn("[APP] MiniKit no está disponible");
+          return;
+        }
+
+        setMiniKitReady(true);
+        console.log("[APP] MiniKit listo");
+
+        // --- NUEVO: obtener username y avatar desde MiniKit.user ---
+        if (MiniKit.user) {
+          const u = MiniKit.user.username || null;
+          const a = MiniKit.user.avatar_url || null;
+          setUsername(u);
+          setAvatar(a);
+          if (u) setGlobalUsername(u);
+          console.log("[APP] MiniKit user:", u, a);
         }
       } catch (err) {
-        console.error("[APP] Error MiniKit:", err);
+        console.error("[APP] Error instalando MiniKit:", err);
+        setError("Error instalando MiniKit");
       }
     };
 
     initMiniKit();
   }, []);
 
-  // WalletAuth SOLO si es usuario verificado Y NO tiene wallet aún
+  // Obtener wallet usando walletAuth
   useEffect(() => {
     const loadWallet = async () => {
-      if (!verified || wallet || !miniKitReady || walletLoading.current) return;
+      if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) {
+        return;
+      }
 
       walletLoading.current = true;
+      console.log("[APP] Iniciando walletAuth...");
+
       try {
         const nonceRes = await fetch("/api/nonce");
-        if (!nonceRes.ok) throw new Error("No nonce");
+        if (!nonceRes.ok) throw new Error("No se pudo obtener nonce");
         const { nonce } = await nonceRes.json();
+
+        console.log("[APP] Nonce recibido:", nonce);
 
         const auth = await MiniKit.commandsAsync.walletAuth({
           nonce,
@@ -71,60 +94,102 @@ const App = () => {
           statement: "Autenticar wallet para H humans",
         });
 
-        const address = auth?.finalPayload?.address || auth?.finalPayload?.wallet_address;
-        if (address) setWallet(address);
+        console.log("[APP] walletAuth result:", auth);
 
-        // Actualizar username/avatar
+        const address =
+          auth?.finalPayload?.address || auth?.finalPayload?.wallet_address || null;
+
+        if (address) {
+          setWallet(address);
+          console.log("[APP] Wallet obtenida:", address);
+        } else {
+          console.warn("[APP] WalletAuth success pero sin address");
+        }
+
+        // --- NUEVO: obtener username y avatar también después de walletAuth ---
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
           setUsername(u);
           setAvatar(a);
           if (u) setGlobalUsername(u);
+          console.log("[APP] MiniKit user post-walletAuth:", u, a);
         }
       } catch (err: any) {
-        console.error("[APP] walletAuth error:", err);
+        console.error("[APP] Error walletAuth:", err);
+        setError(err.message || "Error autenticando wallet");
       } finally {
         walletLoading.current = false;
       }
     };
 
-    if (verified && miniKitReady) loadWallet();
-  }, [verified, wallet, miniKitReady]);
+    loadWallet();
+  }, [verified, wallet, verifying, miniKitReady]);
 
-  const verifyUser = async () => { /* tu función verifyUser actual, sin cambios */ };
+  // Función de verificación forzada
+  const verifyUser = async () => {
+    if (verifying || !miniKitReady) return;
 
-  // Renderizar HomePage DIRECTO si ya tenemos userId (usuarios recurrentes)
-  // Solo mostramos loading si estamos verificando a un usuario nuevo
-  if (verifying || (!userId && !verified)) {
-    return (
-      <div style={{
-        minHeight: "100vh",
-        background: "#000000",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#ffffff",
-        fontFamily: "system-ui, sans-serif",
-        textAlign: "center"
-      }}>
-        <div style={{
-          width: "56px", height: "56px",
-          border: "6px solid rgba(255,255,255,0.2)",
-          borderTopColor: "#6366f1",
-          borderRadius: "50%",
-          animation: "spin 1s linear infinite",
-          marginBottom: "24px"
-        }} />
-        <p style={{ fontSize: "18px" }}>Cargando H humans...</p>
-        <p style={{ fontSize: "14px", opacity: 0.7, marginTop: "8px" }}>
-          Preparando tu perfil...
-        </p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
+    setVerifying(true);
+    setError(null);
+
+    try {
+      if (!MiniKit.isInstalled()) {
+        throw new Error("MiniKit no instalado");
+      }
+
+      console.log("[APP] Iniciando verify...");
+
+      const verifyRes = await MiniKit.commandsAsync.verify({
+        action: "verify-user",
+        verification_level: VerificationLevel.Device,
+      });
+
+      console.log("[APP] Verify response:", verifyRes);
+
+      const proof = verifyRes?.finalPayload;
+
+      if (!proof) throw new Error("No se recibió proof");
+
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: proof }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        if (text.includes("already verified") && proof.nullifier_hash) {
+          console.log("[APP] Usuario ya verificado, usando nullifier_hash existente");
+          const id = proof.nullifier_hash;
+          localStorage.setItem("userId", id);
+          setUserId(id);
+          setVerified(true);
+          return;
+        } else {
+          throw new Error(`Backend error: ${text}`);
+        }
+      }
+
+      const backend = await res.json();
+      console.log("[APP] Backend verify:", backend);
+
+      if (backend.success && proof.nullifier_hash) {
+        const id = proof.nullifier_hash;
+        localStorage.setItem("userId", id);
+        setUserId(id);
+        setVerified(true);
+        console.log("[APP] Usuario verificado:", id);
+      } else {
+        throw new Error(backend.error || "Backend rechazó la prueba");
+      }
+    } catch (err: any) {
+      console.error("[APP] Verify error:", err);
+      setError(err.message || "Error verificando usuario");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   return (
     <HomePage
