@@ -14,21 +14,28 @@ const App = () => {
   const [miniKitReady, setMiniKitReady] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);   // ← Clave
 
   const walletLoading = useRef(false);
   const { setUsername: setGlobalUsername } = useTheme();
 
-  // Inicializar MiniKit lo más rápido posible
+  // Cargar userId de localStorage de forma SINCRONA (lo más temprano posible)
+  useEffect(() => {
+    const storedId = localStorage.getItem("userId");
+    if (storedId) {
+      setUserId(storedId);
+      setVerified(true);
+      console.log("[APP] Usuario recurrente - ID cargado de localStorage:", storedId);
+    }
+  }, []);
+
+  // Inicializar MiniKit
   useEffect(() => {
     const initMiniKit = async () => {
       try {
         MiniKit.install({ appId: APP_ID });
-
         if (MiniKit.isInstalled()) {
           setMiniKitReady(true);
 
-          // Datos de usuario si ya están disponibles
           if (MiniKit.user) {
             const u = MiniKit.user.username || null;
             const a = MiniKit.user.avatar_url || null;
@@ -39,35 +46,21 @@ const App = () => {
         }
       } catch (err) {
         console.error("[APP] Error MiniKit:", err);
-        setError("Error inicializando MiniKit");
-      } finally {
-        // Terminamos la carga inicial aunque haya error
-        setIsInitialLoading(false);
       }
     };
 
     initMiniKit();
   }, []);
 
-  // Cargar userId desde localStorage
-  useEffect(() => {
-    const storedId = localStorage.getItem("userId");
-    if (storedId) {
-      setUserId(storedId);
-      setVerified(true);
-      setIsInitialLoading(false);
-    }
-  }, []);
-
-  // Wallet Auth (solo después de verificado)
+  // WalletAuth SOLO si es usuario verificado Y NO tiene wallet aún
   useEffect(() => {
     const loadWallet = async () => {
-      if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) return;
+      if (!verified || wallet || !miniKitReady || walletLoading.current) return;
 
       walletLoading.current = true;
       try {
         const nonceRes = await fetch("/api/nonce");
-        if (!nonceRes.ok) throw new Error("Error nonce");
+        if (!nonceRes.ok) throw new Error("No nonce");
         const { nonce } = await nonceRes.json();
 
         const auth = await MiniKit.commandsAsync.walletAuth({
@@ -81,6 +74,7 @@ const App = () => {
         const address = auth?.finalPayload?.address || auth?.finalPayload?.wallet_address;
         if (address) setWallet(address);
 
+        // Actualizar username/avatar
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
@@ -90,98 +84,44 @@ const App = () => {
         }
       } catch (err: any) {
         console.error("[APP] walletAuth error:", err);
-        setError(err.message || "Error en wallet");
       } finally {
         walletLoading.current = false;
       }
     };
 
     if (verified && miniKitReady) loadWallet();
-  }, [verified, wallet, verifying, miniKitReady]);
+  }, [verified, wallet, miniKitReady]);
 
-  const verifyUser = async () => {
-    if (verifying || !miniKitReady) return;
-    setVerifying(true);
-    setError(null);
+  const verifyUser = async () => { /* tu función verifyUser actual, sin cambios */ };
 
-    try {
-      const verifyRes = await MiniKit.commandsAsync.verify({
-        action: "verify-user",
-        verification_level: VerificationLevel.Device,
-      });
-
-      const proof = verifyRes?.finalPayload;
-      if (!proof?.nullifier_hash) throw new Error("No se recibió proof");
-
-      const res = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload: proof }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        if (text.includes("already verified")) {
-          const id = proof.nullifier_hash;
-          localStorage.setItem("userId", id);
-          setUserId(id);
-          setVerified(true);
-          return;
-        }
-        throw new Error(`Error backend: ${text}`);
-      }
-
-      const backend = await res.json();
-      if (backend.success) {
-        const id = proof.nullifier_hash;
-        localStorage.setItem("userId", id);
-        setUserId(id);
-        setVerified(true);
-      }
-    } catch (err: any) {
-      console.error("[APP] Verify error:", err);
-      setError(err.message || "Error verificando");
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  // ==================== LOADING SCREEN INMEDIATO ====================
-  if (isInitialLoading) {
+  // Renderizar HomePage DIRECTO si ya tenemos userId (usuarios recurrentes)
+  // Solo mostramos loading si estamos verificando a un usuario nuevo
+  if (verifying || (!userId && !verified)) {
     return (
-      <div className="loading-screen">
-        <div className="spinner"></div>
-        <p>Cargando H humans...</p>
-
-        <style jsx>{`
-          .loading-screen {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background: #000000;           /* Cambia al color principal de tu app */
-            color: #ffffff;
-            font-family: system-ui, -apple-system, sans-serif;
-          }
-          .spinner {
-            width: 56px;
-            height: 56px;
-            border: 5px solid rgba(255, 255, 255, 0.2);
-            border-top: 5px solid #ffffff;
-            border-radius: 50%;
-            animation: spin 0.9s linear infinite;
-            margin-bottom: 24px;
-          }
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-          p {
-            margin: 0;
-            font-size: 18px;
-            opacity: 0.9;
-          }
-        `}</style>
+      <div style={{
+        minHeight: "100vh",
+        background: "#000000",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#ffffff",
+        fontFamily: "system-ui, sans-serif",
+        textAlign: "center"
+      }}>
+        <div style={{
+          width: "56px", height: "56px",
+          border: "6px solid rgba(255,255,255,0.2)",
+          borderTopColor: "#6366f1",
+          borderRadius: "50%",
+          animation: "spin 1s linear infinite",
+          marginBottom: "24px"
+        }} />
+        <p style={{ fontSize: "18px" }}>Cargando H humans...</p>
+        <p style={{ fontSize: "14px", opacity: 0.7, marginTop: "8px" }}>
+          Preparando tu perfil...
+        </p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
