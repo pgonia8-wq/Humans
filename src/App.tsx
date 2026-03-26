@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import HomePage from "./pages/HomePage";
-import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import { useTheme } from "./lib/ThemeContext";
 
 const APP_ID = "app_6a98c88249208506dcd4e04b529111fc";
@@ -14,11 +13,14 @@ const App = () => {
   const [miniKitReady, setMiniKitReady] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
+
   const walletLoading = useRef(false);
+  const MiniKitRef = useRef<any>(null);
+  const VerificationLevelRef = useRef<any>(null);
 
   const { setUsername: setGlobalUsername } = useTheme();
 
-  // ✅ Cargar sesión (instantáneo)
+  // ✅ Sesión inmediata
   useEffect(() => {
     const storedId = localStorage.getItem("userId");
 
@@ -26,16 +28,21 @@ const App = () => {
       setUserId(storedId);
       setVerified(true);
       console.log("[APP] Sesión encontrada:", storedId);
-    } else {
-      console.log("[APP] Usuario no logueado");
     }
   }, []);
 
-  // ✅ MiniKit en background (NO bloquea UI)
+  // ✅ 🔥 Carga dinámica de MiniKit (NO bloquea splash)
   useEffect(() => {
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
-        console.log("[APP] Init MiniKit background");
+        console.log("[APP] Loading MiniKit dynamically...");
+
+        const mod = await import("@worldcoin/minikit-js");
+
+        MiniKitRef.current = mod.MiniKit;
+        VerificationLevelRef.current = mod.VerificationLevel;
+
+        const MiniKit = MiniKitRef.current;
 
         MiniKit.install({ appId: APP_ID });
 
@@ -46,27 +53,36 @@ const App = () => {
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
+
           setUsername(u);
           setAvatar(a);
           if (u) setGlobalUsername(u);
         }
+
+        console.log("[APP] MiniKit ready (lazy)");
       } catch (err) {
-        console.error("[APP] MiniKit error:", err);
+        console.error("[APP] MiniKit load error:", err);
         setError("MiniKit error");
       }
     }, 0);
   }, []);
 
-  // ✅ WalletAuth (solo cuando ya está verificado)
+  // ✅ WalletAuth
   useEffect(() => {
     const loadWallet = async () => {
-      if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) {
-        return;
-      }
+      if (
+        !verified ||
+        wallet ||
+        verifying ||
+        !miniKitReady ||
+        walletLoading.current
+      ) return;
 
       walletLoading.current = true;
 
       try {
+        const MiniKit = MiniKitRef.current;
+
         const nonceRes = await fetch("/api/nonce");
         if (!nonceRes.ok) throw new Error("No nonce");
 
@@ -90,6 +106,7 @@ const App = () => {
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
+
           setUsername(u);
           setAvatar(a);
           if (u) setGlobalUsername(u);
@@ -105,7 +122,7 @@ const App = () => {
     loadWallet();
   }, [verified, wallet, verifying, miniKitReady]);
 
-  // ✅ Verify SOLO cuando usuario toca botón
+  // ✅ Verify manual
   const verifyUser = async () => {
     if (verifying || !miniKitReady) return;
 
@@ -113,6 +130,9 @@ const App = () => {
     setError(null);
 
     try {
+      const MiniKit = MiniKitRef.current;
+      const VerificationLevel = VerificationLevelRef.current;
+
       const verifyRes = await MiniKit.commandsAsync.verify({
         action: "verify-user",
         verification_level: VerificationLevel.Device,
@@ -159,7 +179,7 @@ const App = () => {
     }
   };
 
-  // ✅ LOGIN SCREEN (instantáneo)
+  // ✅ LOGIN instantáneo
   if (!userId) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-black text-white">
@@ -188,7 +208,7 @@ const App = () => {
     );
   }
 
-  // ✅ APP DIRECTO SI YA ESTÁ LOGUEADO
+  // ✅ App directa
   return (
     <HomePage
       userId={userId}
