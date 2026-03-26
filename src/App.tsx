@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import HomePage from "./pages/HomePage";
+import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import { useTheme } from "./lib/ThemeContext";
 
 const APP_ID = "app_6a98c88249208506dcd4e04b529111fc";
@@ -10,17 +11,13 @@ const App = () => {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [miniKitReady, setMiniKitReady] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
 
   const walletLoading = useRef(false);
-  const MiniKitRef = useRef<any>(null);
-  const VerificationLevelRef = useRef<any>(null);
-
   const { setUsername: setGlobalUsername } = useTheme();
 
-  // ✅ Sesión inmediata
+  // ✅ 1. Cargar sesión SIN bloquear nada
   useEffect(() => {
     const storedId = localStorage.getItem("userId");
 
@@ -28,63 +25,46 @@ const App = () => {
       setUserId(storedId);
       setVerified(true);
       console.log("[APP] Sesión encontrada:", storedId);
+    } else {
+      console.log("[APP] Usuario no logueado");
     }
   }, []);
 
-  // ✅ 🔥 Carga dinámica de MiniKit (NO bloquea splash)
+  // ✅ 2. Inicializar MiniKit (no bloqueante)
   useEffect(() => {
-    setTimeout(async () => {
-      try {
-        console.log("[APP] Loading MiniKit dynamically...");
+    try {
+      console.log("[APP] Instalando MiniKit...");
 
-        const mod = await import("@worldcoin/minikit-js");
+      MiniKit.install({ appId: APP_ID });
 
-        MiniKitRef.current = mod.MiniKit;
-        VerificationLevelRef.current = mod.VerificationLevel;
+      // ⚠️ NO usar isInstalled como bloqueo
+      if (MiniKit.user) {
+        const u = MiniKit.user.username || null;
+        const a = MiniKit.user.avatar_url || null;
 
-        const MiniKit = MiniKitRef.current;
+        setUsername(u);
+        setAvatar(a);
 
-        MiniKit.install({ appId: APP_ID });
-
-        if (!MiniKit.isInstalled()) return;
-
-        setMiniKitReady(true);
-
-        if (MiniKit.user) {
-          const u = MiniKit.user.username || null;
-          const a = MiniKit.user.avatar_url || null;
-
-          setUsername(u);
-          setAvatar(a);
-          if (u) setGlobalUsername(u);
-        }
-
-        console.log("[APP] MiniKit ready (lazy)");
-      } catch (err) {
-        console.error("[APP] MiniKit load error:", err);
-        setError("MiniKit error");
+        if (u) setGlobalUsername(u);
       }
-    }, 0);
+    } catch (err) {
+      console.error("[APP] MiniKit error:", err);
+      setError("Error inicializando MiniKit");
+    }
   }, []);
 
-  // ✅ WalletAuth
+  // ✅ 3. WalletAuth SOLO después de verify
   useEffect(() => {
     const loadWallet = async () => {
-      if (
-        !verified ||
-        wallet ||
-        verifying ||
-        !miniKitReady ||
-        walletLoading.current
-      ) return;
+      if (!verified || wallet || verifying || walletLoading.current) return;
 
       walletLoading.current = true;
 
       try {
-        const MiniKit = MiniKitRef.current;
+        console.log("[APP] walletAuth...");
 
         const nonceRes = await fetch("/api/nonce");
-        if (!nonceRes.ok) throw new Error("No nonce");
+        if (!nonceRes.ok) throw new Error("No se pudo obtener nonce");
 
         const { nonce } = await nonceRes.json();
 
@@ -101,7 +81,10 @@ const App = () => {
           auth?.finalPayload?.wallet_address ||
           null;
 
-        if (address) setWallet(address);
+        if (address) {
+          setWallet(address);
+          console.log("[APP] Wallet:", address);
+        }
 
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
@@ -109,6 +92,7 @@ const App = () => {
 
           setUsername(u);
           setAvatar(a);
+
           if (u) setGlobalUsername(u);
         }
       } catch (err: any) {
@@ -120,18 +104,17 @@ const App = () => {
     };
 
     loadWallet();
-  }, [verified, wallet, verifying, miniKitReady]);
+  }, [verified, wallet, verifying]);
 
-  // ✅ Verify manual
+  // ✅ 4. Verify SOLO manual (como pide Worldcoin)
   const verifyUser = async () => {
-    if (verifying || !miniKitReady) return;
+    if (verifying) return;
 
     setVerifying(true);
     setError(null);
 
     try {
-      const MiniKit = MiniKitRef.current;
-      const VerificationLevel = VerificationLevelRef.current;
+      console.log("[APP] Verify...");
 
       const verifyRes = await MiniKit.commandsAsync.verify({
         action: "verify-user",
@@ -165,21 +148,24 @@ const App = () => {
 
       if (backend.success && proof.nullifier_hash) {
         const id = proof.nullifier_hash;
+
         localStorage.setItem("userId", id);
         setUserId(id);
         setVerified(true);
+
+        console.log("[APP] Verified:", id);
       } else {
         throw new Error(backend.error);
       }
     } catch (err: any) {
-      console.error("[APP] verify error:", err);
+      console.error("[APP] Verify error:", err);
       setError(err.message);
     } finally {
       setVerifying(false);
     }
   };
 
-  // ✅ LOGIN instantáneo
+  // ✅ 5. LOGIN SCREEN (rápido, sin bloqueos)
   if (!userId) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-black text-white">
@@ -188,14 +174,10 @@ const App = () => {
 
           <button
             onClick={verifyUser}
-            disabled={!miniKitReady || verifying}
+            disabled={verifying}
             className="px-4 py-2 bg-white text-black rounded-xl"
           >
-            {verifying
-              ? "Verifying..."
-              : !miniKitReady
-              ? "Loading..."
-              : "Login with World ID"}
+            {verifying ? "Verifying..." : "Login with World ID"}
           </button>
 
           {error && (
@@ -208,7 +190,7 @@ const App = () => {
     );
   }
 
-  // ✅ App directa
+  // ✅ 6. APP NORMAL (instantáneo si ya está logueado)
   return (
     <HomePage
       userId={userId}
