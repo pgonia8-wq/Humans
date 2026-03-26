@@ -14,77 +14,61 @@ const App = () => {
   const [miniKitReady, setMiniKitReady] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
-  const walletLoading = useRef(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);   // ← Clave
 
+  const walletLoading = useRef(false);
   const { setUsername: setGlobalUsername } = useTheme();
 
-  // Cargar ID de localStorage
-  useEffect(() => {
-    const storedId = localStorage.getItem("userId");
-
-    if (storedId) {
-      setUserId(storedId);
-      setVerified(true);
-      console.log("[APP] ID cargado de localStorage:", storedId);
-    } else {
-      console.log("[APP] No hay ID en localStorage, forzando verificación...");
-      if (miniKitReady) verifyUser();
-    }
-  }, [miniKitReady]);
-
-  // Inicializar MiniKit
+  // Inicializar MiniKit lo más rápido posible
   useEffect(() => {
     const initMiniKit = async () => {
       try {
-        console.log("[APP] Instalando MiniKit...");
-
         MiniKit.install({ appId: APP_ID });
 
-        const installed = MiniKit.isInstalled();
-        console.log("[APP] MiniKit.isInstalled():", installed);
+        if (MiniKit.isInstalled()) {
+          setMiniKitReady(true);
 
-        if (!installed) {
-          console.warn("[APP] MiniKit no está disponible");
-          return;
-        }
-
-        setMiniKitReady(true);
-        console.log("[APP] MiniKit listo");
-
-        // --- NUEVO: obtener username y avatar desde MiniKit.user ---
-        if (MiniKit.user) {
-          const u = MiniKit.user.username || null;
-          const a = MiniKit.user.avatar_url || null;
-          setUsername(u);
-          setAvatar(a);
-          if (u) setGlobalUsername(u);
-          console.log("[APP] MiniKit user:", u, a);
+          // Datos de usuario si ya están disponibles
+          if (MiniKit.user) {
+            const u = MiniKit.user.username || null;
+            const a = MiniKit.user.avatar_url || null;
+            setUsername(u);
+            setAvatar(a);
+            if (u) setGlobalUsername(u);
+          }
         }
       } catch (err) {
-        console.error("[APP] Error instalando MiniKit:", err);
-        setError("Error instalando MiniKit");
+        console.error("[APP] Error MiniKit:", err);
+        setError("Error inicializando MiniKit");
+      } finally {
+        // Terminamos la carga inicial aunque haya error
+        setIsInitialLoading(false);
       }
     };
 
     initMiniKit();
   }, []);
 
-  // Obtener wallet usando walletAuth
+  // Cargar userId desde localStorage
+  useEffect(() => {
+    const storedId = localStorage.getItem("userId");
+    if (storedId) {
+      setUserId(storedId);
+      setVerified(true);
+      setIsInitialLoading(false);
+    }
+  }, []);
+
+  // Wallet Auth (solo después de verificado)
   useEffect(() => {
     const loadWallet = async () => {
-      if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) {
-        return;
-      }
+      if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) return;
 
       walletLoading.current = true;
-      console.log("[APP] Iniciando walletAuth...");
-
       try {
         const nonceRes = await fetch("/api/nonce");
-        if (!nonceRes.ok) throw new Error("No se pudo obtener nonce");
+        if (!nonceRes.ok) throw new Error("Error nonce");
         const { nonce } = await nonceRes.json();
-
-        console.log("[APP] Nonce recibido:", nonce);
 
         const auth = await MiniKit.commandsAsync.walletAuth({
           nonce,
@@ -94,62 +78,40 @@ const App = () => {
           statement: "Autenticar wallet para H humans",
         });
 
-        console.log("[APP] walletAuth result:", auth);
+        const address = auth?.finalPayload?.address || auth?.finalPayload?.wallet_address;
+        if (address) setWallet(address);
 
-        const address =
-          auth?.finalPayload?.address || auth?.finalPayload?.wallet_address || null;
-
-        if (address) {
-          setWallet(address);
-          console.log("[APP] Wallet obtenida:", address);
-        } else {
-          console.warn("[APP] WalletAuth success pero sin address");
-        }
-
-        // --- NUEVO: obtener username y avatar también después de walletAuth ---
         if (MiniKit.user) {
           const u = MiniKit.user.username || null;
           const a = MiniKit.user.avatar_url || null;
           setUsername(u);
           setAvatar(a);
           if (u) setGlobalUsername(u);
-          console.log("[APP] MiniKit user post-walletAuth:", u, a);
         }
       } catch (err: any) {
-        console.error("[APP] Error walletAuth:", err);
-        setError(err.message || "Error autenticando wallet");
+        console.error("[APP] walletAuth error:", err);
+        setError(err.message || "Error en wallet");
       } finally {
         walletLoading.current = false;
       }
     };
 
-    loadWallet();
+    if (verified && miniKitReady) loadWallet();
   }, [verified, wallet, verifying, miniKitReady]);
 
-  // Función de verificación forzada
   const verifyUser = async () => {
     if (verifying || !miniKitReady) return;
-
     setVerifying(true);
     setError(null);
 
     try {
-      if (!MiniKit.isInstalled()) {
-        throw new Error("MiniKit no instalado");
-      }
-
-      console.log("[APP] Iniciando verify...");
-
       const verifyRes = await MiniKit.commandsAsync.verify({
         action: "verify-user",
         verification_level: VerificationLevel.Device,
       });
 
-      console.log("[APP] Verify response:", verifyRes);
-
       const proof = verifyRes?.finalPayload;
-
-      if (!proof) throw new Error("No se recibió proof");
+      if (!proof?.nullifier_hash) throw new Error("No se recibió proof");
 
       const res = await fetch("/api/verify", {
         method: "POST",
@@ -159,37 +121,70 @@ const App = () => {
 
       if (!res.ok) {
         const text = await res.text();
-        if (text.includes("already verified") && proof.nullifier_hash) {
-          console.log("[APP] Usuario ya verificado, usando nullifier_hash existente");
+        if (text.includes("already verified")) {
           const id = proof.nullifier_hash;
           localStorage.setItem("userId", id);
           setUserId(id);
           setVerified(true);
           return;
-        } else {
-          throw new Error(`Backend error: ${text}`);
         }
+        throw new Error(`Error backend: ${text}`);
       }
 
       const backend = await res.json();
-      console.log("[APP] Backend verify:", backend);
-
-      if (backend.success && proof.nullifier_hash) {
+      if (backend.success) {
         const id = proof.nullifier_hash;
         localStorage.setItem("userId", id);
         setUserId(id);
         setVerified(true);
-        console.log("[APP] Usuario verificado:", id);
-      } else {
-        throw new Error(backend.error || "Backend rechazó la prueba");
       }
     } catch (err: any) {
       console.error("[APP] Verify error:", err);
-      setError(err.message || "Error verificando usuario");
+      setError(err.message || "Error verificando");
     } finally {
       setVerifying(false);
     }
   };
+
+  // ==================== LOADING SCREEN INMEDIATO ====================
+  if (isInitialLoading) {
+    return (
+      <div className="loading-screen">
+        <div className="spinner"></div>
+        <p>Cargando H humans...</p>
+
+        <style jsx>{`
+          .loading-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #000000;           /* Cambia al color principal de tu app */
+            color: #ffffff;
+            font-family: system-ui, -apple-system, sans-serif;
+          }
+          .spinner {
+            width: 56px;
+            height: 56px;
+            border: 5px solid rgba(255, 255, 255, 0.2);
+            border-top: 5px solid #ffffff;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin-bottom: 24px;
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          p {
+            margin: 0;
+            font-size: 18px;
+            opacity: 0.9;
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <HomePage
