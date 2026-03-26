@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabaseClient } from "../lib/supabase";
+import { supabase } from "../../supabaseClient";
 import type { ContentQueueRow, PostMetricsRow } from "../lib/database.types";
 
 export interface ContentQueueItem {
