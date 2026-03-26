@@ -29,39 +29,41 @@ const App = () => {
     } else {
       console.log("[APP] No hay ID en localStorage");
     }
-  }, [miniKitReady]);
+  }, []);
 
-  // ✅ Inicializar MiniKit
+  // ✅ Inicializar MiniKit SIN bloquear render
   useEffect(() => {
-    const initMiniKit = async () => {
-      try {
-        console.log("[APP] Instalando MiniKit...");
+    const initMiniKit = () => {
+      setTimeout(() => {
+        try {
+          console.log("[APP] Instalando MiniKit...");
 
-        MiniKit.install({ appId: APP_ID });
+          MiniKit.install({ appId: APP_ID });
 
-        const installed = MiniKit.isInstalled();
-        console.log("[APP] MiniKit.isInstalled():", installed);
+          const installed = MiniKit.isInstalled();
+          console.log("[APP] MiniKit.isInstalled():", installed);
 
-        if (!installed) {
-          console.warn("[APP] MiniKit no está disponible");
-          return;
+          if (!installed) {
+            console.warn("[APP] MiniKit no está disponible");
+            return;
+          }
+
+          setMiniKitReady(true);
+          console.log("[APP] MiniKit listo");
+
+          if (MiniKit.user) {
+            const u = MiniKit.user.username || null;
+            const a = MiniKit.user.avatar_url || null;
+            setUsername(u);
+            setAvatar(a);
+            if (u) setGlobalUsername(u);
+            console.log("[APP] MiniKit user:", u, a);
+          }
+        } catch (err) {
+          console.error("[APP] Error instalando MiniKit:", err);
+          setError("Error instalando MiniKit");
         }
-
-        setMiniKitReady(true);
-        console.log("[APP] MiniKit listo");
-
-        if (MiniKit.user) {
-          const u = MiniKit.user.username || null;
-          const a = MiniKit.user.avatar_url || null;
-          setUsername(u);
-          setAvatar(a);
-          if (u) setGlobalUsername(u);
-          console.log("[APP] MiniKit user:", u, a);
-        }
-      } catch (err) {
-        console.error("[APP] Error instalando MiniKit:", err);
-        setError("Error instalando MiniKit");
-      }
+      }, 0); // 🔥 clave: rompe bloqueo
     };
 
     initMiniKit();
@@ -180,7 +182,7 @@ const App = () => {
     }
   };
 
-  // ✅ NUEVO: Pantalla inmediata (NO bloquea render)
+  // ✅ Pantalla inmediata
   if (!verified) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-black text-white">
@@ -188,10 +190,14 @@ const App = () => {
           <div className="w-12 h-12 rounded-xl bg-white/10 animate-pulse" />
 
           <p className="text-sm text-white/60">
-            {verifying ? "Verifying human..." : "Ready to verify"}
+            {!miniKitReady
+              ? "Initializing..."
+              : verifying
+              ? "Verifying human..."
+              : "Ready to verify"}
           </p>
 
-          {!verifying && (
+          {!verifying && miniKitReady && (
             <button
               onClick={verifyUser}
               className="px-4 py-2 bg-white text-black rounded-xl"
