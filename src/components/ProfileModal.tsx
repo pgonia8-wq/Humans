@@ -763,7 +763,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           className="w-full h-full"
           onClick={(e) => e.stopPropagation()}
         >
-          <Dashboard currentUserId={currentUserId} />
+          <Dashboard
+  currentUserId={currentUserId}
+  onClose={() => setShowDashboard(false)}
+/>
         </div>
       </div>
     )}
