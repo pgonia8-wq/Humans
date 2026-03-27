@@ -103,9 +103,10 @@ export function usePublishQueuedPosts(): UsePublishQueuedPostsReturn {
         }
 
         const post = candidates[0];
-        const publishedAt = new Date().toISOString();
-        const hourOfDay = new Date().getHours();
 
+// 👇 usar el created_at original del queue
+        const publishedAt = post.created_at;
+        const hourOfDay = new Date(publishedAt).getHours();
         // Garantizar que el perfil oficial existe antes de insertar el post.
         // Si ya existe, esta operación no hace nada.
         await ensureOfficialProfile(account);
