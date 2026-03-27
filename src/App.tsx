@@ -3,8 +3,12 @@ import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import { useTheme } from "./lib/ThemeContext";
 
 // Fix 1: lazy load de HomePage — saca todo el peso del bundle inicial
-// El evento `load` dispara mucho antes y World App quita el splash
-const HomePage = lazy(() => import("./pages/HomePage"));
+// La descarga empieza INMEDIATAMENTE al parsear este archivo,
+// no cuando React intenta renderizar el componente.
+// Esto elimina la descarga secuencial: chunk inicial y chunk de HomePage
+// se descargan en paralelo en lugar de uno después del otro.
+const homePagePromise = import("./pages/HomePage");
+const HomePage = lazy(() => homePagePromise);
 
 const APP_ID = "app_6a98c88249208506dcd4e04b529111fc";
 
