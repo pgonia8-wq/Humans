@@ -384,14 +384,12 @@ function buildDecision(
   postsToGenerate = Math.max(0, Math.min(postsToGenerate, headroom));
 
   const goodHour = isGoodHourToPublish(memory.bestHours, memory.worstHours);
-
   const shouldGenerate = mode !== "COOLDOWN" && postsToGenerate > 0;
-  const shouldPublish =
-    mode !== "COOLDOWN" &&
-    queueSize > 0 &&
-    state.publishedThisHour < MAX_POSTS_PER_HOUR &&
-    goodHour;
-
+const shouldPublish =
+  queueSize > 0 &&
+  state.publishedThisHour < MAX_POSTS_PER_HOUR &&
+  goodHour;
+  
   return {
     shouldGenerate,
     shouldPublish,
