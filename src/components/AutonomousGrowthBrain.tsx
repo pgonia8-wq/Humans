@@ -151,6 +151,37 @@ function save<T>(key: string, value: T): void {
   }
 }
 
+        type Trend = {
+  topic: string;
+  category: string;
+  strength: number;
+};
+
+async function getCachedTrends(): Promise<Trend[]> {
+  try {
+    const { data } = await supabase
+      .from("trends_cache")
+      .select("topic, category, strength")
+      .gt("expires_at", new Date().toISOString())
+      .limit(30);
+
+    return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function weightedPick(trends: Trend[]): string {
+  const total = trends.reduce((sum, t) => sum + t.strength, 0);
+  let r = Math.random() * total;
+
+  for (const t of trends) {
+    r -= t.strength;
+    if (r <= 0) return t.topic;
+  }
+
+  return trends[0]?.topic ?? "trending topic";
+}
 // ─── Concurrency Lock ─────────────────────────────────────────────────────────
 
 function acquireLock(): boolean {
@@ -337,7 +368,8 @@ function buildDecision(
   mode: EngineMode,
   memory: LearningMemory,
   state: BrainState,
-  queueSize: number
+  queueSize: number,
+  trends: Trend[] // 
 ): CycleDecision {
   const softRandom = Math.random() < 0.12;
   if (softRandom) {
@@ -370,8 +402,16 @@ function buildDecision(
   const usedTopics = new Set(memory.recentTopics);
   const hints = TOPIC_HINTS[category] ?? [];
   const freshTopics = hints.filter((t) => !usedTopics.has(t));
-  const topic = freshTopics.length > 0 ? randFrom(freshTopics) : randFrom(hints);
+  let topic: string;
 
+if (trends.length > 0 && Math.random() < 0.7) {
+  topic = weightedPick(trends); // usa temas reales
+} else {
+  topic =
+    freshTopics.length > 0
+      ? randFrom(freshTopics)
+      : randFrom(hints); // fallback
+}
   // Post count to generate
   let postsToGenerate: number;
   if (mode === "GROWTH")   postsToGenerate = randInt(3, 4);
@@ -496,13 +536,9 @@ export default function AutonomousGrowthBrain(): null {
       console.log(
         `🎯 [SEEDS] Mode: ${mode} | Queue: ${queueSize} | AvgScore: ${avgScore.toFixed(1)} | Hour: ${currentHour()}:00 | Published/h: ${state.publishedThisHour}`
       );
-
+       const trends = await getCachedTrends();
       // ── 5. Decision ───────────────────────────────────────────────────────
-      const decision = buildDecision(mode, memory, state, queueSize);
-
-      console.log(
-        `🔮 [SEEDS] → Generate: ${decision.shouldGenerate} (${decision.postsToGenerate}x "${decision.topic}") | Publish: ${decision.shouldPublish} | ${decision.account} / ${decision.category}`
-      );
+       const decision = buildDecision(mode, memory, state, queueSize, trends);
 
       // ── 6. Generate ───────────────────────────────────────────────────────
       if (decision.shouldGenerate && !isPipelineLoading) {
