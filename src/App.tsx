@@ -43,6 +43,12 @@ const App = () => {
       // 🔥 MiniKit SOLO aquí
       MiniKit.install({ appId: APP_ID });
 
+      // ✅ LOG AÑADIDO
+      console.log(
+        "[APP] MiniKit.commandsAsync:",
+        Object.keys(MiniKit.commandsAsync || {})
+      );
+
       const verifyRes = await MiniKit.commandsAsync.verify({
         action: "verify-user",
         verification_level: VerificationLevel.Device,
