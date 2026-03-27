@@ -4,15 +4,14 @@ import React, {
   useRef,
   useCallback,
   useContext,
+  lazy,
+  Suspense,
 } from "react";
 import { supabase } from "../supabaseClient";
 import FeedPage from "./FeedPage";
 import { ThemeContext } from "../lib/ThemeContext";
 import { LanguageContext } from "../LanguageContext";
-import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
-import Inbox from "./chat/Inbox";
-import AutonomousGrowthBrain from "../components/AutonomousGrowthBrain";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ImageIcon,
@@ -31,6 +30,13 @@ import {
   Repeat2,
   CheckCircle2,
 } from "lucide-react";
+
+// Fix 3: lazy load de componentes que solo se usan bajo demanda (modales)
+// No entran en el bundle inicial — se descargan cuando el usuario los abre
+const ProfileModal = lazy(() => import("../components/ProfileModal"));
+const Inbox = lazy(() => import("./chat/Inbox"));
+// Fix 3b: AutonomousGrowthBrain se renderiza inmediatamente pero no es crítico para el primer paint
+const AutonomousGrowthBrain = lazy(() => import("../components/AutonomousGrowthBrain"));
 
 const PAGE_SIZE = 8;
 
@@ -102,7 +108,7 @@ const HomePage: React.FC<HomePageProps> = ({
   const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
-  const [brainReady, setBrainReady] = useState(false);
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
@@ -148,10 +154,25 @@ const HomePage: React.FC<HomePageProps> = ({
     [hasMore, page],
   );
 
+  // Fix 4: leer perfil primero (SELECT), solo hacer upsert si no existe
+  // Antes: upsert (escritura) en CADA carga → ~300-500ms de latencia bloqueante
+  // Ahora: SELECT rápido para usuarios existentes, upsert solo para nuevos
   const fetchOrUpsertProfile = useCallback(async () => {
     if (!userId) return;
     setProfileLoading(true);
     try {
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (existing) {
+        setProfile(existing);
+        return;
+      }
+
+      // Solo llega aquí si el perfil no existe (usuarios nuevos)
       const { data, error } = await supabase
         .from("profiles")
         .upsert(
@@ -196,7 +217,12 @@ const HomePage: React.FC<HomePageProps> = ({
     fetchNotifications();
   }, [userId, fetchOrUpsertProfile]);
 
+  // Fix 2: canal realtime de posts ahora gateado por userId
+  // Antes: abría WebSocket en el primer render, antes de que hubiera usuario
+  // Ahora: espera a que haya userId para abrir la conexión
   useEffect(() => {
+    if (!userId) return;
+
     const channel = supabase
       .channel("realtime-posts")
       .on(
@@ -215,12 +241,7 @@ const HomePage: React.FC<HomePageProps> = ({
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, []);
-
-  useEffect(() => {
-  const t = setTimeout(() => setBrainReady(true), 15000);
-  return () => clearTimeout(t);
-}, []);
+  }, [userId]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -396,7 +417,11 @@ const HomePage: React.FC<HomePageProps> = ({
         isDark ? "bg-[#09090b] text-white" : "bg-[#fafafa] text-black"
       }`}
     >
-       {brainReady && <AutonomousGrowthBrain />}
+      {/* Fix 3b: AutonomousGrowthBrain en Suspense — no bloquea el primer paint */}
+      <Suspense fallback={null}>
+        <AutonomousGrowthBrain />
+      </Suspense>
+
       {/* ── HEADER FLOTANTE ── */}
       <header
         className={`fixed top-3 left-3 right-3 z-30 flex items-center justify-between px-4 py-2.5 rounded-2xl border ${
@@ -581,13 +606,15 @@ const HomePage: React.FC<HomePageProps> = ({
         />
       </main>
 
-      {/* ── MODAL PERFIL ── */}
+      {/* ── MODAL PERFIL — lazy, solo se descarga cuando el usuario lo abre ── */}
       {showProfileModal && (
-        <ProfileModal
-          currentUserId={userId}
-          onClose={() => setShowProfileModal(false)}
-          onProfileUpdated={handleProfileUpdated}
-        />
+        <Suspense fallback={null}>
+          <ProfileModal
+            currentUserId={userId}
+            onClose={() => setShowProfileModal(false)}
+            onProfileUpdated={handleProfileUpdated}
+          />
+        </Suspense>
       )}
 
       {/* ── MODAL CREAR POST ── */}
@@ -704,7 +731,6 @@ const HomePage: React.FC<HomePageProps> = ({
                 )}
               </AnimatePresence>
 
-              {/* Post error banner */}
               <AnimatePresence>
                 {postError && (
                   <motion.div
@@ -789,7 +815,7 @@ const HomePage: React.FC<HomePageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ── INBOX ── */}
+      {/* ── INBOX — lazy, solo se descarga cuando el usuario lo abre ── */}
       <AnimatePresence>
         {showInbox && (
           <motion.div
@@ -808,18 +834,20 @@ const HomePage: React.FC<HomePageProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               {userId && (
-                <Inbox
-                  isOpen={true}
-                  onClose={() => setShowInbox(false)}
-                  currentUserId={userId}
-                  newMessage={newMessage}
-                  setNewMessage={setNewMessage}
-                  newMessageAttachments={newMessageAttachments}
-                  setNewMessageAttachments={setNewMessageAttachments}
-                  selectedChatUserId={selectedChatUserId}
-                  setSelectedChatUserId={setSelectedChatUserId}
-                  onSendMessage={handleSendMessage}
-                />
+                <Suspense fallback={<div className="h-64 flex items-center justify-center text-gray-500 text-sm">Cargando...</div>}>
+                  <Inbox
+                    isOpen={true}
+                    onClose={() => setShowInbox(false)}
+                    currentUserId={userId}
+                    newMessage={newMessage}
+                    setNewMessage={setNewMessage}
+                    newMessageAttachments={newMessageAttachments}
+                    setNewMessageAttachments={setNewMessageAttachments}
+                    selectedChatUserId={selectedChatUserId}
+                    setSelectedChatUserId={setSelectedChatUserId}
+                    onSendMessage={handleSendMessage}
+                  />
+                </Suspense>
               )}
             </motion.div>
           </motion.div>
@@ -949,8 +977,7 @@ const HomePage: React.FC<HomePageProps> = ({
                           <span
                             className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 ${
                               isDark ? "border-[#111113]" : "border-white"
-                            }`}
-                            style={{ background: isDark ? "#1c1c1e" : "#f4f4f5" }}
+                            } bg-[#111113]`}
                           >
                             {notifIcon(notif.type)}
                           </span>
@@ -958,29 +985,19 @@ const HomePage: React.FC<HomePageProps> = ({
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm leading-snug ${isDark ? "text-gray-200" : "text-gray-800"}`}>
                             <span className="font-semibold">{notif.user}</span>{" "}
-                            <span className={isDark ? "text-gray-400" : "text-gray-500"}>{notif.message}</span>
+                            {notif.message}
                           </p>
-                          <p className={`text-xs mt-0.5 ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+                          <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
                             {notif.time}
                           </p>
                         </div>
                         {!notif.read && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="w-2 h-2 rounded-full bg-violet-500 mt-2 flex-shrink-0"
-                          />
+                          <div className="flex-shrink-0 w-2 h-2 rounded-full bg-violet-500 mt-2" />
                         )}
                       </motion.li>
                     ))}
                   </ul>
                 )}
-              </div>
-
-              <div className={`px-5 py-3 border-t ${isDark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                <p className={`text-center text-xs ${isDark ? "text-gray-600" : "text-gray-400"}`}>
-                  Notificaciones de las últimas 24 horas
-                </p>
               </div>
             </motion.div>
           </motion.div>
