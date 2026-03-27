@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
-import HomePage from "./pages/HomePage";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import { useTheme } from "./lib/ThemeContext";
+
+// Fix 1: lazy load de HomePage — saca todo el peso del bundle inicial
+// El evento `load` dispara mucho antes y World App quita el splash
+const HomePage = lazy(() => import("./pages/HomePage"));
 
 const APP_ID = "app_6a98c88249208506dcd4e04b529111fc";
 
@@ -18,33 +21,25 @@ const App = () => {
 
   const { setUsername: setGlobalUsername } = useTheme();
 
-  // Cargar ID de localStorage
+  // Fix 2: Un solo useEffect en lugar de tres encadenados
+  // Antes: mount → setState(miniKitReady) → re-render → setState(verified) → re-render → loadWallet
+  // Ahora: mount → todo en secuencia sin ciclos de render intermedios
   useEffect(() => {
-    const storedId = localStorage.getItem("userId");
+    const init = async () => {
+      // Paso 1: leer localStorage de forma sincrónica (sin await, sin render extra)
+      const storedId = localStorage.getItem("userId");
+      if (storedId) {
+        setUserId(storedId);
+        setVerified(true);
+        console.log("[APP] ID cargado de localStorage:", storedId);
+      } else {
+        console.log("[APP] No hay ID en localStorage, se verificará después de MiniKit");
+      }
 
-    if (storedId) {
-      setUserId(storedId);
-      setVerified(true);
-      console.log("[APP] ID cargado de localStorage:", storedId);
-    } else {
-      console.log("[APP] No hay ID en localStorage, forzando verificación...");
-      if (miniKitReady) verifyUser();
-    }
-  }, [miniKitReady]);
-
-  // Inicializar MiniKit
-  useEffect(() => {
-    const initMiniKit = async () => {
+      // Paso 2: instalar MiniKit
       try {
         console.log("[APP] Instalando MiniKit...");
-
         MiniKit.install({ appId: APP_ID });
-
-        // 🔥 LOG AGREGADO AQUÍ
-        console.log(
-          "[APP] MiniKit.commandsAsync:",
-          Object.keys(MiniKit.commandsAsync || {})
-        );
 
         const installed = MiniKit.isInstalled();
         console.log("[APP] MiniKit.isInstalled():", installed);
@@ -65,16 +60,23 @@ const App = () => {
           if (u) setGlobalUsername(u);
           console.log("[APP] MiniKit user:", u, a);
         }
+
+        // Paso 3: si no había ID guardado, verificar ahora que MiniKit está listo
+        // Sin esperar un re-render extra — llamada directa
+        if (!storedId) {
+          await runVerification();
+        }
       } catch (err) {
         console.error("[APP] Error instalando MiniKit:", err);
         setError("Error instalando MiniKit");
       }
     };
 
-    initMiniKit();
-  }, []);
+    init();
+  }, []); // Un solo efecto, sin dependencias cruzadas
 
-  // Obtener wallet usando walletAuth
+  // Wallet auth: sigue siendo efecto separado porque depende de verified + miniKitReady
+  // pero ahora ambos se setean en el mismo render (init effect), no en renders distintos
   useEffect(() => {
     const loadWallet = async () => {
       if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) {
@@ -130,17 +132,13 @@ const App = () => {
     loadWallet();
   }, [verified, wallet, verifying, miniKitReady]);
 
-  // Función de verificación forzada
-  const verifyUser = async () => {
-    if (verifying || !miniKitReady) return;
-
+  // Verificación interna usada por el init effect (MiniKit ya está listo aquí)
+  const runVerification = async () => {
     setVerifying(true);
     setError(null);
 
     try {
-      if (!MiniKit.isInstalled()) {
-        throw new Error("MiniKit no instalado");
-      }
+      if (!MiniKit.isInstalled()) throw new Error("MiniKit no instalado");
 
       console.log("[APP] Iniciando verify...");
 
@@ -152,7 +150,6 @@ const App = () => {
       console.log("[APP] Verify response:", verifyRes);
 
       const proof = verifyRes?.finalPayload;
-
       if (!proof) throw new Error("No se recibió proof");
 
       const res = await fetch("/api/verify", {
@@ -195,18 +192,28 @@ const App = () => {
     }
   };
 
+  // verifyUser sigue disponible como prop para que HomePage lo pueda llamar manualmente
+  const verifyUser = async () => {
+    if (verifying || !miniKitReady) return;
+    await runVerification();
+  };
+
   return (
-    <HomePage
-      userId={userId}
-      verifyUser={verifyUser}
-      verified={verified}
-      wallet={wallet}
-      username={username}
-      avatar={avatar}
-      error={error}
-      verifying={verifying}
-      setUserId={setUserId}
-    />
+    // Fix 1: Suspense con fondo negro igual al tema oscuro
+    // Evita el flash blanco mientras carga el chunk de HomePage
+    <Suspense fallback={<div className="min-h-screen bg-[#09090b]" />}>
+      <HomePage
+        userId={userId}
+        verifyUser={verifyUser}
+        verified={verified}
+        wallet={wallet}
+        username={username}
+        avatar={avatar}
+        error={error}
+        verifying={verifying}
+        setUserId={setUserId}
+      />
+    </Suspense>
   );
 };
 
