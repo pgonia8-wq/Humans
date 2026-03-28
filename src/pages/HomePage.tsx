@@ -343,14 +343,14 @@ const HomePage: React.FC<HomePageProps> = ({
         imageUrl = data.publicUrl;
       }
 
-      const { error } = await supabase.from("posts").insert({
-        user_id: userId,
-        content: newPostContent,
-        image_url: imageUrl,
-        timestamp: new Date().toISOString(),
-        deleted_flag: false,
-        visibility_score: 1,
-      });
+      const { error } = await supabase.functions.invoke("publish-post-user", {
+       body: {
+    content: newPostContent,
+    image_url: imageUrl,
+  },
+});
+
+
 
       if (error) throw error;
 
