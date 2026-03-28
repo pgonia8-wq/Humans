@@ -220,26 +220,33 @@ const HomePage: React.FC<HomePageProps> = ({
   // Fix 2: canal realtime de posts ahora gateado por userId
   // Antes: abría WebSocket en el primer render, antes de que hubiera usuario
   // Ahora: espera a que haya userId para abrir la conexión
-  useEffect(() => {
+       useEffect(() => {
   if (!userId) return;
 
   const channel = supabase
     .channel("global-posts")
+
+    // ✅ INSERT (único)
     .on(
       "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "posts",
-      },
+      { event: "INSERT", schema: "public", table: "posts" },
       (payload) => {
         setPosts((prev) => {
+          // evitar duplicados
           if (prev.some((p) => p.id === payload.new.id)) {
             return prev;
           }
 
-          const updated = [payload.new, ...prev];
+          // eliminar optimistic si coincide
+          const withoutOptimistic = prev.filter(
+            (p) =>
+              !p.optimistic ||
+              p.content !== payload.new.content
+          );
 
+          const updated = [payload.new, ...withoutOptimistic];
+
+          // mantener orden
           return updated.sort(
             (a, b) =>
               new Date(b.timestamp).getTime() -
@@ -248,13 +255,11 @@ const HomePage: React.FC<HomePageProps> = ({
         });
       }
     )
+
+    // ✅ UPDATE
     .on(
       "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "posts",
-      },
+      { event: "UPDATE", schema: "public", table: "posts" },
       (payload) => {
         setPosts((prev) =>
           prev.map((p) =>
@@ -263,6 +268,7 @@ const HomePage: React.FC<HomePageProps> = ({
         );
       }
     )
+
     .subscribe();
 
   return () => {
@@ -315,59 +321,77 @@ const HomePage: React.FC<HomePageProps> = ({
   }, [userId]);
 
   const handleCreatePost = async () => {
-    if (isPosting) return;
-    if (!newPostContent.trim()) {
-      setPostError(t("write_before_posting"));
-      return;
+  if (isPosting) return;
+  if (!newPostContent.trim()) {
+    setPostError(t("write_before_posting"));
+    return;
+  }
+  if (!userId) return;
+
+  setIsPosting(true);
+  setPostError(null);
+
+  let imageUrl = null;
+  let tempId = "temp-" + Date.now(); // 👈 moverlo arriba para rollback
+
+  try {
+    // 🖼️ 1. subir imagen primero
+    if (newPostImage) {
+      const fileExt = newPostImage.name.split(".").pop() || "png";
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("post-images")
+        .upload(fileName, newPostImage);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from("post-images")
+        .getPublicUrl(fileName);
+
+      imageUrl = data.publicUrl;
     }
-    if (!userId) return;
 
-    setIsPosting(true);
-    setPostError(null);
-    let imageUrl = null;
+    // ✅ 2. OPTIMISTIC UI (YA con imagen correcta)
+    const tempPost = {
+      id: tempId,
+      user_id: userId,
+      content: newPostContent,
+      image_url: imageUrl,
+      timestamp: new Date().toISOString(),
+      optimistic: true,
+    };
 
-    try {
-      if (newPostImage) {
-        const fileExt = newPostImage.name.split(".").pop() || "png";
-        const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    setPosts((prev) => [tempPost, ...prev]);
 
-        const { error: uploadError } = await supabase.storage
-          .from("post-images")
-          .upload(fileName, newPostImage);
+    // 🚀 3. backend
+    const { error } = await supabase.functions.invoke("publish-post-user", {
+      body: {
+        content: newPostContent,
+        image_url: imageUrl,
+      },
+    });
 
-        if (uploadError) throw uploadError;
+    if (error) throw error;
 
-        const { data } = supabase.storage
-          .from("post-images")
-          .getPublicUrl(fileName);
-        imageUrl = data.publicUrl;
-      }
+    // 🧹 limpiar UI
+    setShowNewPostModal(false);
+    setNewPostContent("");
+    setNewPostImage(null);
+    setImagePreview(null);
 
-      const { error } = await supabase.functions.invoke("publish-post-user", {
-       body: {
-    content: newPostContent,
-    image_url: imageUrl,
-  },
-});
+  } catch (err: any) {
+    console.error("Error creando post", err);
+    setPostError(err.message);
 
+    // 🔥 rollback limpio
+    setPosts((prev) => prev.filter((p) => p.id !== tempId));
 
-
-      if (error) throw error;
-
-      setShowNewPostModal(false);
-      setNewPostContent("");
-      setNewPostImage(null);
-      setImagePreview(null);
-
-      
-    } catch (err: any) {
-      console.error("Error creando post", err);
-      setPostError(err.message);
-    } finally {
-      setIsPosting(false);
-    }
-  };
-
+  } finally {
+    setIsPosting(false);
+  }
+};
   const handleSendMessage = async () => {
     if (!newMessage.trim() && newMessageAttachments.length === 0) return;
 
