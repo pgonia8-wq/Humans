@@ -223,23 +223,7 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
     return () => observer.disconnect();
   }, [post.id, t]);
 
-  useEffect(() => {
-    if (!post.id) return;
-    const channel = supabase
-      .channel(`post-${post.id}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "posts", filter: `id=eq.${post.id}` },
-        (payload) => {
-          if (payload.new.likes !== likes) setLikes(payload.new.likes);
-          if (payload.new.comments !== comments) setComments(payload.new.comments);
-          if (payload.new.reposts !== reposts) setReposts(payload.new.reposts);
-        }
-      )
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [post.id, likes, comments, reposts]);
-
+  
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
