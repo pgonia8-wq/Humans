@@ -221,28 +221,55 @@ const HomePage: React.FC<HomePageProps> = ({
   // Antes: abría WebSocket en el primer render, antes de que hubiera usuario
   // Ahora: espera a que haya userId para abrir la conexión
   useEffect(() => {
-    if (!userId) return;
+  if (!userId) return;
 
-    const channel = supabase
-      .channel("realtime-posts")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "posts" },
-        (payload) => setPosts((prev) => [payload.new, ...prev]),
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "posts" },
-        (payload) =>
-          setPosts((prev) =>
-            prev.map((p) => (p.id === payload.new.id ? payload.new : p)),
-          ),
-      )
-      .subscribe();
+  const channel = supabase
+    .channel("global-posts")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "posts",
+      },
+      (payload) => {
+        setPosts((prev) => {
+          if (prev.some((p) => p.id === payload.new.id)) {
+            return prev;
+          }
 
-    return () => supabase.removeChannel(channel);
-  }, [userId]);
+          const updated = [payload.new, ...prev];
 
+          return updated.sort(
+            (a, b) =>
+              new Date(b.timestamp).getTime() -
+              new Date(a.timestamp).getTime()
+          );
+        });
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "posts",
+      },
+      (payload) => {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === payload.new.id ? payload.new : p
+          )
+        );
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [userId]);
+  
   useEffect(() => {
     const handleScroll = () => {
       if (!containerRef.current) return;
@@ -332,7 +359,7 @@ const HomePage: React.FC<HomePageProps> = ({
       setNewPostImage(null);
       setImagePreview(null);
 
-      fetchPosts(true);
+      
     } catch (err: any) {
       console.error("Error creando post", err);
       setPostError(err.message);
