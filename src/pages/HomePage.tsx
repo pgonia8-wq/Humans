@@ -134,11 +134,11 @@ const HomePage: React.FC<HomePageProps> = ({
         const from = reset ? 0 : page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
         const { data, error } = await supabase
-  .from("feed")
-  .select("*")
-  .eq("user_id", userId)
-  .order("timestamp", { ascending: false })
-  .range(from, to);
+          .from("posts")
+          .select("*")
+          .order("timestamp", { ascending: false })
+          .range(from, to);
+
         const newPosts = data || [];
         setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
         setHasMore(newPosts.length === PAGE_SIZE);
@@ -224,35 +224,29 @@ const HomePage: React.FC<HomePageProps> = ({
   if (!userId) return;
 
   const channel = supabase
-    .channel(`feed:${userId}`)
+    .channel("global-posts")
 
-    // ✅ INSERT SOLO DEL FEED DEL USUARIO
+    // ✅ INSERT (único)
     .on(
       "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "feed",
-        filter: `user_id=eq.${userId}`,
-      },
+      { event: "INSERT", schema: "public", table: "posts" },
       (payload) => {
         setPosts((prev) => {
-          // 🔥 1. evitar duplicados reales
+          // evitar duplicados
           if (prev.some((p) => p.id === payload.new.id)) {
             return prev;
           }
 
-          // 🔥 2. eliminar optimistic si coincide
+          // eliminar optimistic si coincide
           const withoutOptimistic = prev.filter(
             (p) =>
               !p.optimistic ||
               p.content !== payload.new.content
           );
 
-          // 🔥 3. insertar post real
           const updated = [payload.new, ...withoutOptimistic];
 
-          // 🔥 4. ordenar por timestamp
+          // mantener orden
           return updated.sort(
             (a, b) =>
               new Date(b.timestamp).getTime() -
@@ -262,15 +256,10 @@ const HomePage: React.FC<HomePageProps> = ({
       }
     )
 
-    // ✅ UPDATE (opcional pero recomendado)
+    // ✅ UPDATE
     .on(
       "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "feed",
-        filter: `user_id=eq.${userId}`,
-      },
+      { event: "UPDATE", schema: "public", table: "posts" },
       (payload) => {
         setPosts((prev) =>
           prev.map((p) =>
@@ -377,19 +366,15 @@ const HomePage: React.FC<HomePageProps> = ({
     setPosts((prev) => [tempPost, ...prev]);
 
     // 🚀 3. backend
-    const session = await supabase.auth.getSession();
+    const { error } = await supabase.functions.invoke("publish-post-user", {
+      body: {
+        content: newPostContent,
+        image_url: imageUrl,
+      },
+    });
 
-const { error } = await supabase.functions.invoke("publish-post-user", {
-  body: {
-    content: newPostContent,
-    image_url: imageUrl,
-  },
-  headers: {
-    Authorization: `Bearer ${session.data.session?.access_token}`,
-  },
-});
+    if (error) throw error;
 
-if (error) throw error;
     // 🧹 limpiar UI
     setShowNewPostModal(false);
     setNewPostContent("");
