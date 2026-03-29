@@ -89,6 +89,8 @@ const HomePage: React.FC<HomePageProps> = ({
 }) => {
   // ── Post modal ──
   const [optimisticPosts, setOptimisticPosts] = useState<any[]>([]);
+  const [globalPosts, setGlobalPosts] = useState<any[]>([]);
+  const [globalLoading, setGlobalLoading] = useState(true);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
   const [newPostImage, setNewPostImage] = useState<File | null>(null);
@@ -118,7 +120,15 @@ const HomePage: React.FC<HomePageProps> = ({
     () => notifications.filter((n) => !n.read).length,
     [notifications],
   );
+  const mergedPosts = useMemo(() => {
+  const map = new Map();
 
+  [...optimisticPosts, ...globalPosts].forEach((p) => {
+    map.set(p.id, p);
+  });
+
+  return Array.from(map.values());
+}, [optimisticPosts, globalPosts]);
   const { theme, toggleTheme, username } = useContext(ThemeContext);
   const { language, setLanguage, t } = useContext(LanguageContext);
   const isDark = theme === "dark";
@@ -207,6 +217,26 @@ const HomePage: React.FC<HomePageProps> = ({
     setUnreadTotal(total);
   }, [userId]);
 
+    const fetchGlobalPosts = useCallback(async () => {
+  setGlobalLoading(true);
+
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("timestamp", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    setGlobalPosts(data || []);
+  } catch (err) {
+    console.error("[HOME] Error fetching global posts:", err);
+  } finally {
+    setGlobalLoading(false);
+  }
+}, []);
+  
   // ─────────────────────────────────────────────
   // INICIALIZACIÓN al tener userId
   // ─────────────────────────────────────────────
@@ -216,6 +246,7 @@ const HomePage: React.FC<HomePageProps> = ({
     fetchOrUpsertProfile();
     fetchNotifications();
     loadUnread();
+    fetchGlobalPosts();
   }, [userId]);
 
   // ─────────────────────────────────────────────
@@ -516,13 +547,13 @@ const HomePage: React.FC<HomePageProps> = ({
       {/* ── FEED con tabs (Global / Siguiendo / Mis posts) ── */}
       <main className="w-full px-2 pt-20 pb-6 flex justify-center">
         <FeedPage
-          posts={optimisticPosts}
-          loading={false}
-          error={error}
-          currentUserId={userId}
-          userTier={profile?.tier || "free"}
-          onUpgradeSuccess={fetchOrUpsertProfile}
-        />
+  posts={mergedPosts}        // 🔥 FIX REAL
+  loading={globalLoading}
+  error={error}
+  currentUserId={userId}
+  userTier={profile?.tier || "free"}
+  onUpgradeSuccess={fetchOrUpsertProfile}
+/>
       </main>
 
       {/* ── MODALES ── */}
