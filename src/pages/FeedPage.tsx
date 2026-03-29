@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef, useCallback } from "react";
 import PostCard from "../components/PostCard";
 import { supabase } from "../supabaseClient";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
@@ -24,6 +24,7 @@ import {
 
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
+// ── Tipos ──────────────────────────────────────────────────────────────
 interface FeedPageProps {
   posts: any[];
   loading?: boolean;
@@ -33,6 +34,11 @@ interface FeedPageProps {
   onUpgradeSuccess?: () => void;
 }
 
+type FeedTab = "global" | "following" | "mine";
+
+const TAB_PAGE_SIZE = 10;
+
+// ── Beneficios (sin cambios) ────────────────────────────────────────────
 const premiumBenefits = [
   { icon: <Edit3 size={18} />, text: "Publicaciones más largas (2,000 caracteres)" },
   { icon: <Zap size={18} />, text: "Prioridad en el feed" },
@@ -57,6 +63,45 @@ const premiumPlusBenefits = [
   { icon: <Sparkles size={18} />, text: "Invitaciones exclusivas a eventos" },
 ];
 
+// ── Sorting algorithm (sin cambios) ────────────────────────────────────
+const sortPosts = (posts: any[]) => {
+  const now = Date.now();
+  return [...posts].sort((a, b) => {
+    const calculateScore = (post: any) => {
+      const weightLikes = 1;
+      const weightComments = 2;
+      const weightReposts = 2;
+      const weightTips = 3;
+      const weightBoost = 15;
+      const ageHours = (now - new Date(post.timestamp).getTime()) / 3600000;
+      const recencyDecay = Math.exp(-ageHours / 24);
+      const likes = post.likes || 0;
+      const comments = post.comments || 0;
+      const reposts = post.reposts || 0;
+      const tips = post.tips_total || 0;
+      const engagement =
+        likes * weightLikes +
+        comments * weightComments +
+        reposts * weightReposts +
+        tips * weightTips;
+      const engagementScore = engagement / (1 + ageHours);
+      const boost =
+        post.boosted_until && new Date(post.boosted_until) > new Date()
+          ? weightBoost
+          : 0;
+      const tagScore = post.tags ? post.tags.length * 0.5 : 0;
+      const velocity =
+        (likes + comments * 2 + reposts * 2 + tips * 3) / Math.max(ageHours, 1);
+      const velocityScore = velocity * 0.5;
+      return engagementScore + recencyDecay + boost + tagScore + velocityScore;
+    };
+    return calculateScore(b) - calculateScore(a);
+  });
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// COMPONENTE PRINCIPAL
+// ═══════════════════════════════════════════════════════════════════════
 const FeedPage: React.FC<FeedPageProps> = ({
   posts,
   loading,
@@ -67,7 +112,9 @@ const FeedPage: React.FC<FeedPageProps> = ({
 }) => {
   const { t } = useContext(LanguageContext);
   const { theme } = useContext(ThemeContext);
+  const isDark = theme === "dark";
 
+  // ── Estado upgrade (sin cambios) ──────────────────────────────────────
   const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
   const [selectedTier, setSelectedTier] = useState<"premium" | "premium+" | null>(null);
   const [showSlideModal, setShowSlideModal] = useState(false);
@@ -75,83 +122,216 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [price, setPrice] = useState(0);
 
-  const sortedPosts = [...posts].sort((a, b) => {
-    const now = Date.now();
+  // ── Estado de tabs (NUEVO) ────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<FeedTab>("global");
 
-    const calculateScore = (post: any) => {
-      const weightLikes = 1;
-      const weightComments = 2;
-      const weightReposts = 2;
-      const weightTips = 3;
-      const weightBoost = 15;
+  // Tab: Siguiendo
+  const [followingPosts, setFollowingPosts] = useState<any[]>([]);
+  const [followingLoading, setFollowingLoading] = useState(false);
+  const [followingHasMore, setFollowingHasMore] = useState(true);
+  const followingCursor = useRef<string | null>(null);
+  const followingFetching = useRef(false);
 
-      const ageHours = (now - new Date(post.timestamp).getTime()) / 3600000;
-      const recencyDecay = Math.exp(-ageHours / 24);
-      const likes = post.likes || 0;
-      const comments = post.comments || 0;
-      const reposts = post.reposts || 0;
-      const tips = post.tips_total || 0;
+  // Tab: Mis posts
+  const [minePosts, setMinePosts] = useState<any[]>([]);
+  const [mineLoading, setMineLoading] = useState(false);
+  const [mineHasMore, setMineHasMore] = useState(true);
+  const mineCursor = useRef<string | null>(null);
+  const mineFetching = useRef(false);
 
-      const engagement =
-        likes * weightLikes +
-        comments * weightComments +
-        reposts * weightReposts +
-        tips * weightTips;
+  // Ref del scroll para infinite scroll por tab
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
-      const engagementScore = engagement / (1 + ageHours);
+  // ── Fetch: Siguiendo (cursor-based, escala a 1M+) ─────────────────────
+  const fetchFollowing = useCallback(
+    async (reset = false) => {
+      if (!currentUserId) return;
+      if (followingFetching.current) return;
+      if (!followingHasMore && !reset) return;
 
-      const boost =
-        post.boosted_until && new Date(post.boosted_until) > new Date()
-          ? weightBoost
-          : 0;
+      followingFetching.current = true;
+      if (reset) {
+        followingCursor.current = null;
+        setFollowingPosts([]);
+        setFollowingHasMore(true);
+      }
+      setFollowingLoading(true);
 
-      const tagScore = post.tags ? post.tags.length * 0.5 : 0;
-      const velocity =
-        (likes + comments * 2 + reposts * 2 + tips * 3) / Math.max(ageHours, 1);
-      const velocityScore = velocity * 0.5;
+      try {
+        // 1. Obtener IDs de usuarios seguidos
+        const { data: follows } = await supabase
+          .from("follows")
+          .select("following_id")
+          .eq("follower_id", currentUserId)
+          .limit(500);
 
-      return engagementScore + recencyDecay + boost + tagScore + velocityScore;
+        const ids = (follows || []).map((f: any) => f.following_id);
+
+        if (ids.length === 0) {
+          setFollowingPosts([]);
+          setFollowingHasMore(false);
+          setFollowingLoading(false);
+          followingFetching.current = false;
+          return;
+        }
+
+        // 2. Traer posts de esos usuarios (cursor-based)
+        let query = supabase
+          .from("posts")
+          .select("*")
+          .in("user_id", ids)
+          .order("timestamp", { ascending: false })
+          .limit(TAB_PAGE_SIZE);
+
+        if (followingCursor.current) {
+          query = query.lt("timestamp", followingCursor.current);
+        }
+
+        const { data, error: fetchError } = await query;
+        if (fetchError) throw fetchError;
+
+        const newPosts = data || [];
+        setFollowingPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
+        setFollowingHasMore(newPosts.length === TAB_PAGE_SIZE);
+
+        if (newPosts.length > 0) {
+          followingCursor.current = newPosts[newPosts.length - 1].timestamp;
+        }
+      } catch (err) {
+        console.error("[FeedPage] Error fetching following:", err);
+      } finally {
+        setFollowingLoading(false);
+        followingFetching.current = false;
+      }
+    },
+    [currentUserId, followingHasMore],
+  );
+
+  // ── Fetch: Mis posts (cursor-based, escala a 1M+) ─────────────────────
+  const fetchMine = useCallback(
+    async (reset = false) => {
+      if (!currentUserId) return;
+      if (mineFetching.current) return;
+      if (!mineHasMore && !reset) return;
+
+      mineFetching.current = true;
+      if (reset) {
+        mineCursor.current = null;
+        setMinePosts([]);
+        setMineHasMore(true);
+      }
+      setMineLoading(true);
+
+      try {
+        let query = supabase
+          .from("posts")
+          .select("*")
+          .eq("user_id", currentUserId)
+          .order("timestamp", { ascending: false })
+          .limit(TAB_PAGE_SIZE);
+
+        if (mineCursor.current) {
+          query = query.lt("timestamp", mineCursor.current);
+        }
+
+        const { data, error: fetchError } = await query;
+        if (fetchError) throw fetchError;
+
+        const newPosts = data || [];
+        setMinePosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
+        setMineHasMore(newPosts.length === TAB_PAGE_SIZE);
+
+        if (newPosts.length > 0) {
+          mineCursor.current = newPosts[newPosts.length - 1].timestamp;
+        }
+      } catch (err) {
+        console.error("[FeedPage] Error fetching mine:", err);
+      } finally {
+        setMineLoading(false);
+        mineFetching.current = false;
+      }
+    },
+    [currentUserId, mineHasMore],
+  );
+
+  // ── Cargar tab al cambiar ─────────────────────────────────────────────
+  useEffect(() => {
+    if (activeTab === "following") fetchFollowing(true);
+    if (activeTab === "mine") fetchMine(true);
+  }, [activeTab, currentUserId]);
+
+  // ── Infinite scroll por tab ───────────────────────────────────────────
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let throttle: ReturnType<typeof setTimeout> | null = null;
+
+    const handleScroll = () => {
+      if (throttle) return;
+      throttle = setTimeout(() => {
+        throttle = null;
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        if (scrollTop + clientHeight >= scrollHeight - 250) {
+          if (activeTab === "following") fetchFollowing();
+          if (activeTab === "mine") fetchMine();
+        }
+      }, 150);
     };
 
-    return calculateScore(b) - calculateScore(a);
-  });
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+      if (throttle) clearTimeout(throttle);
+    };
+  }, [activeTab, fetchFollowing, fetchMine]);
 
+  // ── Qué posts mostrar según tab activo ───────────────────────────────
+  const activePosts =
+    activeTab === "global"
+      ? sortPosts(posts)           // comportamiento original intacto
+      : activeTab === "following"
+      ? sortPosts(followingPosts)  // mismo algoritmo de score
+      : sortPosts(minePosts);
+
+  const activeLoading =
+    activeTab === "global"
+      ? loading
+      : activeTab === "following"
+      ? followingLoading
+      : mineLoading;
+
+  const activeHasMore =
+    activeTab === "following"
+      ? followingHasMore
+      : activeTab === "mine"
+      ? mineHasMore
+      : false; // global lo maneja HomePage
+
+  // ── Upgrade logic (sin cambios) ───────────────────────────────────────
   useEffect(() => {
     if (!selectedTier) return;
-
     const fetchSlots = async () => {
       const { count } = await supabase
         .from("upgrades")
         .select("*", { count: "exact", head: true })
         .eq("tier", selectedTier);
-
       const limit = selectedTier === "premium" ? 10000 : 3000;
       const used = count || 0;
-
       const calculatedPrice =
         used < limit
-          ? selectedTier === "premium"
-            ? 10
-            : 15
-          : selectedTier === "premium"
-          ? 20
-          : 35;
-
+          ? selectedTier === "premium" ? 10 : 15
+          : selectedTier === "premium" ? 20 : 35;
       setPrice(calculatedPrice);
     };
-
     fetchSlots();
   }, [selectedTier]);
 
-  const handleUpgrade = () => {
-    setShowUpgradeOptions(true);
-  };
-
+  const handleUpgrade = () => setShowUpgradeOptions(true);
   const selectTier = (tier: "premium" | "premium+") => {
     setSelectedTier(tier);
     setShowSlideModal(true);
   };
-
   const cancelUpgrade = () => {
     setShowSlideModal(false);
     setSelectedTier(null);
@@ -160,24 +340,19 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
   const confirmUpgrade = async () => {
     setUpgradeError(null);
-
     if (!price) {
       setUpgradeError(t ? t("calculando_precio") : "Calculando precio, intenta nuevamente.");
       return;
     }
-
     if (!currentUserId || !selectedTier) {
       setUpgradeError(t ? t("no_usuario_o_tier") : "No se encontró tu ID o tier seleccionado");
       return;
     }
-
     if (!MiniKit.isInstalled()) {
       setUpgradeError(t ? t("minikit_no_detectado") : "MiniKit no detectado dentro de World App");
       return;
     }
-
     setLoadingUpgrade(true);
-
     try {
       const payRes = await MiniKit.commandsAsync.pay({
         reference: "upgrade-" + Date.now(),
@@ -190,49 +365,28 @@ const FeedPage: React.FC<FeedPageProps> = ({
         ],
         description: `Upgrade ${selectedTier}`,
       });
-
-      console.log("[UPGRADE] pay response:", payRes);
-
       if (payRes?.finalPayload?.status !== "success") {
         throw new Error(
-          payRes?.finalPayload?.description ||
-            (t ? t("pago_cancelado") : "Pago cancelado")
+          payRes?.finalPayload?.description || (t ? t("pago_cancelado") : "Pago cancelado"),
         );
       }
-
       const transactionId = payRes?.finalPayload?.transaction_id;
-
       const res = await fetch("/api/upgrade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: currentUserId,
-          tier: selectedTier,
-          transactionId,
-        }),
+        body: JSON.stringify({ userId: currentUserId, tier: selectedTier, transactionId }),
       });
-
       const data = await res.json();
-
       if (!data.success) {
-        throw new Error(
-          data.error || (t ? t("error_upgrade") : "Error al procesar upgrade")
-        );
+        throw new Error(data.error || (t ? t("error_upgrade") : "Error al procesar upgrade"));
       }
-
       setUpgradeError(
-        t
-          ? t("upgrade_exitoso") + ` ${selectedTier}`
-          : `Upgrade ${selectedTier} exitoso`
+        t ? t("upgrade_exitoso") + ` ${selectedTier}` : `Upgrade ${selectedTier} exitoso`,
       );
-
       onUpgradeSuccess?.();
       cancelUpgrade();
     } catch (err: any) {
-      console.error("[UPGRADE] error:", err);
-      setUpgradeError(
-        err.message || (t ? t("error_upgrade") : "Error en el upgrade")
-      );
+      setUpgradeError(err.message || (t ? t("error_upgrade") : "Error en el upgrade"));
     } finally {
       setLoadingUpgrade(false);
     }
@@ -241,26 +395,57 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const isPremiumPlus = selectedTier === "premium+";
   const benefits = isPremiumPlus ? premiumPlusBenefits : premiumBenefits;
 
+  // ─────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────
   return (
     <div
-      className={`flex flex-col p-4 ${
-        theme === "dark" ? "bg-gray-900 text-white" : "bg-white text-black"
-      }`}
+      ref={scrollRef}
+      className={`flex flex-col p-4 ${isDark ? "bg-gray-900 text-white" : "bg-white text-black"}`}
     >
+      {/* ── TABS (NUEVO) ─────────────────────────────────────────── */}
+      <div
+        className={`flex rounded-2xl mb-4 p-1 ${
+          isDark ? "bg-gray-800/60" : "bg-gray-100"
+        }`}
+      >
+        {([
+          { key: "global",    label: "Global" },
+          { key: "following", label: "Siguiendo" },
+          { key: "mine",      label: "Mis posts" },
+        ] as { key: FeedTab; label: string }[]).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === key
+                ? isDark
+                  ? "bg-gray-700 text-white shadow-sm"
+                  : "bg-white text-gray-900 shadow-sm"
+                : isDark
+                ? "text-gray-400 hover:text-gray-200"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── UPGRADE BUTTON (sin cambios) ─────────────────────────── */}
       <div className="mb-6">
         <motion.button
           whileHover={{ scale: 1.02, brightness: 1.1 }}
           whileTap={{ scale: 0.97 }}
           onClick={handleUpgrade}
           className="w-full py-3 rounded-xl font-bold shadow-lg bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 text-white tracking-wide text-base"
-          style={{
-            boxShadow: "0 4px 24px 0 rgba(99,60,220,0.25)",
-          }}
+          style={{ boxShadow: "0 4px 24px 0 rgba(99,60,220,0.25)" }}
         >
           {t ? t("upgrade") : "✦ Upgrade"}
         </motion.button>
       </div>
 
+      {/* ── UPGRADE OPTIONS (sin cambios) ────────────────────────── */}
       <AnimatePresence>
         {showUpgradeOptions && (
           <motion.div
@@ -277,8 +462,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
               onClick={() => selectTier("premium")}
               className="flex-1 py-5 rounded-2xl font-bold flex flex-col items-center gap-2 relative overflow-hidden"
               style={{
-                background:
-                  "linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #a78bfa 100%)",
+                background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #a78bfa 100%)",
                 boxShadow: "0 6px 32px 0 rgba(99,60,220,0.30)",
               }}
             >
@@ -293,8 +477,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
               onClick={() => selectTier("premium+")}
               className="flex-1 py-5 rounded-2xl font-bold flex flex-col items-center gap-2 relative overflow-hidden"
               style={{
-                background:
-                  "linear-gradient(135deg, #b45309 0%, #d97706 40%, #fbbf24 80%, #fde68a 100%)",
+                background: "linear-gradient(135deg, #b45309 0%, #d97706 40%, #fbbf24 80%, #fde68a 100%)",
                 boxShadow: "0 6px 32px 0 rgba(217,119,6,0.35)",
               }}
             >
@@ -306,15 +489,43 @@ const FeedPage: React.FC<FeedPageProps> = ({
         )}
       </AnimatePresence>
 
-      {loading ? (
+      {/* ── POSTS según tab activo ───────────────────────────────── */}
+      {activeLoading && activePosts.length === 0 ? (
         <p className="text-center py-10">{t ? t("cargando") : "Cargando..."}</p>
-      ) : error ? (
+      ) : error && activeTab === "global" ? (
         <p className="text-red-500 text-center py-10">{error}</p>
+      ) : activePosts.length === 0 && !activeLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+          <span className="text-4xl">
+            {activeTab === "following" ? "👥" : activeTab === "mine" ? "✍️" : "🌍"}
+          </span>
+          <p className={`text-sm font-medium ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+            {activeTab === "following"
+              ? "Sigue a alguien para ver sus posts aquí"
+              : activeTab === "mine"
+              ? "Aún no has publicado nada"
+              : "No hay posts todavía"}
+          </p>
+        </div>
       ) : (
         <div className="space-y-5">
-          {sortedPosts?.map((post) => (
+          {activePosts.map((post) => (
             <PostCard key={post.id} post={post} currentUserId={currentUserId} />
           ))}
+
+          {/* Loader de más posts (tabs following/mine) */}
+          {activeLoading && activePosts.length > 0 && (
+            <div className="flex justify-center py-4">
+              <div className="w-5 h-5 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+            </div>
+          )}
+
+          {/* Fin del feed */}
+          {!activeHasMore && activeTab !== "global" && activePosts.length > 0 && (
+            <p className={`text-center text-xs py-6 ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+              — Fin del feed —
+            </p>
+          )}
         </div>
       )}
 
@@ -322,6 +533,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
         <p className="text-red-500 text-center py-4">{upgradeError}</p>
       )}
 
+      {/* ── MODAL UPGRADE (sin cambios) ──────────────────────────── */}
       <AnimatePresence>
         {showSlideModal && selectedTier && (
           <motion.div
@@ -332,9 +544,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-50 flex items-center justify-center px-3"
             style={{ backdropFilter: "blur(16px)", background: "rgba(0,0,0,0.72)" }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) cancelUpgrade();
-            }}
+            onClick={(e) => { if (e.target === e.currentTarget) cancelUpgrade(); }}
           >
             <motion.div
               key="modal-content"
@@ -388,9 +598,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
                   </motion.div>
 
                   <h2 className="text-2xl font-extrabold text-white text-center leading-tight mb-1">
-                    {isPremiumPlus
-                      ? "¡Conviértete en Premium+!"
-                      : "¡Desbloquea Premium!"}
+                    {isPremiumPlus ? "¡Conviértete en Premium+!" : "¡Desbloquea Premium!"}
                   </h2>
                   <p
                     className="text-sm text-center font-medium"
@@ -467,9 +675,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
                   }}
                 >
                   {loadingUpgrade
-                    ? t
-                      ? t("procesando")
-                      : "Procesando..."
+                    ? t ? t("procesando") : "Procesando..."
                     : `Aceptar y pagar ${price ? `${price} WLD` : ""}`}
                 </motion.button>
 
