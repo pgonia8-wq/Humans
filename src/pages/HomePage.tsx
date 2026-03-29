@@ -341,10 +341,13 @@ const HomePage: React.FC<HomePageProps> = ({
       }, ...prev]);
 
       const session = await supabase.auth.getSession();
-      const { error } = await supabase.functions.invoke("publish-post-user", {
-        body: { content: newPostContent, image_url: imageUrl },
-        headers: { Authorization: `Bearer ${session.data.session?.access_token}` },
-      });
+      const { data, error } = await supabase.functions.invoke("publish-post-user", {
+  body: { content: newPostContent, image_url: imageUrl },
+  headers: { Authorization: `Bearer ${session.data.session?.access_token}` },
+});
+
+console.log("FUNCTION RESPONSE:", data);
+console.log("FUNCTION ERROR:", error);
       if (error) throw error;
 
       setShowNewPostModal(false);
