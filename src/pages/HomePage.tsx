@@ -132,7 +132,7 @@ const HomePage: React.FC<HomePageProps> = ({
 
     try {
       let query = supabase
-        .from("post")
+        .from("posts")
         .select("*")
         .eq("user_id", userIdRef.current)
         .order("timestamp", { ascending: false })
@@ -243,7 +243,7 @@ const HomePage: React.FC<HomePageProps> = ({
       .channel(`feed:${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "feed", filter: `user_id=eq.${userId}` },
+        { event: "INSERT", schema: "public", table: "posts", filter: `user_id=eq.${userId}` },
         (payload) => {
           setPosts((prev) => {
             if (prev.some((p) => p.id === payload.new.id)) return prev;
@@ -258,7 +258,7 @@ const HomePage: React.FC<HomePageProps> = ({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public",  table: "post", filter: `user_id=eq.${userId}` },
+        { event: "UPDATE", schema: "public", table: "posts", filter: `user_id=eq.${userId}` },
         (payload) => {
           setPosts((prev) => prev.map((p) => p.id === payload.new.id ? payload.new : p));
         }
