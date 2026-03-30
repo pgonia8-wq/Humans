@@ -32,6 +32,8 @@ interface FeedPageProps {
   currentUserId: string | null;
   userTier: "free" | "basic" | "premium" | "premium+";
   onUpgradeSuccess?: () => void;
+  onLoadMoreGlobal?: (reset?: boolean) => void;
+  globalHasMore?: boolean;
 }
 
 type FeedTab = "global" | "following" | "mine";
@@ -109,6 +111,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
   currentUserId,
   userTier,
   onUpgradeSuccess,
+  onLoadMoreGlobal,
+  globalHasMore,
 }) => {
   const { t } = useContext(LanguageContext);
   const { theme } = useContext(ThemeContext);
@@ -258,6 +262,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
   useEffect(() => {
     if (activeTab === "following") fetchFollowing(true);
     if (activeTab === "mine") fetchMine(true);
+    if (activeTab === "global") onLoadMoreGlobal?.();
   }, [activeTab, currentUserId]);
 
   // ── Infinite scroll por tab ───────────────────────────────────────────
@@ -302,12 +307,11 @@ const FeedPage: React.FC<FeedPageProps> = ({
       : mineLoading;
 
   const activeHasMore =
-    activeTab === "following"
-      ? followingHasMore
-      : activeTab === "mine"
-      ? mineHasMore
-      : false; // global lo maneja HomePage
-
+  activeTab === "following"
+    ? followingHasMore
+    : activeTab === "mine"
+    ? mineHasMore
+    : globalHasMore;
   // ── Upgrade logic (sin cambios) ───────────────────────────────────────
   useEffect(() => {
     if (!selectedTier) return;
