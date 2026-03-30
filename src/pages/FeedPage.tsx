@@ -128,7 +128,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
   // ── Estado de tabs (NUEVO) ────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<FeedTab>("global");
-
+  const loaderRef = useRef<HTMLDivElement | null>(null);
   // Tab: Siguiendo
   const [followingPosts, setFollowingPosts] = useState<any[]>([]);
   const [followingLoading, setFollowingLoading] = useState(false);
@@ -291,6 +291,33 @@ const FeedPage: React.FC<FeedPageProps> = ({
     };
   }, [activeTab, fetchFollowing, fetchMine]);
 
+    useEffect(() => {
+  if (activeTab !== "global") return;
+  if (!onLoadMoreGlobal) return;
+  if (!globalHasMore) return;
+
+  const observer = new IntersectionObserver(
+  (entries) => {
+    const first = entries[0];
+
+    if (first.isIntersecting) {
+      onLoadMoreGlobal();
+    }
+  },
+  {
+    root: scrollRef.current, // 🔥 IMPORTANTE
+    rootMargin: "200px",
+    threshold: 0,
+  }
+);
+
+  const current = loaderRef.current;
+  if (current) observer.observe(current);
+
+  return () => {
+    if (current) observer.unobserve(current);
+  };
+}, [activeTab, onLoadMoreGlobal, globalHasMore]);
   // ── Qué posts mostrar según tab activo ───────────────────────────────
   const activePosts =
     activeTab === "global"
@@ -516,6 +543,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
           {activePosts.map((post) => (
             <PostCard key={post.id} post={post} currentUserId={currentUserId} />
           ))}
+          {activeTab === "global" && <div ref={loaderRef} className="h-10" />}
+
 
           {/* Loader de más posts (tabs following/mine) */}
           {activeLoading && activePosts.length > 0 && (
@@ -523,6 +552,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
               <div className="w-5 h-5 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
             </div>
           )}
+  
 
           {/* Fin del feed */}
           {!activeHasMore && activeTab !== "global" && activePosts.length > 0 && (
