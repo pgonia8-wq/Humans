@@ -1,4 +1,4 @@
-import { supabase } from "../supabaseClient.mjs";
+import { supabase } from "../supabaseClient.ts";
 import { nanoid } from "nanoid";
 
 const PREMIUM_LIMIT = 10000;
