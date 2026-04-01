@@ -101,13 +101,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [blocked, setBlocked] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
 
-  // CORRECCIÓN F5: handleSend era un placeholder sin funcionalidad.
-  // El chat usa GlobalChatRoom que maneja su propio estado de mensajes.
-  // Estado para abrir el perfil del autor del post como modal (F4)
   const [profileModalUserId, setProfileModalUserId] = useState<string | null>(null);
 
   // [E5] Corregido: usar .limit(1) en lugar de .maybeSingle() para evitar error
-  // cuando el usuario tiene múltiples suscripciones (chat_classic + chat_gold)
   useEffect(() => {
     const checkChatAccess = async () => {
       if (!currentUserId) {
@@ -250,8 +246,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     );
     observer.observe(postRef.current);
     return () => observer.disconnect();
-  // [E2] Corregido: eliminado `t` de las dependencias — no tiene relación con el observer
-  // y causaba que se re-creara (y potencialmente re-registrara impresiones) al cambiar idioma
+  // [E2] Corregido: eliminado `t` de las dependencias
   }, [post.id]);
 
   useEffect(() => {
@@ -515,8 +510,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             boosted_until: new Date(Date.now() + 86400000).toISOString()
           })
           .eq("id", post.id);
-        // [E12] Corregido: no hay estado local is_boosted en props, pero al menos
-        // se puede mostrar un feedback visual claro al usuario
       } else {
         setError(t("pago_cancelado"));
       }
@@ -645,8 +638,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // CORRECCIÓN F4: window.location.href causaba recarga de página completa y navegaba
-  // a una ruta inexistente. Ahora abre el ProfileModal en su lugar.
   const openUserProfile = () => {
     setProfileModalUserId(post.user_id);
   };
@@ -665,7 +656,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const isDark = theme === "dark";
 
   if (blocked) return (
-    <div className={`px-4 py-3 border-b flex items-center justify-between gap-3 text-sm ${isDark ? "bg-black border-gray-800" : "bg-white border-gray-100"}`}>
+    <div className={`w-full max-w-full px-4 py-3 border-b flex items-center justify-between gap-3 text-sm ${isDark ? "bg-black border-gray-800" : "bg-white border-gray-100"}`}>
       <span className={isDark ? "text-gray-600" : "text-gray-400"}>
         Has bloqueado a este usuario.
       </span>
@@ -686,29 +677,28 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     <div
       ref={postRef}
       className={`
-        relative px-4 py-4 mb-0
+        relative w-full max-w-full overflow-hidden px-4 py-4 mb-0
         border-b transition-colors
         ${isDark
           ? "bg-black border-gray-800 hover:bg-gray-950"
           : "bg-white border-gray-100 hover:bg-gray-50"
         }
       `}
-      // [E14] Registrar click en anuncio al interactuar con la tarjeta
       onClick={isAd ? handleAdClick : undefined}
     >
 
       {/* Repost banner */}
       {post.reposted_post_id && (
         <div className="flex items-center gap-2 mb-3 ml-10 text-xs text-gray-500 font-medium">
-          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
             <path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z" />
           </svg>
-          <span>Reposteado por <b>@{postProfile?.username}</b></span>
+          <span className="truncate">Reposteado por <b>@{postProfile?.username}</b></span>
         </div>
       )}
 
       {/* Header */}
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 min-w-0">
         {/* Avatar */}
         <div
           className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 cursor-pointer ring-2 ring-transparent hover:ring-purple-500 transition"
@@ -731,10 +721,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         {/* Body */}
         <div className="flex-1 min-w-0">
           {/* Author row */}
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center justify-between gap-2 flex-wrap min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
               <span
-                className={`font-bold text-sm leading-tight cursor-pointer hover:underline ${isDark ? "text-white" : "text-gray-900"}`}
+                className={`font-bold text-sm leading-tight cursor-pointer hover:underline truncate ${isDark ? "text-white" : "text-gray-900"}`}
                 onClick={openUserProfile}
               >
                 {postProfile?.username}
@@ -742,7 +732,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                   <span className="ml-1 text-xs font-normal text-gray-500">(Tú)</span>
                 )}
               </span>
-              <span className="text-gray-500 text-sm">@{postProfile?.username}</span>
+              <span className="text-gray-500 text-sm truncate">@{postProfile?.username}</span>
               <span className="text-gray-500 text-xs">·</span>
               <span className="text-gray-500 text-xs flex-shrink-0">{getRelativeTime(post.timestamp)}</span>
             </div>
@@ -751,7 +741,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               <button
                 onClick={toggleFollow}
                 className={`
-                  ml-auto px-3 py-1 rounded-full text-xs font-semibold border transition-all
+                  ml-auto flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all
                   ${isFollowing
                     ? isDark
                       ? "border-gray-600 text-gray-300 hover:border-red-500 hover:text-red-400 hover:bg-red-500/10"
@@ -793,14 +783,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               <p className={`font-semibold text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
                 @{originalPost.username || "usuario"}
               </p>
-              <p className={isDark ? "text-gray-300" : "text-gray-700"}>
+              <p className={`break-words ${isDark ? "text-gray-300" : "text-gray-700"}`}>
                 {originalPost.content}
               </p>
             </div>
           )}
 
           {/* Action bar */}
-          <div className="flex items-center gap-1 mt-3 -ml-1">
+          <div className="flex items-center flex-wrap gap-1 mt-3 -ml-1">
             {/* Like */}
             <button
               onClick={handleLike}
@@ -967,7 +957,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 onChange={(e) => setCommentInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleComment(); }}
                 placeholder={t("escribe_comentario")}
-                className={`flex-1 text-sm px-3 py-2 rounded-xl border focus:outline-none focus:ring-1 focus:ring-purple-500 transition ${
+                className={`flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border focus:outline-none focus:ring-1 focus:ring-purple-500 transition ${
                   isDark
                     ? "bg-gray-900 border-gray-700 text-white placeholder-gray-600"
                     : "bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400"
@@ -976,7 +966,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               <button
                 onClick={handleComment}
                 disabled={loadingAction === "comment" || !commentInput.trim()}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold rounded-xl transition"
+                className="flex-shrink-0 px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold rounded-xl transition"
               >
                 {loadingAction === "comment" ? "..." : t("send") || "Enviar"}
               </button>
@@ -1002,7 +992,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <span className={`text-xs font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>{c.profiles?.username || "Usuario"}</span>
-                      <p className={`text-xs mt-0.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{c.content}</p>
+                      <p className={`text-xs mt-0.5 break-words ${isDark ? "text-gray-400" : "text-gray-600"}`}>{c.content}</p>
                     </div>
                   </div>
                 ))
@@ -1066,9 +1056,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                   </button>
                 ))}
 
-                {/* [E11] Corregido: el textarea siempre acepta texto personalizado.
-                    Ya no se fuerza value="" cuando hay una razón predefinida seleccionada.
-                    El usuario puede añadir descripción adicional independientemente de la razón elegida. */}
+                {/* [E11] Corregido: el textarea siempre acepta texto personalizado. */}
                 <textarea
                   value={reportReason && ["Contenido inapropiado","Spam o publicidad","Acoso o bullying","Información falsa","Otro"].includes(reportReason) ? "" : reportReason}
                   onChange={(e) => setReportReason(e.target.value)}
@@ -1165,9 +1153,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      {/* ProfileModal — CORRECCIÓN F4: abre el perfil como modal en lugar de navegar
-          [E15] Corregido: se pasa currentUserId para indicar el perfil a mostrar,
-          no existe prop "id" en ProfileModal según la firma del componente */}
+      {/* ProfileModal — CORRECCIÓN F4 */}
       {profileModalUserId && (
         <ProfileModal
           currentUserId={profileModalUserId}
