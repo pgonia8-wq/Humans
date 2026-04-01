@@ -107,8 +107,28 @@ const App = () => {
 
         console.log("[APP] walletAuth result:", auth);
 
-        const address =
-          auth?.finalPayload?.address || auth?.finalPayload?.wallet_address || null;
+        const finalPayload = auth?.finalPayload;
+        const address = finalPayload?.address || finalPayload?.wallet_address || null;
+
+        // Error #2 corregido: verificar en el backend que el nonce fue emitido por nosotros
+        if (finalPayload?.status === "success" && nonce) {
+          try {
+            const walletVerifyRes = await fetch("/api/walletVerify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ nonce, address: address || "", status: finalPayload.status }),
+            });
+            if (!walletVerifyRes.ok) {
+              const errData = await walletVerifyRes.json().catch(() => ({}));
+              console.error("[APP] Backend rechazó walletVerify:", errData);
+              throw new Error(errData.error || "Verificación de wallet fallida en el backend");
+            }
+            console.log("[APP] WalletVerify: nonce y wallet validados en backend");
+          } catch (verifyErr) {
+            console.error("[APP] Error en walletVerify:", verifyErr);
+            throw verifyErr;
+          }
+        }
 
         if (address) {
           setWallet(address);
