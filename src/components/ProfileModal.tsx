@@ -4,7 +4,6 @@ import { ThemeContext } from "../lib/ThemeContext";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import Dashboard from "../../dashboard/src/Dashboard";
 import { useLanguage } from '../LanguageContext';
-// npm install country-state-city
 import { Country, State, City } from "country-state-city";
 
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
@@ -284,7 +283,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     if (!complaintMessage.trim()) return;
     setSendingComplaint(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       const res = await fetch(
         "https://vtjqfzpfehfofamhowjz.supabase.co/functions/v1/send-complaint",
@@ -292,8 +291,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${anonKey}`,
+            "apikey": anonKey,
           },
           body: JSON.stringify({
             message: complaintMessage,
@@ -361,10 +360,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     "basic": "bg-blue-600 text-white",
     "free": "bg-gray-600 text-white",
   };
- 
+
   return (
     <>
-      {/* Overlay */}
       <div
         className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 px-2 overflow-y-auto pt-6 pb-10"
         onClick={onClose}
@@ -373,7 +371,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           className="bg-gray-950 rounded-3xl w-full max-w-lg border border-white/10 relative overflow-hidden shadow-2xl"
           onClick={e => e.stopPropagation()}
         >
-          {/* Cover / Header gradient */}
           <div className="h-28 bg-gradient-to-br from-purple-900 via-indigo-900 to-gray-900 relative">
             <button
               onClick={onClose}
@@ -389,7 +386,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             </span>
           </div>
 
-          {/* Avatar overlapping cover */}
           <div className="px-5 pb-0">
             <div className="flex items-end justify-between -mt-14 mb-3">
               <div className="relative">
@@ -440,7 +436,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               )}
             </div>
 
-            {/* Name & username */}
             {loading ? (
               <p className="text-white text-center py-8">{t("cargando_perfil")}</p>
             ) : (
@@ -450,19 +445,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   {profile.name ? <p className="text-gray-400 text-sm">{profile.name}</p> : null}
                 </div>
 
-                {/* Bio preview (when not empty) */}
                 {profile.bio ? (
                   <p className="text-gray-300 text-sm mb-2 leading-snug">{profile.bio}</p>
                 ) : null}
 
-                {/* Location quick info */}
                 {(profile.city || selectedCountryObj?.name) && (
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-4">
                     <span>📍 {[profile.city, selectedCountryObj?.name].filter(Boolean).join(", ")}</span>
                   </div>
                 )}
 
-                {/* Stats row */}
                 <div className="flex gap-6 text-center border-y border-white/10 py-3 mb-5">
                   <div>
                     <p className="text-white font-bold text-base">{profile.posts_count}</p>
@@ -478,7 +470,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                 </div>
 
-                {/* Tabs */}
                 <div className="flex border-b border-white/10 mb-5">
                   <button
                     className={`flex-1 pb-2 text-sm font-medium transition ${activeTab === "info" ? "text-purple-400 border-b-2 border-purple-500" : "text-gray-500 hover:text-gray-300"}`}
@@ -494,10 +485,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   </button>
                 </div>
 
-                {/* ── TAB: INFO ── */}
                 {activeTab === "info" && (
                   <div className="space-y-4 pb-2">
-                    {/* Nombre visible */}
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">{t("nombre") || "Nombre visible"}</label>
                       <input
@@ -509,7 +498,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                       />
                     </div>
 
-                    {/* Bio */}
                     <div>
                       <div className="flex justify-between mb-1">
                         <label className="text-xs text-gray-500">{t("biografia") || "Biografía"}</label>
@@ -528,7 +516,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                       />
                     </div>
 
-                    {/* Fecha de nacimiento */}
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">{t("fecha_nacimiento")}</label>
                       <input
@@ -539,7 +526,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                       />
                     </div>
 
-                    {/* Perfil visible */}
                     <div className="flex items-center justify-between bg-gray-900 border border-white/10 rounded-xl px-4 py-3">
                       <label className="text-sm text-gray-300">{t("perfil_visible") || "Perfil visible"}</label>
                       <button
@@ -554,10 +540,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                 )}
 
-                {/* ── TAB: UBICACIÓN ── */}
                 {activeTab === "location" && (
                   <div className="space-y-4 pb-2">
-                    {/* Texto libre de ubicación */}
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">{t("ubicacion_texto") || "Descripción de ubicación"}</label>
                       <input
@@ -569,7 +553,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                       />
                     </div>
 
-                    {/* País */}
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">{t("pais") || "País"}</label>
                       {isCountryLocked() ? (
@@ -605,7 +588,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                       )}
                     </div>
 
-                    {/* Estado / Provincia */}
                     {profile.country && states.length > 0 && (
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">{t("estado") || "Estado / Provincia"}</label>
@@ -626,7 +608,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                       </div>
                     )}
 
-                    {/* Ciudad */}
                     {profile.state && cities.length > 0 && (
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">{t("ciudad") || "Ciudad"}</label>
@@ -645,20 +626,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                 )}
 
-                {/* ── BOTON DE DASHBOARD ── */}
-                
-                 
                 <button
-  onClick={(e) => {
-    e.stopPropagation();
-    setShowDashboard(true);
-  }}
-  className="mt-4 w-full bg-purple-600 text-white py-2 rounded-xl font-semibold"
->
-  Creator Dashboard
-</button>
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDashboard(true);
+                  }}
+                  className="mt-4 w-full bg-purple-600 text-white py-2 rounded-xl font-semibold"
+                >
+                  Creator Dashboard
+                </button>
 
-                {/* ── BOTONES DE ACCIÓN ── */}
                 <div className="space-y-3 mt-5 pb-5">
                   <div className="flex gap-3">
                     <button
@@ -699,7 +676,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
       </div>
 
-      {/* ── MODAL QUEJAS Y SUGERENCIAS ── */}
       {showComplaintModal && (
         <div
           className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[60] px-4"
@@ -744,34 +720,32 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
       )}
 
- {/* Toast */}
-    {toast && (
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4">
-        <div className="px-5 py-3 rounded-2xl text-sm font-medium shadow-xl">
-          {toast.message}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4">
+          <div className="px-5 py-3 rounded-2xl text-sm font-medium shadow-xl">
+            {toast.message}
+          </div>
         </div>
-      </div>
-    )}
+      )}
 
-    {/* 🔥 DASHBOARD */}
-    {showDashboard && (
-      <div
-        className="fixed inset-0 z-[9999] bg-black"
-        onClick={() => setShowDashboard(false)}
-      >
+      {showDashboard && (
         <div
-          className="w-full h-full"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-[9999] bg-black"
+          onClick={() => setShowDashboard(false)}
         >
-          <Dashboard
-  currentUserId={currentUserId}
-  onClose={() => setShowDashboard(false)}
-/>
+          <div
+            className="w-full h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Dashboard
+              currentUserId={currentUserId}
+              onClose={() => setShowDashboard(false)}
+            />
+          </div>
         </div>
-      </div>
-    )}
-  </>
-);
+      )}
+    </>
+  );
 };
 
 export default ProfileModal;
