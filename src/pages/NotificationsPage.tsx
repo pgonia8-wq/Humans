@@ -1,3 +1,6 @@
+// Error #6 corregido: se reemplaza la API de Supabase Realtime v1 deprecada
+// (.on().subscribe() y removeSubscription()) por la API v2 correcta (.channel().on().subscribe())
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
@@ -10,16 +13,25 @@ const NotificationsPage: React.FC = () => {
         .from('notifications')
         .select('*')
         .order('created_at', { ascending: false });
-      if (!error) setNotifications(data);
+      if (!error && data) setNotifications(data);
     };
+
     fetchNotifications();
 
-    const subscription = supabase
-      .from('notifications')
-      .on('INSERT', () => fetchNotifications())
+    // API v2 correcta de Supabase Realtime
+    const channel = supabase
+      .channel('notifications-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
+        () => fetchNotifications()
+      )
       .subscribe();
 
-    return () => supabase.removeSubscription(subscription);
+    // Cleanup con la API v2 correcta
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (
