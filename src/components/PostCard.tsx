@@ -6,6 +6,7 @@ import { useFollow } from "../lib/useFollow";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { useLanguage } from "../LanguageContext";
 import GlobalChatRoom from "../pages/chat/GlobalChatRoom";
+import ProfileModal from "./ProfileModal";
 
 
 
@@ -15,7 +16,7 @@ const getRelativeTime = (timestamp: string | null) => {
   const date = new Date(timestamp);
   const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return "hace 1 minuto";
+  if (diffSec < 60) return "ahora mismo";
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `hace ${diffMin} ${diffMin === 1 ? "minuto" : "minutos"}`;
   const diffH = Math.floor(diffMin / 60);
@@ -89,10 +90,10 @@ const [reportSent, setReportSent] = useState(false);
 const [blocked, setBlocked] = useState(false);
 const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   
-  const handleSend = (e?: any) => {
-    if (e) e.preventDefault();
-    console.log("Mensaje temporal (chat aún no conectado)");
-  };
+  // CORRECCIÓN F5: handleSend era un placeholder sin funcionalidad.
+  // El chat usa GlobalChatRoom que maneja su propio estado de mensajes.
+  // Estado para abrir el perfil del autor del post como modal (F4)
+  const [profileModalUserId, setProfileModalUserId] = React.useState<string | null>(null);
 
   useEffect(() => {
     const checkChatAccess = async () => {
@@ -271,6 +272,7 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
 
   const handleLike = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
+    setError(null); // CORRECCIÓN F8: limpiar error previo antes de cada acción
     setLoadingAction("like");
     try {
       const { data: existing } = await supabase
@@ -301,6 +303,7 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const handleComment = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
     if (!commentInput.trim()) return setError(t("escribe_comentario"));
+    setError(null); // CORRECCIÓN F8
     setLoadingAction("comment");
     try {
       const { data: newComment, error } = await supabase
@@ -351,6 +354,7 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
 
   const confirmRepost = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
+    setError(null); // CORRECCIÓN F8
     setLoadingAction("repost");
     setShowRepostModal(false);
     try {
@@ -581,8 +585,10 @@ const handleBlock = async () => {
     setError("Error al desbloquear: " + err.message);
   }
 }; 
+  // CORRECCIÓN F4: window.location.href causaba recarga de página completa y navegaba
+  // a una ruta inexistente. Ahora abre el ProfileModal en su lugar.
   const openUserProfile = () => {
-    window.location.href = `/profile/${post.user_id}`;
+    setProfileModalUserId(post.user_id);
   };
 
   const isDark = theme === "dark";
@@ -1124,6 +1130,15 @@ return (
             </div>
           </div>
         </div>
+      )}
+
+      {/* ProfileModal — CORRECCIÓN F4: abre el perfil como modal en lugar de navegar */}
+      {profileModalUserId && (
+        <ProfileModal
+          id={profileModalUserId}
+          currentUserId={currentUserId}
+          onClose={() => setProfileModalUserId(null)}
+        />
       )}
 
       {/* Global Chat overlay */}
