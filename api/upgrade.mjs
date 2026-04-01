@@ -1,117 +1,103 @@
-// Error #1 corregido: este endpoint faltaba completamente.
-// Verifica el pago con Worldcoin antes de actualizar el tier del usuario.
+import { supabase } from "../supabaseClient.mjs";
+import { nanoid } from "nanoid";
 
-import { createClient } from "@supabase/supabase-js";
+const PREMIUM_LIMIT = 10000;
+const PREMIUM_PLUS_LIMIT = 3000;
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Obtiene precio dinámico
+async function getUpgradePrice(tier) {
+  if (tier === "premium") {
+    const { count } = await supabase
+      .from("upgrades")
+      .select("*", { count: "exact" })
+      .eq("tier", "premium");
+    return count < PREMIUM_LIMIT ? 10 : 20;
+  } else {
+    const { count } = await supabase
+      .from("upgrades")
+      .select("*", { count: "exact" })
+      .eq("tier", "premium+");
+    return count < PREMIUM_PLUS_LIMIT ? 15 : 35;
+  }
+}
 
-const APP_ID = "app_6a98c88249208506dcd4e04b529111fc";
-const VALID_TIERS = ["premium", "premium+"];
+// Crea token de referido
+async function createReferralToken(userId) {
+  const token = nanoid(10);
+  const { error } = await supabase.from("referral_tokens").insert({
+    token,
+    created_by: userId,
+    tier: "premium",
+    boost_limit: 1,
+    tips_allowed: false,
+    created_at: new Date().toISOString(),
+  });
 
+  if (error) throw error;
+  return token;
+}
+
+// Verifica tx on chain (Etherscan API for Optimism)
+async function verifyTxOnChain(transactionId) {
+  const apiKey = "B7PCP5XSYD41ZDT96PZ8R1X15CDH5H2US1";  // ← obtén gratis en https://optimistic.etherscan.io/myapikey
+  const res = await fetch(`https://api-optimistic.etherscan.io/api?module=transaction&action=gettxreceiptstatus&txhash=\( {transactionId}&apikey= \){apiKey}`);
+  const data = await res.json();
+  return data.status === "1" && data.result === "1";  // 1 = success
+}
+
+// Handler principal
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "GET" && req.query.getPrice === "true") {
+    const tier = req.query.tier;
+    if (!tier) return res.status(400).json({ success: false, error: "Missing tier" });
+    const price = await getUpgradePrice(tier);
+    return res.status(200).json({ success: true, price });
+  }
 
-  if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const { userId, tier, transactionId } = req.body || {};
+  const body = req.body || {};
+  const { userId, tier, transactionId } = body;
 
   if (!userId || !tier || !transactionId) {
-    return res.status(400).json({ success: false, error: "userId, tier y transactionId son requeridos" });
+    return res.status(400).json({ success: false, error: "Missing required fields" });
   }
 
-  if (!VALID_TIERS.includes(tier)) {
-    return res.status(400).json({ success: false, error: "Tier inválido. Debe ser 'premium' o 'premium+'" });
-  }
-
-  console.log("[UPGRADE] Verificando transacción con Worldcoin:", transactionId);
-
-  // Paso 1: Verificar que la transacción existe y está confirmada con Worldcoin
   try {
-    const verifyRes = await fetch(
-      `https://developer.worldcoin.org/api/v2/minikit/transaction/${transactionId}?app_id=${APP_ID}`,
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-
-    if (!verifyRes.ok) {
-      const errText = await verifyRes.text();
-      console.error("[UPGRADE] Error al consultar transacción:", errText);
-      return res.status(400).json({ success: false, error: "No se pudo verificar la transacción con Worldcoin" });
+    // Verificar tx on chain
+    const isTxSuccess = await verifyTxOnChain(transactionId);
+    if (!isTxSuccess) {
+      return res.status(400).json({ success: false, error: "Transacción no exitosa on chain" });
     }
 
-    const txData = await verifyRes.json();
-    console.log("[UPGRADE] Datos de transacción:", txData);
+    const price = await getUpgradePrice(tier);
 
-    if (txData.transaction_status !== "mined") {
-      console.warn("[UPGRADE] Transacción no minada. Status:", txData.transaction_status);
-      return res.status(402).json({
-        success: false,
-        error: `Transacción no confirmada aún (estado: ${txData.transaction_status}). Intenta en unos segundos.`,
-      });
-    }
+    // Insert upgrade
+    const { error: insertError } = await supabase.from("upgrades").insert({
+      user_id: userId,
+      tier,
+      price,
+      start_date: new Date().toISOString(),
+      transaction_id: transactionId,
+    });
 
-    // Verificar que el destinatario es nuestro receiver address
-    const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
-    if (txData.to?.toLowerCase() !== RECEIVER.toLowerCase()) {
-      console.error("[UPGRADE] Destinatario de transacción no coincide:", txData.to);
-      return res.status(400).json({ success: false, error: "La transacción no corresponde a este servicio" });
-    }
-  } catch (err) {
-    console.error("[UPGRADE] Error verificando transacción:", err);
-    return res.status(500).json({ success: false, error: "Error al contactar Worldcoin" });
-  }
+    if (insertError) throw insertError;
 
-  // Paso 2: Actualizar el tier en Supabase y registrar el upgrade
-  try {
-    // Verificar que el usuario existe
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, tier")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (profileError) throw profileError;
-    if (!profile) {
-      return res.status(404).json({ success: false, error: "Usuario no encontrado" });
-    }
-
-    // Actualizar tier
+    // Update profiles.tier
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({ tier, updated_at: new Date().toISOString() })
+      .update({ tier })
       .eq("id", userId);
 
     if (updateError) throw updateError;
 
-    // Registrar en tabla upgrades para llevar control
-    const { error: upgradeError } = await supabase
-      .from("upgrades")
-      .insert({
-        user_id: userId,
-        tier,
-        transaction_id: transactionId,
-        upgraded_at: new Date().toISOString(),
-      });
+    const newReferralToken = await createReferralToken(userId);
 
-    if (upgradeError) {
-      // No falla si la inserción en upgrades falla (puede ser por duplicado)
-      console.warn("[UPGRADE] Warning al registrar upgrade (puede ser duplicado):", upgradeError.message);
-    }
-
-    console.log("[UPGRADE] Upgrade exitoso para userId:", userId, "→ tier:", tier);
-    return res.status(200).json({ success: true, tier });
+    return res.status(200).json({ success: true, price, referralToken: newReferralToken });
   } catch (err) {
-    console.error("[UPGRADE] Error en Supabase:", err);
-    return res.status(500).json({ success: false, error: err.message || "Error al procesar upgrade" });
+    console.error("[BACKEND] Error:", err);
+    return res.status(500).json({ success: false, error: err.message || "Server error" });
   }
-}
+      }
