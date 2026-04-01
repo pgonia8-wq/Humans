@@ -100,6 +100,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [reportSent, setReportSent] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState(false);
 
   const [profileModalUserId, setProfileModalUserId] = useState<string | null>(null);
 
@@ -309,13 +310,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         await supabase.from("likes").delete().eq("id", existing.id);
         await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
         setLiked(false);
-        // [E7] Corregido: usar forma funcional para evitar cierre obsoleto
         setLikes((prev: number) => prev - 1);
       } else {
         await supabase.from("likes").insert({ post_id: post.id, user_id: currentUserId });
         await supabase.from("posts").update({ likes: likes + 1 }).eq("id", post.id);
         setLiked(true);
-        // [E7] Corregido: usar forma funcional para evitar cierre obsoleto
         setLikes((prev: number) => prev + 1);
       }
     } catch (err: any) {
@@ -350,9 +349,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       setCommentInput("");
       setShowCommentInput(false);
-      // [E9] Corregido: mostrar la sección de comentarios tras publicar uno
       setShowComments(true);
-      // [E8] Corregido: usar forma funcional para evitar cierre obsoleto con commentsList
       setComments((prev: number) => prev + 1);
 
       const { data: profileData } = await supabase
@@ -361,7 +358,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         .eq("id", currentUserId)
         .single();
 
-      // [E8] Corregido: forma funcional del setter
       setCommentsList((prev) => [
         { ...newComment, profiles: profileData },
         ...prev,
@@ -409,7 +405,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const confirmQuote = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
     if (!quoteInput.trim()) return setError(t("escribe_para_citar"));
-    // [E10] Corregido: limpiar error previo antes de ejecutar la acción
     setError(null);
     setLoadingAction("repost");
     setShowRepostModal(false);
@@ -444,7 +439,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       setLoadingAction(null);
       return;
     }
-    // [E4] Corregido: verificar que World App está disponible antes de llamar a pay
     if (!MiniKit.isInstalled()) {
       setError("World App no detectada. Abre esta app desde World App.");
       setLoadingAction(null);
@@ -453,7 +447,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     try {
       const amount = Number(tipAmount);
       const payRes = await MiniKit.commandsAsync.pay({
-        // [E3] Corregido: reference debe ser UUID v4 válido
         reference: generatePayReference(),
         to: RECEIVER,
         tokens: [
@@ -479,7 +472,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const handleBoost = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
 
-    // [E4] Corregido: verificar que World App está disponible antes de llamar a pay
     if (!MiniKit.isInstalled()) {
       setError("World App no detectada. Abre esta app desde World App.");
       return;
@@ -490,7 +482,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
     try {
       const payRes = await MiniKit.commandsAsync.pay({
-        // [E3] Corregido: reference debe ser UUID v4 válido
         reference: generatePayReference(),
         to: RECEIVER,
         tokens: [
@@ -536,7 +527,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       setShowGlobalChat(true);
       return;
     }
-    // [E4] Corregido: verificar que World App está disponible antes de llamar a pay
     if (!MiniKit.isInstalled()) {
       setError("World App no detectada. Abre esta app desde World App.");
       return;
@@ -546,7 +536,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     try {
       console.log("Iniciando pago para chat exclusivo...");
       const payRes = await MiniKit.commandsAsync.pay({
-        // [E3] Corregido: reference debe ser UUID v4 válido
         reference: generatePayReference(),
         to: RECEIVER,
         tokens: [
@@ -677,7 +666,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     <div
       ref={postRef}
       className={`
-        relative w-full max-w-full overflow-hidden px-4 py-4 mb-0
+        relative w-full max-w-full overflow-hidden px-4 pt-5 pb-6 mb-0
         border-b transition-colors
         ${isDark
           ? "bg-black border-gray-800 hover:bg-gray-950"
@@ -768,7 +757,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
           {/* Post image */}
           {post.image_url && (
-            <div className="mt-3 rounded-2xl overflow-hidden border border-gray-100/10">
+            <div
+              className="mt-3 rounded-2xl overflow-hidden border border-gray-100/10 cursor-zoom-in"
+              onClick={(e) => { e.stopPropagation(); setFullscreenImage(true); }}
+            >
               <img
                 src={post.image_url}
                 alt="post"
@@ -1002,6 +994,29 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       </div>
 
+      {/* Fullscreen image overlay */}
+      {fullscreenImage && post.image_url && (
+        <div
+          className="fixed inset-0 z-[99999] bg-black/95 flex items-center justify-center p-4"
+          onClick={() => setFullscreenImage(false)}
+        >
+          <button
+            onClick={() => setFullscreenImage(false)}
+            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-900/80 text-white hover:bg-gray-800 transition backdrop-blur-sm border border-gray-700"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img
+            src={post.image_url}
+            alt="post fullscreen"
+            className="max-w-full max-h-full object-contain rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       {/* Report modal */}
       {showReportModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
@@ -1056,7 +1071,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                   </button>
                 ))}
 
-                {/* [E11] Corregido: el textarea siempre acepta texto personalizado. */}
                 <textarea
                   value={reportReason && ["Contenido inapropiado","Spam o publicidad","Acoso o bullying","Información falsa","Otro"].includes(reportReason) ? "" : reportReason}
                   onChange={(e) => setReportReason(e.target.value)}
