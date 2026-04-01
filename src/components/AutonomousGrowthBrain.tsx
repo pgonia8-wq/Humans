@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useRef, useCallback } from "react";
+import { supabase } from "../supabaseClient"; // CORRECCIÓN AGB-1: supabase faltaba — usado en getCachedTrends()
 import { useRunConnectedPipeline } from "./hooks/useRunConnectedPipeline";
 import { usePublishQueuedPosts } from "./hooks/usePublishQueuedPosts";
 import { useGetContentQueue } from "./hooks/useGetContentQueue";
@@ -151,7 +152,9 @@ function save<T>(key: string, value: T): void {
   }
 }
 
-        type Trend = {
+// CORRECCIÓN AGB-2: tipo Trend mal indentado (parecía estar dentro de save()).
+// Movido al nivel de módulo correctamente.
+type Trend = {
   topic: string;
   category: string;
   strength: number;
