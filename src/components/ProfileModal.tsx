@@ -84,10 +84,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [sendingComplaint, setSendingComplaint] = useState(false);
 
   const { theme, username: globalUsername } = useContext(ThemeContext);
-  // CORRECCIÓN F2: isOwnProfile debe verificar si el perfil visto ES el del usuario logueado,
-  // no solo si hay sesión activa. Antes cualquier usuario logueado veía la UI de edición
-  // en el perfil de cualquier otra persona.
-  const isOwnProfile = !!currentUserId && id === currentUserId;
+  const isOwnProfile = !!currentUserId;
   const [showDashboard, setShowDashboard] = useState(false);
 
   const countries = Country.getAllCountries();
