@@ -1,29 +1,3 @@
-/**
- * ProfileModal.tsx – CORREGIDO
- *
- * ERRORES CORREGIDOS:
- * [P1] handlePremiumChat: MiniKit.isInstalled() verificado ANTES de llamar a pay()
- * [P2] handlePremiumChat: reference de pago debe ser UUID v4, no "premium-chat-" + Date.now()
- * [P3] handlePremiumChat: el resultado de /api/subscribePremiumChat NO se verifica
- *      — si el backend devuelve error, el usuario era redirigido igual → CORREGIDO
- * [P4] handlePremiumChat: sin await sobre fetch no se detectan errores del backend → CORREGIDO
- * [P5] handleUploadAvatar: no se valida tipo/tamaño del archivo antes de subir
- *      → añadida validación de tipo (solo imágenes) y tamaño (máx 5 MB)
- * [P6] supabase importado con credenciales hardcoded en src/lib/supabase.ts
- *      y también en src/supabaseClient.ts — ambas son iguales y están hardcoded;
- *      el modal usa supabaseClient.ts que tiene las credenciales hardcoded.
- *      Se mantiene el import existente (supabaseClient) pero se documenta
- *      la necesidad de moverlo a variables de entorno.
- * [P7] handleSendComplaint: anonKey expuesta en fetch desde el cliente → documentado
- * [P8] isOwnProfile siempre true si currentUserId está definido, sin importar si
- *      currentUserId === id — se corrige la lógica para que solo sea editable
- *      el perfil propio
- * [P9] handleSave: no se valida longitud mínima de nombre antes de guardar
- * [P10] refreshProfile: errores silenciados si falla la recarga
- * [P11] handleUploadAvatar: bucket "avatars" debe ser público para que getPublicUrl
- *       funcione — se añade comentario de configuración requerida en Supabase
- */
-
 import React, { useEffect, useState, useContext } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
@@ -32,39 +6,7 @@ import Dashboard from "../../dashboard/src/Dashboard";
 import { useLanguage } from '../LanguageContext';
 import { Country, State, City } from "country-state-city";
 
-// RECEIVER: dirección de la wallet que recibe los pagos
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
-
-// [P2] Genera un reference UUID v4 válido para Worldcoin Pay
-function generatePayReference(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  // Fallback para entornos embebidos (WebView de World App)
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-// [P8] fetch con timeout para entornos embebidos (WebView)
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs = 12000
-): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(id);
-    return res;
-  } catch (e) {
-    clearTimeout(id);
-    throw e;
-  }
-}
 
 interface ProfileModalProps {
   id: string | null;
@@ -118,10 +60,6 @@ const emptyProfile: UserProfile = {
 
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
-// [P5] Constantes de validación de avatar
-const MAX_AVATAR_SIZE_MB = 5;
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-
 const ProfileModal: React.FC<ProfileModalProps> = ({
   id,
   onClose,
@@ -146,10 +84,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [sendingComplaint, setSendingComplaint] = useState(false);
 
   const { theme, username: globalUsername } = useContext(ThemeContext);
+  const isOwnProfile = !!currentUserId;
   const [showDashboard, setShowDashboard] = useState(false);
-
-  // [P8] isOwnProfile solo es true si el usuario actual está viendo SU PROPIO perfil
-  const isOwnProfile = !!(currentUserId && currentUserId === id);
 
   const countries = Country.getAllCountries();
   const selectedCountryObj = countries.find(c => c.isoCode === profile.country);
@@ -170,10 +106,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     const selected = new Date(profile.country_selected_at).getTime();
     const ms = ONE_YEAR_MS - (Date.now() - selected);
     return Math.ceil(ms / (24 * 60 * 60 * 1000));
-  };
-
-  const showToast = (message: string, type: "success" | "error") => {
-    setToast({ message, type });
   };
 
   useEffect(() => {
@@ -218,10 +150,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
         setProfile(updatedProfile);
         setBioLength(updatedProfile.bio?.length || 0);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error("[ProfileModal] Error cargando perfil:", msg);
-        showToast(msg, "error");
+      } catch (err: any) {
+        setToast({ message: err.message, type: "error" });
       } finally {
         setLoading(false);
       }
@@ -230,45 +160,24 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     fetchProfile();
   }, [id, globalUsername]);
 
-  // [P10] refreshProfile con manejo de errores
   const refreshProfile = async () => {
     if (!id) return;
-    try {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
-      if (error) {
-        console.error("[ProfileModal] Error en refreshProfile:", error.message);
-        return;
-      }
-      if (data) {
-        setProfile({
-          ...emptyProfile,
-          ...data,
-          username: data.username || globalUsername || `@${id.slice(0, 10)}`,
-        });
-      }
-    } catch (err: unknown) {
-      console.error("[ProfileModal] Error inesperado en refreshProfile:", err);
+    const { data } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+    if (data) {
+      setProfile({
+        ...emptyProfile,
+        ...data,
+        username: data.username || globalUsername || `@${id.slice(0, 10)}`,
+      });
     }
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    // [P5] Validar tipo de archivo
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      showToast(t("tipo_archivo_no_valido") || "Solo se permiten imágenes (JPG, PNG, WebP, GIF)", "error");
-      return;
+    if (file) {
+      setSelectedFile(file);
+      setPreviewAvatar(URL.createObjectURL(file));
     }
-
-    // [P5] Validar tamaño (máx 5 MB)
-    if (file.size > MAX_AVATAR_SIZE_MB * 1024 * 1024) {
-      showToast(t("archivo_muy_grande") || `El archivo no puede superar ${MAX_AVATAR_SIZE_MB} MB`, "error");
-      return;
-    }
-
-    setSelectedFile(file);
-    setPreviewAvatar(URL.createObjectURL(file));
   };
 
   const handleUploadAvatar = async () => {
@@ -305,8 +214,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         }, "image/jpeg", 0.8);
       });
 
-      // [P11] NOTA: El bucket "avatars" en Supabase debe estar configurado como
-      // público (Public bucket) para que getPublicUrl() devuelva URLs accesibles.
       const { error: uploadError } = await supabase.storage
         .from("avatars")
         .upload(fileName, compressedBlob, { upsert: true });
@@ -321,38 +228,28 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         .eq("id", currentUserId);
       if (updateError) throw updateError;
 
-      setProfile((prev) => ({ ...prev, avatar_url: publicUrl }));
+      setProfile((prev: any) => ({ ...prev, avatar_url: publicUrl }));
       setPreviewAvatar(null);
       setSelectedFile(null);
-      showToast(t("avatar_subido_exito") || "Avatar actualizado", "success");
-      console.log("[ProfileModal] Avatar subido correctamente:", publicUrl);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[ProfileModal] Error subiendo avatar:", msg);
-      showToast(msg || t("error_subir_avatar") || "Error al subir avatar", "error");
+      setToast({ message: t("avatar_subido_exito"), type: "success" });
+    } catch (err: any) {
+      setToast({ message: err.message || t("error_subir_avatar"), type: "error" });
     } finally {
       setUploadingAvatar(false);
     }
   };
 
-  // [P9] handleSave con validación de nombre mínimo
   const handleSave = async () => {
     if (!currentUserId) {
-      showToast("No se encontró userId", "error");
-      return;
-    }
-
-    // [P9] Validación mínima antes de guardar
-    if (!profile.name || profile.name.trim().length < 1) {
-      showToast(t("nombre_requerido") || "El nombre no puede estar vacío", "error");
+      setToast({ message: "No se encontró userId", type: "error" });
       return;
     }
 
     setSaving(true);
     try {
       const isChangingCountry = profile.country && !isCountryLocked();
-      const updatePayload: Record<string, unknown> = {
-        name: profile.name.trim(),
+      const updatePayload: any = {
+        name: profile.name,
         bio: profile.bio,
         birthdate: profile.birthdate,
         city: profile.city,
@@ -374,29 +271,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       if (error) throw error;
 
       await refreshProfile();
-      showToast(t("perfil_guardado") || "Perfil guardado", "success");
-      console.log("[ProfileModal] Perfil guardado para userId:", currentUserId);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[ProfileModal] Error guardando perfil:", msg);
-      showToast(`${t("error_guardar") || "Error al guardar"}: ${msg}`, "error");
+      setToast({ message: t("perfil_guardado"), type: "success" });
+    } catch (err: any) {
+      setToast({ message: t("error_guardar") + ": " + (err.message || "desconocido"), type: "error" });
     } finally {
       setSaving(false);
     }
   };
 
-  // [P7] NOTA: handleSendComplaint envía la anonKey desde el cliente al header.
-  // Esto expone la clave en el frontend (ya es pública en el repo).
-  // La Edge Function de Supabase debería usar auth JWT en su lugar.
-  // Por ahora se mantiene el comportamiento pero se documenta el riesgo.
   const handleSendComplaint = async () => {
     if (!complaintMessage.trim()) return;
     setSendingComplaint(true);
     try {
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      if (!anonKey) throw new Error("Configuración de Supabase no encontrada");
 
-      const res = await fetchWithTimeout(
+      const res = await fetch(
         "https://vtjqfzpfehfofamhowjz.supabase.co/functions/v1/send-complaint",
         {
           method: "POST",
@@ -410,24 +299,19 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             userId: currentUserId,
             username: profile.username,
           }),
-        },
-        10000
+        }
       );
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        const errMsg = (errData as { error?: string }).error ?? `HTTP ${res.status}`;
-        throw new Error(errMsg);
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al enviar");
       }
 
-      showToast(t("queja_enviada") || "Mensaje enviado correctamente", "success");
+      setToast({ message: t("queja_enviada") || "Mensaje enviado correctamente", type: "success" });
       setComplaintMessage("");
       setShowComplaintModal(false);
-      console.log("[ProfileModal] Queja enviada por userId:", currentUserId);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[ProfileModal] Error enviando queja:", msg);
-      showToast(msg || "Error al enviar mensaje", "error");
+    } catch (err: any) {
+      setToast({ message: err.message || "Error al enviar mensaje", type: "error" });
     } finally {
       setSendingComplaint(false);
     }
@@ -437,79 +321,36 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     setProfile(prev => ({ ...prev, profile_visible: !prev.profile_visible }));
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // [P1][P2][P3][P4] PREMIUM CHAT PAYMENT — todos los errores corregidos
-  // ─────────────────────────────────────────────────────────────────────────
   const handlePremiumChat = async () => {
     if (!currentUserId) {
-      showToast(t("id_no_encontrado") || "No se encontró userId", "error");
+      setToast({ message: t("id_no_encontrado"), type: "error" });
       return;
     }
-
     if (profile.tier === "premium" || profile.tier === "premium+") {
       window.location.href = "/chat/premium";
       return;
     }
-
     try {
-      // [P1] Verificar MiniKit ANTES de intentar el pago
-      if (!MiniKit.isInstalled()) {
-        throw new Error(t("minikit_no_detectado") || "World App no detectada. Abre esta app desde World App.");
-      }
-
+      if (!MiniKit.isInstalled()) throw new Error(t("minikit_no_detectado"));
       const payRes = await MiniKit.commandsAsync.pay({
-        // [P2] UUID v4 válido para Worldcoin — NO usar Date.now() directamente
-        reference: generatePayReference(),
+        reference: "premium-chat-" + Date.now(),
         to: RECEIVER,
         tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
-        description: t("suscripcion_chat_exclusivo") || "Suscripción Chat Premium",
+        description: t("suscripcion_chat_exclusivo"),
       });
-
-      if (payRes?.finalPayload?.status !== "success") {
-        // Pago cancelado por el usuario — no es un error crítico
-        const cancelReason = payRes?.finalPayload?.status ?? "unknown";
-        console.warn("[ProfileModal] Pago cancelado por usuario. Status:", cancelReason);
-        throw new Error(t("pago_cancelado") || "Pago cancelado");
-      }
-
-      const transactionId = payRes.finalPayload.transaction_id;
-      console.log("[ProfileModal] Pago recibido, verificando en backend. txId:", transactionId);
-
-      // [P3][P4] Verificar respuesta del backend CORRECTAMENTE con await y manejo de errores
-      let subscribeRes: Response;
-      try {
-        subscribeRes = await fetchWithTimeout("/api/subscribePremiumChat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: currentUserId,
-            transactionId,
-          }),
-        }, 12000);
-      } catch (fetchErr: unknown) {
-        const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-        console.error("[ProfileModal] Error de red al verificar suscripción:", msg);
-        throw new Error(`Error de red al verificar suscripción: ${msg}`);
-      }
-
-      if (!subscribeRes.ok) {
-        const errData = await subscribeRes.json().catch(() => ({}));
-        const errMsg = (errData as { error?: string }).error ?? `HTTP ${subscribeRes.status}`;
-        console.error("[ProfileModal] Backend rechazó suscripción premium:", errData);
-        throw new Error(`Error del servidor: ${errMsg}`);
-      }
-
-      const subscribeData = await subscribeRes.json().catch(() => ({}));
-      console.log("[ProfileModal] Suscripción confirmada por backend:", subscribeData);
-
-      showToast(t("suscripcion_exitosa") || "¡Suscripción activada!", "success");
-      // Pequeña pausa para que el usuario vea el toast antes de redirigir
-      setTimeout(() => { window.location.href = "/chat/premium"; }, 1200);
-
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[ProfileModal] Error en handlePremiumChat:", msg);
-      showToast(msg || t("error_pago") || "Error en el pago", "error");
+      if (payRes?.finalPayload?.status !== "success") throw new Error(t("pago_cancelado"));
+      await fetch("/api/subscribePremiumChat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUserId,
+          transactionId: payRes.finalPayload.transaction_id,
+        }),
+      });
+      alert(t("suscripcion_exitosa"));
+      window.location.href = "/chat/premium";
+    } catch (err: any) {
+      setToast({ message: err.message || t("error_pago"), type: "error" });
     }
   };
 
@@ -517,309 +358,349 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     "premium+": "bg-yellow-500 text-black",
     "premium": "bg-purple-600 text-white",
     "basic": "bg-blue-600 text-white",
-    "free": "bg-gray-700 text-gray-300",
+    "free": "bg-gray-600 text-white",
   };
-
-  if (loading) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500" />
-      </div>
-    );
-  }
 
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-50 px-2 overflow-y-auto pt-6 pb-10"
         onClick={onClose}
       >
         <div
-          className="relative w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-3xl bg-gray-950 border border-white/10 shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
+          className="bg-gray-950 rounded-3xl w-full max-w-lg border border-white/10 relative overflow-hidden shadow-2xl"
+          onClick={e => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <h2 className="text-lg font-bold text-white">
-              {isOwnProfile ? (t("mi_perfil") || "Mi Perfil") : (t("perfil") || "Perfil")}
-            </h2>
-            <button onClick={onClose} className="text-white/30 hover:text-white/70 cursor-pointer transition-colors p-1 rounded-lg">
-              ✕
+          <div className="h-28 bg-gradient-to-br from-purple-900 via-indigo-900 to-gray-900 relative">
+            <button
+              onClick={onClose}
+              className="absolute top-3 right-3 bg-black/40 hover:bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg transition"
+              aria-label={t("cerrar_modal")}
+            >
+              ×
             </button>
+            <span
+              className={`absolute top-3 left-3 px-3 py-1 text-xs font-bold rounded-full ${tierColors[profile.tier] || tierColors["free"]}`}
+            >
+              {profile.tier.toUpperCase()}
+            </span>
           </div>
 
-          {/* Avatar */}
-          <div className="flex flex-col items-center px-5 pb-4 gap-3">
-            <div className="relative">
-              <img
-                src={previewAvatar || profile.avatar_url || "/default-avatar.png"}
-                alt={profile.username}
-                className="w-24 h-24 rounded-full object-cover ring-4 ring-purple-500/30"
-                onError={(e) => { (e.target as HTMLImageElement).src = "/default-avatar.png"; }}
-              />
-              {uploadingAvatar && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
-                </div>
-              )}
-              {isOwnProfile && (
-                <label className="absolute bottom-0 right-0 bg-purple-600 hover:bg-purple-700 p-1.5 rounded-full cursor-pointer transition-colors shadow-lg">
-                  <input type="file" accept={ALLOWED_IMAGE_TYPES.join(",")} className="hidden" onChange={handleAvatarChange} />
-                  <span className="text-white text-xs">📷</span>
-                </label>
-              )}
-            </div>
-
-            <div className="text-center">
-              <h3 className="text-white font-bold text-lg">{profile.name || profile.username}</h3>
-              <p className="text-gray-400 text-sm">@{profile.username}</p>
-              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold mt-1 ${tierColors[profile.tier] || tierColors.free}`}>
-                {profile.tier}
-              </span>
-            </div>
-
-            {/* Stats */}
-            <div className="flex gap-6 text-center">
-              {[
-                { label: t("publicaciones") || "Posts", value: profile.posts_count },
-                { label: t("seguidores") || "Seguidores", value: profile.followers_count },
-                { label: t("siguiendo") || "Siguiendo", value: profile.following_count },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <div className="text-white font-bold text-lg">{value}</div>
-                  <div className="text-gray-400 text-xs">{label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Upload avatar button */}
-            {isOwnProfile && selectedFile && (
-              <button
-                onClick={handleUploadAvatar}
-                disabled={uploadingAvatar}
-                className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-semibold text-sm disabled:opacity-50 transition"
-              >
-                {uploadingAvatar ? (t("subiendo") || "Subiendo...") : (t("guardar_avatar") || "Guardar avatar")}
-              </button>
-            )}
-          </div>
-
-          {/* Tabs */}
-          {isOwnProfile && (
-            <div className="flex gap-2 px-5 mb-4">
-              {(["info", "location"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
-                    activeTab === tab
-                      ? "bg-purple-600 text-white"
-                      : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  {tab === "info" ? (t("informacion") || "Información") : (t("ubicacion") || "Ubicación")}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="px-5 pb-5 space-y-3">
-            {/* Info tab */}
-            {(!isOwnProfile || activeTab === "info") && (
-              <>
-                {/* Bio */}
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">{t("bio") || "Bio"}</label>
-                  {isOwnProfile ? (
-                    <>
-                      <textarea
-                        value={profile.bio}
-                        onChange={(e) => { setProfile(p => ({ ...p, bio: e.target.value })); setBioLength(e.target.value.length); }}
-                        rows={3}
-                        maxLength={200}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                        placeholder={t("escribe_tu_bio") || "Cuéntanos algo sobre ti…"}
-                      />
-                      <span className="text-xs text-gray-500">{bioLength}/200</span>
-                    </>
-                  ) : (
-                    <p className="text-sm text-gray-300">{profile.bio || (t("sin_bio") || "Sin bio")}</p>
+          <div className="px-5 pb-0">
+            <div className="flex items-end justify-between -mt-14 mb-3">
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full border-4 border-gray-950 overflow-hidden bg-gray-800 shadow-xl">
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20 rounded-full">
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-purple-500" />
+                    </div>
                   )}
-                </div>
-
-                {/* Name */}
-                {isOwnProfile && (
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">{t("nombre") || "Nombre"}</label>
-                    <input
-                      value={profile.name}
-                      onChange={(e) => setProfile(p => ({ ...p, name: e.target.value }))}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      placeholder={t("tu_nombre") || "Tu nombre"}
-                    />
-                  </div>
-                )}
-
-                {/* Birthdate */}
-                {isOwnProfile && (
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">{t("fecha_nacimiento") || "Fecha de nacimiento"}</label>
-                    <input
-                      type="date"
-                      value={profile.birthdate}
-                      onChange={(e) => setProfile(p => ({ ...p, birthdate: e.target.value }))}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-                )}
-
-                {/* Profile visibility */}
-                {isOwnProfile && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-300">{t("perfil_visible") || "Perfil visible"}</span>
-                    <button
-                      onClick={toggleProfileVisibility}
-                      className={`w-11 h-6 rounded-full transition-colors cursor-pointer ${profile.profile_visible ? "bg-purple-600" : "bg-gray-700"}`}
-                    >
-                      <div className={`w-4 h-4 bg-white rounded-full mx-1 transition-transform ${profile.profile_visible ? "translate-x-5" : "translate-x-0"}`} />
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Location tab */}
-            {isOwnProfile && activeTab === "location" && (
-              <>
-                {/* Country */}
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    {t("pais") || "País"} {isCountryLocked() && `(bloqueado ${countryLockDaysLeft()}d)`}
-                  </label>
-                  <select
-                    value={profile.country}
-                    onChange={(e) => setProfile(p => ({ ...p, country: e.target.value, state: "", city: "" }))}
-                    disabled={isCountryLocked()}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
-                  >
-                    <option value="">{t("selecciona_pais") || "Selecciona país"}</option>
-                    {countries.map(c => <option key={c.isoCode} value={c.isoCode}>{c.name}</option>)}
-                  </select>
-                </div>
-
-                {/* State */}
-                {states.length > 0 && (
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">{t("estado") || "Estado / Provincia"}</label>
-                    <select
-                      value={profile.state}
-                      onChange={(e) => setProfile(p => ({ ...p, state: e.target.value, city: "" }))}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    >
-                      <option value="">{t("selecciona_estado") || "Selecciona estado"}</option>
-                      {states.map(s => <option key={s.isoCode} value={s.isoCode}>{s.name}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                {/* City */}
-                {cities.length > 0 && (
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">{t("ciudad") || "Ciudad"}</label>
-                    <select
-                      value={profile.city}
-                      onChange={(e) => setProfile(p => ({ ...p, city: e.target.value }))}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    >
-                      <option value="">{t("selecciona_ciudad") || "Selecciona ciudad"}</option>
-                      {cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                {/* Location text */}
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">{t("texto_ubicacion") || "Descripción de ubicación"}</label>
-                  <input
-                    value={profile.location_text}
-                    onChange={(e) => setProfile(p => ({ ...p, location_text: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder={t("ej_madrid_espana") || "Ej: Madrid, España"}
+                  <img
+                    src={previewAvatar || profile.avatar_url || "/default-avatar.png"}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
                   />
                 </div>
-              </>
-            )}
+                {isOwnProfile && (
+                  <div className="absolute bottom-0 right-0 w-7 h-7 z-10">
+                    <div className="bg-purple-600 rounded-full w-7 h-7 flex items-center justify-center shadow-md pointer-events-none">
+                      <span className="text-xs">✏️</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      disabled={uploadingAvatar}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </div>
+                )}
+              </div>
 
-            {/* Action buttons */}
-            <div className="flex flex-col gap-2 pt-2">
-              {isOwnProfile && (
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-semibold text-sm disabled:opacity-50 transition"
-                >
-                  {saving ? (t("guardando") || "Guardando...") : (t("guardar_cambios") || "Guardar cambios")}
-                </button>
-              )}
-
-              {/* Premium Chat button */}
-              {(showUpgradeButton || isOwnProfile) && (
-                <button
-                  onClick={handlePremiumChat}
-                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-semibold text-sm transition"
-                >
-                  {profile.tier === "premium" || profile.tier === "premium+"
-                    ? (t("ir_al_chat_premium") || "Ir al Chat Premium")
-                    : (t("obtener_chat_premium") || "Obtener Chat Premium — 5 WLD")}
-                </button>
-              )}
-
-              {/* Open DM (only for other profiles) */}
-              {!isOwnProfile && onOpenChat && id && (
-                <button
-                  onClick={() => { onOpenChat(id); onClose(); }}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-semibold text-sm transition"
-                >
-                  {t("enviar_mensaje") || "Enviar mensaje"}
-                </button>
-              )}
-
-              {/* Dashboard */}
-              {isOwnProfile && (
-                <button
-                  onClick={() => setShowDashboard(true)}
-                  className="w-full py-3 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-2xl font-semibold text-sm transition border border-white/10"
-                >
-                  {t("ver_dashboard") || "Ver Dashboard"}
-                </button>
-              )}
-
-              {/* Report */}
-              {!isOwnProfile && (
-                <button
-                  onClick={() => setShowComplaintModal(true)}
-                  className="w-full py-2 text-red-400 hover:text-red-300 text-sm transition"
-                >
-                  {t("reportar_usuario") || "Reportar usuario"}
-                </button>
+              {previewAvatar && isOwnProfile && (
+                <div className="flex gap-2 mt-10">
+                  <button
+                    onClick={() => { setPreviewAvatar(null); setSelectedFile(null); }}
+                    className="px-3 py-1.5 bg-gray-700 text-white text-sm rounded-full hover:bg-gray-600 transition"
+                  >
+                    {t("cancelar")}
+                  </button>
+                  <button
+                    onClick={handleUploadAvatar}
+                    disabled={uploadingAvatar}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-full disabled:opacity-50 transition"
+                  >
+                    {uploadingAvatar ? t("subiendo") : t("guardar_avatar")}
+                  </button>
+                </div>
               )}
             </div>
+
+            {loading ? (
+              <p className="text-white text-center py-8">{t("cargando_perfil")}</p>
+            ) : (
+              <>
+                <div className="mb-1">
+                  <p className="text-white text-lg font-bold leading-tight">@{profile.username}</p>
+                  {profile.name ? <p className="text-gray-400 text-sm">{profile.name}</p> : null}
+                </div>
+
+                {profile.bio ? (
+                  <p className="text-gray-300 text-sm mb-2 leading-snug">{profile.bio}</p>
+                ) : null}
+
+                {(profile.city || selectedCountryObj?.name) && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-4">
+                    <span>📍 {[profile.city, selectedCountryObj?.name].filter(Boolean).join(", ")}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-6 text-center border-y border-white/10 py-3 mb-5">
+                  <div>
+                    <p className="text-white font-bold text-base">{profile.posts_count}</p>
+                    <p className="text-gray-500 text-xs">{t("publicaciones") || "Posts"}</p>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-base">{profile.followers_count}</p>
+                    <p className="text-gray-500 text-xs">{t("seguidores") || "Seguidores"}</p>
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-base">{profile.following_count}</p>
+                    <p className="text-gray-500 text-xs">{t("siguiendo") || "Siguiendo"}</p>
+                  </div>
+                </div>
+
+                <div className="flex border-b border-white/10 mb-5">
+                  <button
+                    className={`flex-1 pb-2 text-sm font-medium transition ${activeTab === "info" ? "text-purple-400 border-b-2 border-purple-500" : "text-gray-500 hover:text-gray-300"}`}
+                    onClick={() => setActiveTab("info")}
+                  >
+                    {t("informacion") || "Información"}
+                  </button>
+                  <button
+                    className={`flex-1 pb-2 text-sm font-medium transition ${activeTab === "location" ? "text-purple-400 border-b-2 border-purple-500" : "text-gray-500 hover:text-gray-300"}`}
+                    onClick={() => setActiveTab("location")}
+                  >
+                    {t("ubicacion") || "Ubicación"}
+                  </button>
+                </div>
+
+                {activeTab === "info" && (
+                  <div className="space-y-4 pb-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">{t("nombre") || "Nombre visible"}</label>
+                      <input
+                        type="text"
+                        value={profile.name}
+                        onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder={t("tu_nombre") || "Tu nombre"}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <label className="text-xs text-gray-500">{t("biografia") || "Biografía"}</label>
+                        <span className="text-xs text-gray-600">{bioLength}/160</span>
+                      </div>
+                      <textarea
+                        value={profile.bio}
+                        onChange={e => {
+                          if (e.target.value.length <= 160) {
+                            setProfile(prev => ({ ...prev, bio: e.target.value }));
+                            setBioLength(e.target.value.length);
+                          }
+                        }}
+                        className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none h-20"
+                        placeholder={t("cuentanos_sobre_ti") || "Cuéntanos sobre ti..."}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">{t("fecha_nacimiento")}</label>
+                      <input
+                        type="date"
+                        value={profile.birthdate}
+                        onChange={e => setProfile(prev => ({ ...prev, birthdate: e.target.value }))}
+                        className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between bg-gray-900 border border-white/10 rounded-xl px-4 py-3">
+                      <label className="text-sm text-gray-300">{t("perfil_visible") || "Perfil visible"}</label>
+                      <button
+                        onClick={toggleProfileVisibility}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${profile.profile_visible ? "bg-purple-600" : "bg-gray-700"}`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${profile.profile_visible ? "translate-x-5" : "translate-x-0"}`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "location" && (
+                  <div className="space-y-4 pb-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">{t("ubicacion_texto") || "Descripción de ubicación"}</label>
+                      <input
+                        type="text"
+                        value={profile.location_text}
+                        onChange={e => setProfile(prev => ({ ...prev, location_text: e.target.value }))}
+                        className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder={t("ej_ciudad_creativa") || "ej. Ciudad de México, CDMX"}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">{t("pais") || "País"}</label>
+                      {isCountryLocked() ? (
+                        <div className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-gray-400 text-sm flex items-center justify-between">
+                          <span>{selectedCountryObj?.name || profile.country}</span>
+                          <span className="text-xs text-orange-400 ml-2">
+                            🔒 {countryLockDaysLeft()} {t("dias_restantes") || "días restantes"}
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          value={profile.country}
+                          onChange={e => setProfile(prev => ({
+                            ...prev,
+                            country: e.target.value,
+                            state: "",
+                            city: "",
+                          }))}
+                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
+                        >
+                          <option value="">{t("seleccionar_pais") || "Seleccionar país"}</option>
+                          {countries.map(c => (
+                            <option key={c.isoCode} value={c.isoCode}>
+                              {c.flag} {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {!isCountryLocked() && profile.country && (
+                        <p className="text-xs text-orange-400 mt-1">
+                          ⚠️ {t("aviso_pais_lock") || "Una vez guardado, no podrás cambiar el país durante 1 año."}
+                        </p>
+                      )}
+                    </div>
+
+                    {profile.country && states.length > 0 && (
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">{t("estado") || "Estado / Provincia"}</label>
+                        <select
+                          value={profile.state}
+                          onChange={e => setProfile(prev => ({
+                            ...prev,
+                            state: e.target.value,
+                            city: "",
+                          }))}
+                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
+                        >
+                          <option value="">{t("seleccionar_estado") || "Seleccionar estado"}</option>
+                          {states.map(s => (
+                            <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {profile.state && cities.length > 0 && (
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">{t("ciudad") || "Ciudad"}</label>
+                        <select
+                          value={profile.city}
+                          onChange={e => setProfile(prev => ({ ...prev, city: e.target.value }))}
+                          className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
+                        >
+                          <option value="">{t("seleccionar_ciudad") || "Seleccionar ciudad"}</option>
+                          {cities.map(c => (
+                            <option key={c.name} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDashboard(true);
+                  }}
+                  className="mt-4 w-full bg-purple-600 text-white py-2 rounded-xl font-semibold"
+                >
+                  Creator Dashboard
+                </button>
+
+                <div className="space-y-3 mt-5 pb-5">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-semibold text-sm disabled:opacity-50 transition"
+                    >
+                      {saving ? t("guardando") : t("guardar")}
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl text-sm transition"
+                    >
+                      {t("cancelar")}
+                    </button>
+                  </div>
+
+                  {showUpgradeButton && (
+                    <button
+                      onClick={handlePremiumChat}
+                      className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl font-semibold text-sm transition"
+                    >
+                      {t("suscribirse_chat_premium", { amount: 5 })}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => setShowComplaintModal(true)}
+                    className="w-full py-3 bg-gray-800 hover:bg-gray-700 border border-white/10 text-gray-300 hover:text-white rounded-2xl text-sm transition flex items-center justify-center gap-2"
+                  >
+                    <span>💬</span>
+                    <span>{t("contacto") || "Contacto"}</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Complaint Modal */}
       {showComplaintModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-          onClick={() => setShowComplaintModal(false)}>
-          <div className="w-full max-w-sm bg-gray-950 border border-white/10 rounded-3xl p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-white mb-2">
-              {t("reportar_usuario") || "Reportar usuario"}
-            </h3>
-            <p className="text-sm text-gray-400 mb-4">
-              {t("describe_el_problema") || "Describe el problema con este usuario"}
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[60] px-4"
+          onClick={() => setShowComplaintModal(false)}
+        >
+          <div
+            className="bg-gray-950 border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-bold text-base">
+                {t("quejas_sugerencias") || "Quejas y sugerencias"}
+              </h3>
+              <button
+                onClick={() => setShowComplaintModal(false)}
+                className="text-gray-500 hover:text-white text-xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-gray-400 text-xs mb-4">
+              {t("quejas_descripcion") || "Tu mensaje nos ayuda a mejorar. Lo revisaremos a la brevedad."}
             </p>
+
             <textarea
               value={complaintMessage}
               onChange={e => setComplaintMessage(e.target.value)}
@@ -827,6 +708,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               className="w-full bg-gray-900 border border-white/10 p-3 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none mb-4"
               placeholder={t("escribe_tu_mensaje") || "Escribe tu mensaje aquí..."}
             />
+
             <button
               onClick={handleSendComplaint}
               disabled={sendingComplaint || !complaintMessage.trim()}
@@ -838,18 +720,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
       )}
 
-      {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4">
-          <div className={`px-5 py-3 rounded-2xl text-sm font-medium shadow-xl ${
-            toast.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
-          }`}>
+          <div className="px-5 py-3 rounded-2xl text-sm font-medium shadow-xl">
             {toast.message}
           </div>
         </div>
       )}
 
-      {/* Dashboard overlay */}
       {showDashboard && (
         <div
           className="fixed inset-0 z-[9999] bg-black"
