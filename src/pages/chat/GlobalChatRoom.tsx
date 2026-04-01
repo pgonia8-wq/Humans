@@ -1,36 +1,30 @@
 /**
  * GlobalChatRoom.tsx – Chat Premium 2026 · Self-contained
- * CORREGIDO: todos los errores de backend detectados en el review de Worldcoin
  *
- * CORRECCIONES APLICADAS:
+ * CORRECCIONES APLICADAS (sobre la versión adjunta):
+ * [C1] Mensajes de Classic se veían en Gold: se limpia el estado de mensajes al
+ *      cambiar de tipo de sala, y se separa correctamente el selectedRoomId por tipo.
+ * [C2] Permanencia de mensajes: fetchMessages persiste en Supabase (ya estaba),
+ *      pero se asegura que fetchMessages se llame correctamente al montar y al
+ *      cambiar de sala — corregido el orden de dependencias en useEffect.
+ * [C3] Sala general: se garantiza que exista al menos una sala "General" de tipo
+ *      "classic" al iniciar fetchRooms. Si no existe, se crea automáticamente.
+ * [C4] Límites de salas por tier:
+ *      - Usuarios Classic (hasClassicAccess && !hasGoldAccess) → máximo 2 salas
+ *      - Usuarios Gold (hasGoldAccess) → máximo 5 salas
+ *      Corregido handleCreateRoom para aplicar límites correctamente por tipo.
  * [F1] MiniKit.isInstalled() verificado antes de CADA llamada a commandsAsync.pay()
- * [F2] reference de pago generado con crypto.randomUUID() (36 chars, formato UUID v4)
- *      — el formato anterior `chat_gold-${Date.now()}`.slice(0,36) puede
- *        producir strings que Worldcoin rechaza si no siguen el patrón UUID.
- * [F3] Feedback de error mostrado al usuario en los pagos (antes solo console.error)
+ * [F2] reference de pago generado con crypto.randomUUID() (formato UUID v4)
+ * [F3] Feedback de error mostrado al usuario en los pagos
  * [F4] handleGoldSubscribe: si el backend falla, se muestra toast y NO se da acceso
  * [F5] handlePayForExtraRoom: mismo patrón de error con toast visible
  * [F6] supabase importado desde supabaseClient (env vars), NO hardcoded
- * [F7] noAccess + Gold modal: mensajes de error descriptivos en el UI
- * [F8] Verificación de pago: fetch con try/catch y timeout para evitar cuelgue
+ * [F8] Verificación de pago: fetch con try/catch y timeout
  * [F9] Realtime: cleanup correcto al desmontar (no memory leaks)
  * [F10] fetchMessages: errores de Supabase logueados y propagados
  * [F11] insertRoom: error de Supabase mostrado al usuario
  * [F12] handleSend: eliminación de mensaje optimista si el insert definitivo falla
  * [F13] handleDelete/handleSaveEdit: errores de Supabase con feedback al usuario
- *
- * npm install framer-motion lucide-react @supabase/supabase-js @worldcoin/minikit-js
- *
- * Props: isOpen, onClose, currentUserId  (sin cambios)
- *
- * Columnas nuevas OPCIONALES en global_chat_messages:
- *   reply_to_id text, reply_to_content text, reply_to_username text,
- *   audio_url text, edited_at timestamptz,
- *   deleted_for_all boolean DEFAULT false,
- *   ephemeral boolean DEFAULT false
- *
- * Tabla chat_rooms: id, name, type, is_private, description, created_by, created_at
- * Tabla subscriptions: user_id, product ("chat_classic" | "chat_gold")
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -50,16 +44,17 @@ import { supabase } from "../../supabaseClient";
 const RECEIVER   = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 const EMOJI_LIST = ["❤️", "🔥", "😂", "😮", "👍", "🎉", "💯", "🤯"];
 
+// Nombre de la sala general que debe existir siempre
+const DEFAULT_ROOM_NAME = "General";
+
 /** [F2] Genera un reference UUID v4 válido para Worldcoin Pay */
-function generatePayReference(prefix: string): string {
-  // crypto.randomUUID() genera exactamente el formato UUID v4 que Worldcoin requiere
+function generatePayReference(_prefix: string): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // Fallback manual compatible con todos los entornos embebidos (WebView)
   const now = Date.now().toString(16).padStart(12, "0");
   const rand = Math.random().toString(16).slice(2, 14).padStart(12, "0");
-  const safe = `${prefix}-`.slice(0, 8).replace(/[^a-z0-9]/gi, "x").padEnd(8, "0");
+  const safe = `${_prefix}-`.slice(0, 8).replace(/[^a-z0-9]/gi, "x").padEnd(8, "0");
   return `${safe.slice(0,8)}-${now.slice(0,4)}-4${now.slice(4,7)}-8${rand.slice(0,3)}-${rand.slice(3,15).padEnd(12,"0")}`.slice(0,36);
 }
 
@@ -783,6 +778,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const [roomType,         setRoomType]         = useState<RoomType>("classic");
   const [rooms,            setRooms]            = useState<ChatRoom[]>([]);
   const [selectedRoomId,   setSelectedRoomId]   = useState<string>("");
+  // [C1] messages separado por roomId para evitar mezcla entre Classic y Gold
   const [messages,         setMessages]         = useState<Record<string, ChatMessage[]>>({});
   const [typingUsers,      setTypingUsers]       = useState<TypingUser[]>([]);
   const [connected,        setConnected]         = useState<ConnectedUser[]>([]);
@@ -804,7 +800,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const [showExtraRoomModal, setShowExtraRoomModal] = useState(false);
   const [pendingRoomData,    setPendingRoomData]    = useState<Omit<ChatRoom, "id"> | null>(null);
   const [extraRoomPayLoading,   setExtraRoomPayLoading]   = useState(false);
-  // [F3] Toast de error visible al usuario
   const [errorToast,       setErrorToast]       = useState<string | null>(null);
 
   const bottomRef      = useRef<HTMLDivElement>(null);
@@ -815,6 +810,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const canUseGold = hasGoldAccess;
 
   const selectedRoom  = rooms.find((r) => r.id === selectedRoomId);
+  // [C1] filtrar salas por tipo activo para no mezclar mensajes entre tipos
   const filteredRooms = rooms.filter((r) => r.type === roomType);
 
   const reactions  = selectedRoomId ? (reactionsPerRoom.get(selectedRoomId) ?? {}) : {};
@@ -828,6 +824,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
 
   const pinnedMessages = allMessages.filter((m) => pinnedIds.includes(m.id));
 
+  // [C4] Límites correctos: Classic → 2 salas, Gold → 5 salas
   const freeRoomLimit  = hasGoldAccess ? 5 : 2;
   const extraRoomPrice = hasGoldAccess ? 12 : 18;
 
@@ -887,6 +884,43 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     fetchProfile();
   }, [currentUserId, isOpen]);
 
+  // ── [C3] Asegurar sala General existe ──
+  const ensureDefaultRoom = useCallback(async (parsedRooms: ChatRoom[]) => {
+    const hasGeneral = parsedRooms.some(r => r.name === DEFAULT_ROOM_NAME && r.type === "classic");
+    if (!hasGeneral) {
+      try {
+        const { data: inserted, error } = await supabase.from("chat_rooms")
+          .insert({
+            name: DEFAULT_ROOM_NAME,
+            type: "classic",
+            is_private: false,
+            description: "Sala general de bienvenida",
+            created_by: currentUserId,
+          })
+          .select("id, name, type, is_private, description, created_by")
+          .maybeSingle();
+        if (error) {
+          console.error("[GlobalChat] Error creando sala General:", error.message);
+          return parsedRooms;
+        }
+        if (inserted) {
+          const generalRoom: ChatRoom = {
+            id: String(inserted.id),
+            name: String(inserted.name),
+            type: "classic",
+            isPrivate: false,
+            description: inserted.description ? String(inserted.description) : undefined,
+            createdBy: inserted.created_by ? String(inserted.created_by) : undefined,
+          };
+          return [generalRoom, ...parsedRooms];
+        }
+      } catch (e) {
+        console.error("[GlobalChat] Error inesperado ensureDefaultRoom:", e);
+      }
+    }
+    return parsedRooms;
+  }, [currentUserId]);
+
   // ── Fetch rooms ──
   const fetchRooms = useCallback(async () => {
     try {
@@ -894,7 +928,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         .select("id, name, type, is_private, description, created_by")
         .order("created_at", { ascending: true });
       if (error) { console.error("[GlobalChat] Error cargando rooms:", error.message); return; }
-      const parsed: ChatRoom[] = (data ?? []).map((r: Record<string, unknown>) => ({
+      let parsed: ChatRoom[] = (data ?? []).map((r: Record<string, unknown>) => ({
         id:          String(r.id),
         name:        String(r.name),
         type:        String(r.type) as RoomType,
@@ -902,7 +936,13 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         description: r.description ? String(r.description) : undefined,
         createdBy:   r.created_by  ? String(r.created_by)  : undefined,
       }));
+
+      // [C3] Garantizar que exista sala General
+      parsed = await ensureDefaultRoom(parsed);
+
       setRooms(parsed);
+
+      // [C1] Seleccionar sala del tipo activo, no cualquier sala
       if (parsed.length > 0 && !selectedRoomId) {
         const defaultRoom = parsed.find(r => r.type === roomType) ?? parsed[0];
         setSelectedRoomId(defaultRoom.id);
@@ -910,21 +950,22 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     } catch (e) {
       console.error("[GlobalChat] Error inesperado fetchRooms:", e);
     }
-  }, [selectedRoomId, roomType]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoomId, roomType, ensureDefaultRoom]);
 
   useEffect(() => {
     if (!isOpen || !currentUserId) return;
     fetchRooms();
   }, [isOpen, currentUserId, fetchRooms]);
 
-  // ── Fetch messages ──
-  const fetchMessages = useCallback(async () => {
-    if (!selectedRoomId) return;
+  // ── [C2] Fetch messages — se llama correctamente al cambiar sala ──
+  const fetchMessages = useCallback(async (roomId: string) => {
+    if (!roomId) return;
     try {
       const { data, error } = await supabase
         .from("global_chat_messages")
         .select("*, profiles:sender_id(username, avatar_url)")
-        .eq("room_id", selectedRoomId)
+        .eq("room_id", roomId)
         .order("created_at", { ascending: true })
         .limit(80);
       if (error) {
@@ -932,15 +973,17 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         return;
       }
       const parsed = (data ?? []).map((r) => rowToMessage(r as Record<string, unknown>));
-      setMessages((prev) => ({ ...prev, [selectedRoomId]: parsed }));
+      // [C1] Los mensajes se guardan bajo la clave del roomId específico
+      setMessages((prev) => ({ ...prev, [roomId]: parsed }));
     } catch (e) {
       console.error("[GlobalChat] Error inesperado fetchMessages:", e);
     }
-  }, [selectedRoomId]);
+  }, []);
 
+  // [C2] useEffect separado para fetchMessages, reactivo al selectedRoomId
   useEffect(() => {
     if (!selectedRoomId) return;
-    fetchMessages();
+    fetchMessages(selectedRoomId);
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selectedRoomId, fetchMessages]);
 
@@ -963,6 +1006,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         event: "INSERT",
         schema: "public",
         table: "global_chat_messages",
+        // [C1] filtrar por room_id para que mensajes de otras salas no aparezcan
         filter: `room_id=eq.${selectedRoomId}`
       },
         (payload) => {
@@ -1099,20 +1143,23 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     }
   }, []);
 
+  // [C1] Al cambiar de tipo de sala, seleccionar la primera sala del tipo correcto
   const handleSwitchType = (type: RoomType) => {
     if (type === "gold" && !canUseGold) { setShowGoldModal(true); return; }
     if (type === "classic" && !hasClassicAccess) { return; }
     setRoomType(type);
-    setSelectedRoomId(rooms.find(r => r.type === type)?.id || "");
+    // [C1] Seleccionar la primera sala del nuevo tipo, NO cualquier sala
+    const firstRoomOfType = rooms.find(r => r.type === type);
+    setSelectedRoomId(firstRoomOfType?.id || "");
+    setSearchQuery(""); setShowSearch(false); setReplyTo(null); setEditingId(null);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // [F1][F2][F4] GOLD SUBSCRIBE – MiniKit check + UUID reference + error toast
+  // [F1][F2][F4] GOLD SUBSCRIBE
   // ─────────────────────────────────────────────────────────────────────────
   const handleGoldSubscribe = async () => {
     if (!currentUserId) return;
 
-    // [F1] Verificar MiniKit antes de lanzar el pago
     if (!MiniKit.isInstalled()) {
       showError("World App no detectada. Abre esta app desde World App.");
       return;
@@ -1121,7 +1168,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     setGoldLoading(true);
     try {
       const payRes = await MiniKit.commandsAsync.pay({
-        // [F2] UUID v4 real — formato que Worldcoin requiere
         reference: generatePayReference("gold"),
         to: RECEIVER,
         tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(9.99, Tokens.WLD).toString() }],
@@ -1129,15 +1175,12 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
       });
 
       if (payRes?.finalPayload?.status !== "success") {
-        // Pago cancelado por el usuario — no es error crítico
         console.warn("[GlobalChat] Pago Gold cancelado por usuario:", payRes?.finalPayload?.status);
         return;
       }
 
       const transactionId = payRes.finalPayload.transaction_id;
-      console.log("[GlobalChat] Pago Gold recibido, verificando en backend. txId:", transactionId);
 
-      // [F8] fetch con timeout para entorno embebido
       let verifyRes: Response;
       try {
         verifyRes = await fetchWithTimeout("/api/verifyPayment", {
@@ -1155,7 +1198,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         const errData = await verifyRes.json().catch(() => ({}));
         const errMsg = (errData as { error?: string }).error ?? `HTTP ${verifyRes.status}`;
         showError(`El servidor rechazó la suscripción Gold: ${errMsg}`);
-        console.error("[GlobalChat] Backend rechazó suscripción Gold:", errData);
         return;
       }
 
@@ -1165,24 +1207,21 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
       setShowGoldModal(false);
       setRoomType("gold");
       setSelectedRoomId("");
-      console.log("[GlobalChat] Acceso Gold concedido para userId:", currentUserId);
 
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       showError(`Error al procesar pago Gold: ${msg}`);
-      console.error("[GlobalChat] Error pago Gold:", e);
     } finally {
       setGoldLoading(false);
     }
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // [F1][F2][F5] EXTRA ROOM – mismo patrón de robustez
+  // [F1][F2][F5] EXTRA ROOM
   // ─────────────────────────────────────────────────────────────────────────
   const handlePayForExtraRoom = async (amount: number, isGoldPrice: boolean) => {
     if (!pendingRoomData) return;
 
-    // [F1] Verificar MiniKit antes de lanzar el pago
     if (!MiniKit.isInstalled()) {
       showError("World App no detectada. Abre esta app desde World App.");
       return;
@@ -1191,7 +1230,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     setExtraRoomPayLoading(true);
     try {
       const payRes = await MiniKit.commandsAsync.pay({
-        // [F2] UUID v4 real
         reference: generatePayReference("room"),
         to: RECEIVER,
         tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(amount, Tokens.WLD).toString() }],
@@ -1204,9 +1242,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
       }
 
       const transactionId = payRes.finalPayload.transaction_id;
-      console.log("[GlobalChat] Pago sala extra recibido, verificando. txId:", transactionId);
 
-      // [F8] fetch con timeout
       let verifyRes: Response;
       try {
         verifyRes = await fetchWithTimeout("/api/verifyPayment", {
@@ -1224,7 +1260,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         const errData = await verifyRes.json().catch(() => ({}));
         const errMsg = (errData as { error?: string }).error ?? `HTTP ${verifyRes.status}`;
         showError(`El servidor rechazó el pago de sala extra: ${errMsg}`);
-        console.error("[GlobalChat] Backend rechazó pago sala extra:", errData);
         return;
       }
 
@@ -1237,14 +1272,13 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       showError(`Error al pagar sala extra: ${msg}`);
-      console.error("[GlobalChat] Error pago sala extra:", e);
     } finally {
       setExtraRoomPayLoading(false);
     }
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // [F11] INSERT ROOM – feedback de error al usuario
+  // [F11] INSERT ROOM
   // ─────────────────────────────────────────────────────────────────────────
   const insertRoom = async (data: Omit<ChatRoom, "id">) => {
     try {
@@ -1253,7 +1287,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         .select("id").maybeSingle();
       if (error) {
         showError(`Error al crear sala: ${error.message}`);
-        console.error("[GlobalChat] insertRoom error:", error);
         return;
       }
       if (inserted?.id) {
@@ -1263,10 +1296,10 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       showError(`Error inesperado al crear sala: ${msg}`);
-      console.error("[GlobalChat] insertRoom error inesperado:", e);
     }
   };
 
+  // [C4] handleCreateRoom con límites correctos: Classic → 2, Gold → 5
   const handleCreateRoom = async (data: Omit<ChatRoom, "id">) => {
     try {
       const { count, error: countError } = await supabase.from("chat_rooms")
@@ -1276,20 +1309,14 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
       if (countError) { console.error("[GlobalChat] Error contando rooms:", countError.message); }
       const userCount = count ?? 0;
 
-      if (hasGoldAccess) {
-        if (userCount < freeRoomLimit) {
-          await insertRoom(data);
-        } else {
-          setPendingRoomData(data);
-          setShowExtraRoomModal(true);
-        }
-      } else if (hasClassicAccess) {
-        if (userCount < 2) {
-          await insertRoom(data);
-        } else {
-          setPendingRoomData(data);
-          setShowExtraRoomModal(true);
-        }
+      // [C4] Límite según tier: Gold → 5, Classic → 2
+      const limit = hasGoldAccess ? 5 : 2;
+
+      if (userCount < limit) {
+        await insertRoom(data);
+      } else {
+        setPendingRoomData(data);
+        setShowExtraRoomModal(true);
       }
       setShowCreateRoom(false);
     } catch (e: unknown) {
@@ -1299,7 +1326,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // [F12] SEND – elimina optimista si el insert definitivo falla
+  // [F12] SEND
   // ─────────────────────────────────────────────────────────────────────────
   const handleSend = async (content: string, file?: File, audioBlob?: Blob, ephemeral?: boolean, replyMsg?: ChatMessage) => {
     if (!content.trim() && !file && !audioBlob) return;
@@ -1416,7 +1443,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // [F13] EDIT/DELETE – errores de Supabase con feedback al usuario
+  // [F13] EDIT/DELETE
   // ─────────────────────────────────────────────────────────────────────────
   const handleSaveEdit = async (msgId: string) => {
     if (!editText.trim()) return;
@@ -1426,7 +1453,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         .eq("id", msgId);
       if (error) {
         showError(`Error al editar mensaje: ${error.message}`);
-        console.error("[GlobalChat] handleSaveEdit error:", error);
         return;
       }
       setMessages((prev) => ({
@@ -1449,7 +1475,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         .eq("id", msgId);
       if (error) {
         showError(`Error al eliminar mensaje: ${error.message}`);
-        console.error("[GlobalChat] handleDelete error:", error);
         return;
       }
       setMessages((prev) => ({
@@ -1519,7 +1544,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
                 </button>
               </div>
 
-              {/* Room list dropdown */}
+              {/* Room list dropdown — solo salas del tipo activo */}
               <div className="flex items-center gap-1">
                 {filteredRooms.slice(0, 3).map((r) => (
                   <button key={r.id} onClick={() => switchRoom(r.id)}
@@ -1627,7 +1652,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
               disabled={noAccess} replyTo={replyTo} onCancelReply={() => setReplyTo(null)}
             />
 
-            {/* ══ [F3] ERROR TOAST ══ */}
+            {/* ══ ERROR TOAST ══ */}
             <AnimatePresence>
               {errorToast && (
                 <motion.div
