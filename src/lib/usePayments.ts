@@ -1,14 +1,13 @@
-import { supabase } from './supabaseClients'
+import { supabase } from '../supabaseClient'
 
 export const usePayments = () => {
-  const handlePayment = async (label: string, amount: number) => {
-    const user = supabase.auth.user()
-    if (!user) throw new Error('Usuario no autenticado')
+  const handlePayment = async (label: string, amount: number, userId: string) => {
+    if (!userId) throw new Error('Usuario no autenticado')
 
     const { data, error } = await supabase
       .from('payments')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         label,
         amount,
       })
