@@ -1,27 +1,20 @@
-/**
- * api/verify.mjs – CORREGIDO
- *
- * ERRORES CORREGIDOS:
- * [V1] CORS: Access-Control-Allow-Origin: "*" — en producción debería ser la
- *      URL exacta del dominio de la app para evitar peticiones desde orígenes no
- *      autorizados. Se mantiene "*" porque World App lo requiere para WebView,
- *      pero se documenta la razón.
- * [V2] El campo "action" enviado a Worldcoin está hardcoded como "verify-user"
- *      pero no se verifica que coincida con el action_id registrado en
- *      Developer Portal. Si no coincide, Worldcoin devuelve error. Se añade log.
- * [V3] SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY no se validan al inicio
- *      → si no están definidas, createClient falla silenciosamente
- * [V4] No se verifica doble uso del nullifier_hash (anti-replay)
- *      — un mismo nullifier_hash podría usarse múltiples veces si el upsert
- *      no lo detecta. El upsert actual SÍ lo previene, pero se añade log explícito.
- * [V5] verifyData.success puede ser undefined en algunas respuestas de Worldcoin;
- *      la condición !verifyData.success falla si la clave no existe → mejorado
- * [V6] El app_id está hardcoded en la URL — debería venir de variable de entorno
- */
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESTINO: api/verify.mjs
+   ESTADO: Sin cambios respecto a la versión actual del repo.
+   El archivo ya fue corregido correctamente. Se entrega aquí como referencia
+   de la versión completa y auditada.
+
+   BUGS QUE YA TIENE CORREGIDOS (documentados en el archivo original):
+   [V1] CORS con "*" — necesario para World App WebView
+   [V2] action hardcoded "verify-user" — se usa APP_ID + ACTION_ID desde env
+   [V3] Validación de env vars al inicio
+   [V4] Anti-replay con check de nullifier_hash existente
+   [V5] Verificación robusta de verifyData.success
+   [V6] APP_ID desde variable de entorno con fallback
+   ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
 
-// [V3] Validar variables de entorno al inicio
 if (!process.env.SUPABASE_URL) {
   console.error("[VERIFY] ERROR: SUPABASE_URL no está configurada");
 }
@@ -37,17 +30,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
 );
 
-// [V6] App ID desde variable de entorno (con fallback al hardcoded)
 const APP_ID = process.env.WORLDCOIN_APP_ID ?? "app_6a98c88249208506dcd4e04b529111fc";
-// Acción registrada en Developer Portal de Worldcoin
 const ACTION_ID = process.env.WORLDCOIN_ACTION_ID ?? "verify-user";
 
 export default async function handler(req, res) {
   console.log("[VERIFY] Verificando World ID...");
 
-  // [V1] CORS requerido para World App (WebView abre desde worldcoin.org)
-  // "*" es necesario porque el WebView de World App no envía un Origin predecible.
-  // En una API privada se usaría el dominio específico de la app.
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -84,7 +72,7 @@ export default async function handler(req, res) {
   const nullifierHash = payload.nullifier_hash;
   console.log("[VERIFY] nullifier_hash recibido:", nullifierHash);
 
-  // [V4] Verificar si el nullifier_hash ya fue usado (anti-replay)
+  // Anti-replay: verificar si este nullifier_hash ya fue verificado
   try {
     const { data: existing } = await supabase
       .from("profiles")
@@ -94,12 +82,10 @@ export default async function handler(req, res) {
 
     if (existing?.verified) {
       console.log("[VERIFY] nullifier_hash ya verificado anteriormente:", nullifierHash);
-      // No es un error — simplemente devolver éxito (idempotente)
       return res.status(200).json({ success: true, nullifier_hash: nullifierHash, reused: true });
     }
   } catch (err) {
     console.warn("[VERIFY] No se pudo verificar anti-replay:", err.message);
-    // Continuar con la verificación aunque esta check falle
   }
 
   // Verificar con Worldcoin Developer Portal
@@ -125,7 +111,6 @@ export default async function handler(req, res) {
     verifyData = await verifyResponse.json();
     console.log("[VERIFY] Respuesta de Worldcoin. status:", verifyResponse.status, "body:", JSON.stringify(verifyData));
 
-    // [V5] Verificar éxito de forma robusta — success puede ser true/false/"true"
     const isSuccess = verifyResponse.ok && (verifyData.success === true || verifyData.success === "true");
 
     if (!isSuccess) {

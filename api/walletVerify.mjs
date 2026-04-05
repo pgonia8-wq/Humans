@@ -1,25 +1,26 @@
-/**
- * api/walletVerify.mjs – CORREGIDO
- *
- * ERRORES CORREGIDOS:
- * [W1] CRÍTICO: walletVerify.mjs importa `verifySignedNonce` desde `./nonce.mjs`,
- *      pero nonce.mjs SOLO tiene un export default (el handler) — NO exporta
- *      `verifySignedNonce`. Esto causa un error de importación silencioso donde
- *      `verifySignedNonce` es `undefined` y la llamada falla con
- *      "verifySignedNonce is not a function".
- *      SOLUCIÓN: implementar la verificación inline usando el SDK de MiniKit
- *      o directamente con ethers/viem.
- * [W2] No se validan los campos del body (message, signature, address)
- * [W3] SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY no validadas al inicio
- * [W4] No se verifica que el nonce recibido fue generado recientemente
- *      (anti-replay de nonces expirados)
- * [W5] CORS: se mantiene "*" (requerido por World App WebView)
- */
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESTINO: api/walletVerify.mjs
+   ESTADO: El código del archivo ya fue corregido en sesión anterior.
+           El único cambio pendiente NO está en este archivo sino en
+           package.json (raíz):
+
+   [W-CRÍTICO] ethers NO está en dependencies del package.json raíz.
+               → fixes/package.json añade "ethers": "^6.13.0" a dependencies.
+               → Sin esto, Vercel falla con "Cannot find module 'ethers'"
+                 y TODA la autenticación de wallet explota en producción.
+
+   BUGS QUE YA TIENE CORREGIDOS (documentados en el archivo original):
+   [W1] Import roto de verifySignedNonce desde nonce.mjs (no existía)
+        → reimplementado inline con ethers.verifyMessage()
+   [W2] Validación de campos del body (message, signature, address)
+   [W3] Env vars validadas con null-coalescing
+   [W4] Verificación de expiración del nonce (TTL 5 minutos sobre timestamp)
+   [W5] CORS con "*" para World App WebView
+   ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
 import { ethers } from "ethers";
 
-// [W3] Validar variables de entorno al inicio
 if (!process.env.SUPABASE_URL) {
   console.error("[WALLET_VERIFY] ERROR: SUPABASE_URL no configurada");
 }
@@ -32,13 +33,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
 );
 
-// [W4] TTL de nonce: 5 minutos
 const NONCE_TTL_MS = 5 * 60 * 1000;
 
-/** [W1] Verificar firma ECDSA inline — reemplaza la función inexistente de nonce.mjs */
 function verifySignedNonce(message, signature) {
   try {
-    // Recuperar la dirección que firmó el mensaje
     const recovered = ethers.verifyMessage(message, signature);
     return { success: true, address: recovered };
   } catch (err) {
@@ -50,7 +48,6 @@ function verifySignedNonce(message, signature) {
 export default async function handler(req, res) {
   console.log("[WALLET_VERIFY] Verificando wallet signature...");
 
-  // [W5] CORS requerido para World App WebView
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -63,7 +60,6 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const { message, signature, address, userId } = body;
 
-  // [W2] Validar campos requeridos
   if (!message || typeof message !== "string") {
     return res.status(400).json({ success: false, error: "message es requerido" });
   }
@@ -76,9 +72,7 @@ export default async function handler(req, res) {
 
   console.log("[WALLET_VERIFY] address:", address, "userId:", userId ?? "(no proporcionado)");
 
-  // [W4] Verificar que el nonce en el mensaje no esté expirado
-  // Formato esperado del mensaje: "Nonce: <hex_32bytes>\nTimestamp: <ISO>"
-  // Si el mensaje incluye timestamp, verificarlo
+  // Verificar expiración del nonce (TTL 5 minutos)
   const tsMatch = message.match(/Timestamp:\s*(\d{4}-\d{2}-\d{2}T[\d:.Z]+)/);
   if (tsMatch) {
     const msgTime = new Date(tsMatch[1]).getTime();
@@ -90,7 +84,7 @@ export default async function handler(req, res) {
     console.warn("[WALLET_VERIFY] El mensaje no contiene Timestamp — no se puede verificar expiración.");
   }
 
-  // [W1] Verificar la firma con la implementación correcta
+  // Verificar firma ECDSA
   const verifyResult = verifySignedNonce(message, signature);
   if (!verifyResult.success) {
     console.error("[WALLET_VERIFY] Firma inválida:", verifyResult.error);
@@ -100,7 +94,6 @@ export default async function handler(req, res) {
   const recoveredAddress = verifyResult.address;
   console.log("[WALLET_VERIFY] Dirección recuperada:", recoveredAddress, "esperada:", address);
 
-  // Comparar de forma case-insensitive (Ethereum addresses son case-insensitive)
   if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
     console.error("[WALLET_VERIFY] La firma no corresponde a la dirección declarada.");
     return res.status(401).json({
@@ -125,7 +118,6 @@ export default async function handler(req, res) {
 
       if (updateErr) {
         console.error("[WALLET_VERIFY] Error actualizando perfil:", updateErr.message);
-        // No bloqueamos la respuesta — la firma sí es válida
         return res.status(200).json({
           success: true,
           address: recoveredAddress,

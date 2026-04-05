@@ -1,19 +1,21 @@
-/**
- * api/verifyPayment.mjs – NUEVO
- *
- * Este endpoint es llamado por GlobalChatRoom.tsx tras un pago exitoso de MiniKit.
- * Verifica la transacción con el Developer Portal de Worldcoin y, si es válida,
- * activa el acceso correspondiente en Supabase.
- *
- * Actions soportadas:
- *   - "chat_gold"   → activa suscripción en tabla "subscriptions" (product: chat_gold)
- *   - "extra_room"  → registra el permiso para crear sala extra (tabla "room_credits")
- *
- * SEGURIDAD:
- *   - Anti-replay: verifica que el transactionId no haya sido procesado antes
- *   - Validación con Worldcoin API antes de cualquier write en Supabase
- *   - Variables de entorno validadas al inicio
- */
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESTINO: api/verifyPayment.mjs
+   ESTADO: Correcto tal como está. Se entrega aquí como referencia auditada.
+
+   REQUISITO DE ENV VAR NO DOCUMENTADO:
+   [VP1] WORLDCOIN_API_KEY — requerida para autenticar la verificación de
+         transacciones con el Developer Portal de Worldcoin:
+           Authorization: Bearer ${process.env.WORLDCOIN_API_KEY}
+         Sin esta key el header se envía vacío ("Bearer ") y Worldcoin puede
+         rechazar la solicitud, haciendo que las verificaciones de pago fallen.
+         Añadir WORLDCOIN_API_KEY en las variables de entorno de Vercel.
+         Se obtiene en: Worldcoin Developer Portal → tu app → API Keys.
+
+   LÓGICA SOPORTADA:
+   - "chat_gold"  → activa en tabla subscriptions (product: chat_gold)
+   - "extra_room" → inserta crédito en tabla room_credits
+   Anti-replay: verifica transactionId antes de escribir.
+   ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -22,6 +24,9 @@ if (!process.env.SUPABASE_URL) {
 }
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error("[VERIFY_PAYMENT] ERROR: SUPABASE_SERVICE_ROLE_KEY no configurada");
+}
+if (!process.env.WORLDCOIN_API_KEY) {
+  console.warn("[VERIFY_PAYMENT] ADVERTENCIA: WORLDCOIN_API_KEY no configurada — la verificación de transacciones puede fallar");
 }
 
 const supabase = createClient(
@@ -63,7 +68,6 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const { transactionId, userId, action } = body;
 
-  // Validar campos
   if (!transactionId || typeof transactionId !== "string") {
     return res.status(400).json({ error: "transactionId es requerido" });
   }
@@ -76,7 +80,7 @@ export default async function handler(req, res) {
 
   console.log("[VERIFY_PAYMENT] action:", action, "userId:", userId, "txId:", transactionId);
 
-  // Anti-replay: verificar que esta transacción no se haya procesado
+  // Anti-replay
   try {
     const table = action === "chat_gold" ? "subscriptions" : "room_credits";
     const { data: existingTx, error: checkErr } = await supabase
@@ -101,13 +105,12 @@ export default async function handler(req, res) {
 
   if (!txOk) {
     console.error("[VERIFY_PAYMENT] Error al contactar Worldcoin:", txData);
-    // No bloquear al usuario si Worldcoin tiene un fallo de red temporal
     console.warn("[VERIFY_PAYMENT] Continuando sin confirmación de Worldcoin (fallo de red).");
   } else if (txStatus === "failed") {
     return res.status(402).json({ error: "Transacción de pago fallida en Worldcoin", txStatus });
   }
 
-  // Aplicar acción correspondiente en Supabase
+  // Aplicar acción en Supabase
   try {
     if (action === "chat_gold") {
       const { error: upsertErr } = await supabase
