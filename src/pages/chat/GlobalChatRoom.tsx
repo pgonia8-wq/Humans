@@ -846,6 +846,14 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const [extraRoomPayLoading,   setExtraRoomPayLoading]   = useState(false);
   const [errorToast,       setErrorToast]       = useState<string | null>(null);
 
+  // ── Token mini-app ──
+  const [showTokenApp,     setShowTokenApp]     = useState(false);
+  // El iframe no se monta hasta 10s después del inicio para no demorar la carga
+  const [tokenPreloaded,   setTokenPreloaded]   = useState(false);
+  const tokenIframeRef = useRef<HTMLIFrameElement>(null);
+  const TOKEN_APP_URL: string =
+    (import.meta as any).env?.VITE_TOKEN_APP_URL ?? "";
+
   const bottomRef      = useRef<HTMLDivElement>(null);
   const typingTimeouts = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const realtimeRef    = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -889,6 +897,12 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   }, [messages, myUsername, currentUserId]);
 
   // ── Check subscriptions ──
+  // Permite montar el iframe 10s después del inicio (no bloquea la carga inicial)
+  useEffect(() => {
+    const timer = setTimeout(() => setTokenPreloaded(true), 10000);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     if (!currentUserId || !isOpen) return;
     const checkSubscriptions = async () => {
@@ -1565,6 +1579,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -1652,6 +1667,14 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
                       {connected.length}
                     </span>
                   )}
+                </button>
+                {/* Botón Token mini-app */}
+                <button
+                  onClick={() => setShowTokenApp(true)}
+                  className="p-1.5 rounded-xl text-white/30 hover:text-white/60 hover:bg-white/8 transition-colors cursor-pointer text-base leading-none"
+                  title="Abrir Token Market"
+                >
+                  🪙
                 </button>
                 <button onClick={onClose}
                   className="p-1.5 rounded-xl text-white/30 hover:text-white/60 hover:bg-white/8 transition-colors cursor-pointer">
@@ -1773,5 +1796,62 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         </motion.div>
       )}
     </AnimatePresence>
+
+    {/* ── TOKEN MINI-APP FULLSCREEN ── */}
+    <AnimatePresence>
+      {showTokenApp && (
+        <motion.div
+          key="token-fullscreen"
+          className="fixed inset-0 z-[60] flex flex-col"
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 40 }}
+          transition={{ type: "spring", stiffness: 340, damping: 28 }}
+          style={{ background: "#0d0e14" }}
+        >
+          {/* Barra superior */}
+          <div
+            className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+          >
+            <span className="text-white font-semibold text-sm flex items-center gap-2">
+              🪙 Token Market
+            </span>
+            <button
+              onClick={() => setShowTokenApp(false)}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* iframe — solo se monta tras el delay de 10s */}
+          {!tokenPreloaded ? (
+            <div className="flex-1 flex items-center justify-center flex-col gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
+              <p className="text-gray-400 text-sm">Preparando Token Market…</p>
+            </div>
+          ) : TOKEN_APP_URL ? (
+            <iframe
+              ref={tokenIframeRef}
+              src={TOKEN_APP_URL}
+              className="flex-1 w-full border-0"
+              allow="camera; microphone; payment"
+              title="Token Market"
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center flex-col gap-4 text-center px-6">
+              <span className="text-4xl">🪙</span>
+              <p className="text-white font-semibold text-lg">Token Market</p>
+              <p className="text-gray-400 text-sm max-w-xs">
+                Define <code className="bg-white/10 px-1 rounded text-violet-300">VITE_TOKEN_APP_URL</code> en tu{" "}
+                <code className="bg-white/10 px-1 rounded text-violet-300">.env</code> con la URL de la token app.
+              </p>
+            </div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }
