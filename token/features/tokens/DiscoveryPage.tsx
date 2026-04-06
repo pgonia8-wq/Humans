@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { MOCK_TOKENS, formatNum, type Token } from "@/services/mockData";
+import { useState, useEffect } from "react";
+import { formatNum, type Token } from "@/services/mockData";
+import { api } from "@/services/api";
 import { useApp } from "@/context/AppContext";
 
 function TokenCard({ token, onClick }: { token: Token; onClick: () => void }) {
@@ -119,16 +120,31 @@ function HotCard({ token, onClick }: { token: Token; onClick: () => void }) {
 export default function DiscoveryPage() {
   const { navigate, openCreatorDashboard } = useApp();
   const [search, setSearch] = useState("");
+  const [allTokens, setAllTokens] = useState<Token[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = MOCK_TOKENS.filter(
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await api.getTokens();
+        setAllTokens(res.tokens);
+      } catch (err) {
+        console.error("[DiscoveryPage] Error loading tokens:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const filtered = allTokens.filter(
     (t) =>
       t.name.toLowerCase().includes(search.toLowerCase()) ||
       t.symbol.toLowerCase().includes(search.toLowerCase())
   );
 
-  const trending = MOCK_TOKENS.filter((t) => t.isTrending);
-  const exploding = MOCK_TOKENS.filter((t) => t.change24h > 50).sort((a, b) => b.change24h - a.change24h);
-  const newTokens = MOCK_TOKENS.filter((t) => t.curvePercent < 20).sort((a, b) => a.curvePercent - b.curvePercent);
+  const exploding = allTokens.filter((t) => t.change24h > 50).sort((a, b) => b.change24h - a.change24h);
+  const newTokens = allTokens.filter((t) => t.curvePercent < 20).sort((a, b) => a.curvePercent - b.curvePercent);
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -179,52 +195,58 @@ export default function DiscoveryPage() {
       </div>
 
       <div className="scrollable" style={{ flex: 1, paddingBottom: 80 }}>
-        {!search && exploding.length > 0 && (
-          <section style={{ marginBottom: 20 }}>
-            <div style={{ padding: "0 16px 10px" }}>
-              <h2 style={{ fontSize: 13, fontWeight: 800, color: "#f7a606", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                🔥 Exploding Now
-              </h2>
-            </div>
-            <div style={{ display: "flex", gap: 10, paddingLeft: 16, overflowX: "auto", paddingRight: 16 }}>
-              {exploding.map((t) => (
-                <HotCard key={t.id} token={t} onClick={() => navigate("token", { tokenId: t.id })} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {!search && newTokens.length > 0 && (
-          <section style={{ marginBottom: 20 }}>
-            <div style={{ padding: "0 16px 10px" }}>
-              <h2 style={{ fontSize: 13, fontWeight: 800, color: "#10f090", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                🚀 Newest — Get in Early
-              </h2>
-            </div>
-            <div style={{ display: "flex", gap: 10, paddingLeft: 16, overflowX: "auto", paddingRight: 16 }}>
-              {newTokens.map((t) => (
-                <HotCard key={t.id} token={t} onClick={() => navigate("token", { tokenId: t.id })} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section>
-          <div style={{ padding: "0 16px 10px" }}>
-            <h2 style={{ fontSize: 13, fontWeight: 700, color: "#888", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-              {search ? `Results (${filtered.length})` : "All Tokens"}
-            </h2>
-          </div>
-          <div style={{ padding: "0 16px" }}>
-            {filtered.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "#555" }}>No tokens found</div>
-            ) : (
-              filtered.map((t) => (
-                <TokenCard key={t.id} token={t} onClick={() => navigate("token", { tokenId: t.id })} />
-              ))
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 40, color: "#888" }}>Loading tokens...</div>
+        ) : (
+          <>
+            {!search && exploding.length > 0 && (
+              <section style={{ marginBottom: 20 }}>
+                <div style={{ padding: "0 16px 10px" }}>
+                  <h2 style={{ fontSize: 13, fontWeight: 800, color: "#f7a606", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                    🔥 Exploding Now
+                  </h2>
+                </div>
+                <div style={{ display: "flex", gap: 10, paddingLeft: 16, overflowX: "auto", paddingRight: 16 }}>
+                  {exploding.map((t) => (
+                    <HotCard key={t.id} token={t} onClick={() => navigate("token", { tokenId: t.id })} />
+                  ))}
+                </div>
+              </section>
             )}
-          </div>
-        </section>
+
+            {!search && newTokens.length > 0 && (
+              <section style={{ marginBottom: 20 }}>
+                <div style={{ padding: "0 16px 10px" }}>
+                  <h2 style={{ fontSize: 13, fontWeight: 800, color: "#10f090", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                    🚀 Newest — Get in Early
+                  </h2>
+                </div>
+                <div style={{ display: "flex", gap: 10, paddingLeft: 16, overflowX: "auto", paddingRight: 16 }}>
+                  {newTokens.map((t) => (
+                    <HotCard key={t.id} token={t} onClick={() => navigate("token", { tokenId: t.id })} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <div style={{ padding: "0 16px 10px" }}>
+                <h2 style={{ fontSize: 13, fontWeight: 700, color: "#888", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                  {search ? `Results (${filtered.length})` : "All Tokens"}
+                </h2>
+              </div>
+              <div style={{ padding: "0 16px" }}>
+                {filtered.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: 40, color: "#555" }}>No tokens found</div>
+                ) : (
+                  filtered.map((t) => (
+                    <TokenCard key={t.id} token={t} onClick={() => navigate("token", { tokenId: t.id })} />
+                  ))
+                )}
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </div>
   );
