@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { useApp } from "@/context/AppContext";
 import { api } from "@/services/api";
 import type { Token } from "@/services/types";
@@ -10,13 +11,10 @@ type Tab = "buy" | "sell";
 const RECEIVER = import.meta.env?.VITE_PAYMENT_RECEIVER || "";
 
 function generatePayReference(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
 }
 
@@ -37,7 +35,6 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
   const [orbVerified, setOrbVerified] = useState(false);
   const [userHolding, setUserHolding] = useState(0);
   const [success, setSuccess] = useState(false);
-  const paymentCancelRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (defaultTab) setTab(defaultTab);
@@ -77,57 +74,6 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
     setError(null);
   };
 
-  const requestPayment = (amountWld: number, description: string): Promise<string> => {
-    if (!RECEIVER) {
-      return Promise.reject(new Error("Payment receiver not configured"));
-    }
-
-    const origin = import.meta.env?.VITE_PARENT_ORIGIN || "*";
-    const reference = generatePayReference();
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        window.removeEventListener("message", handler);
-        paymentCancelRef.current = null;
-        reject(new Error("Payment timeout"));
-      }, 60000);
-
-      paymentCancelRef.current = () => {
-        clearTimeout(timeout);
-        window.removeEventListener("message", handler);
-        paymentCancelRef.current = null;
-        reject(new Error("Payment cancelled"));
-      };
-
-      const handler = (e: MessageEvent) => {
-        if (e.data?.type === "PAYMENT_RESULT") {
-          clearTimeout(timeout);
-          window.removeEventListener("message", handler);
-          paymentCancelRef.current = null;
-          if (e.data.payload?.success && e.data.payload?.transactionId) {
-            resolve(e.data.payload.transactionId);
-          } else {
-            reject(new Error(e.data.payload?.error || "Payment failed or cancelled"));
-          }
-        }
-      };
-
-      window.addEventListener("message", handler);
-      window.parent?.postMessage({
-        type: "REQUEST_PAYMENT",
-        payload: { reference, to: RECEIVER, amount: amountWld, token: "WLD", description },
-      }, origin);
-    });
-  };
-
-  const handleCancel = () => {
-    if (paymentCancelRef.current) {
-      paymentCancelRef.current();
-    }
-    setLoading(false);
-    setError(null);
-  };
-
   const handleSubmit = async () => {
     if (!numAmount || numAmount <= 0 || !user?.id) return;
     if (!orbVerified) {
@@ -147,7 +93,22 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
           return;
         }
 
-        await requestPayment(amountWld, `Buy ${token.symbol} tokens`);
+        if (!MiniKit.isInstalled()) throw new Error("World App not detected. Open from World App.");
+        if (!RECEIVER) throw new Error("Payment receiver not configured");
+
+        const payRes = await MiniKit.commandsAsync.pay({
+          reference: generatePayReference(),
+          to: RECEIVER,
+          tokens: [{
+            symbol: Tokens.WLD,
+            token_amount: tokenToDecimals(amountWld, Tokens.WLD).toString(),
+          }],
+          description: `Buy ${token.symbol} tokens`,
+        });
+
+        if (payRes?.finalPayload?.status !== "success") {
+          throw new Error("Payment cancelled or failed");
+        }
 
         const result = await api.buyToken({ tokenId: token.id, amountWld, userId: user.id });
         if (!result.success) { setError(result.message || "Buy failed"); setLoading(false); return; }
@@ -312,29 +273,22 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
         </motion.div>
       )}
 
-      <div className="flex gap-2">
-        <button
-          onClick={handleSubmit}
-          disabled={loading || !numAmount || numAmount <= 0}
-          data-testid="button-submit-trade"
-          className={`flex-1 py-3 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100 ${
-            tab === "buy"
-              ? "bg-emerald-500 shadow-[0_0_16px_rgba(16,185,129,0.3)]"
-              : "bg-red-500 shadow-[0_0_16px_rgba(239,68,68,0.3)]"
-          }`}
-        >
-          {loading ? (
-            <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
-          ) : (
-            tab === "buy" ? "Buy" : "Sell"
-          )}
-        </button>
-        {loading && (
-          <button onClick={handleCancel} data-testid="button-cancel-payment" className="px-4 py-3 rounded-xl border border-border/40 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-            Cancel
-          </button>
+      <button
+        onClick={handleSubmit}
+        disabled={loading || !numAmount || numAmount <= 0}
+        data-testid="button-submit-trade"
+        className={`w-full py-3 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100 ${
+          tab === "buy"
+            ? "bg-emerald-500 shadow-[0_0_16px_rgba(16,185,129,0.3)]"
+            : "bg-red-500 shadow-[0_0_16px_rgba(239,68,68,0.3)]"
+        }`}
+      >
+        {loading ? (
+          <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
+        ) : (
+          tab === "buy" ? "Buy" : "Sell"
         )}
-      </div>
+      </button>
     </div>
   );
 }

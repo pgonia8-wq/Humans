@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { useApp } from "@/context/AppContext";
 import { api } from "@/services/api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,7 +41,6 @@ export default function CreatorDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [createdTokenId, setCreatedTokenId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const cancelRef = useRef<(() => void) | null>(null);
 
   const updateField = (key: keyof TokenForm, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -84,44 +84,25 @@ export default function CreatorDashboard() {
 
       setStep("paying");
 
+      if (!MiniKit.isInstalled()) throw new Error("World App not detected. Open from World App.");
       if (!RECEIVER) throw new Error("Payment receiver not configured");
 
-      const origin = import.meta.env?.VITE_PARENT_ORIGIN || "*";
-      const reference = generatePayReference();
-
-      const transactionId = await new Promise<string>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          window.removeEventListener("message", handler);
-          cancelRef.current = null;
-          reject(new Error("Payment timeout"));
-        }, 60000);
-
-        cancelRef.current = () => {
-          clearTimeout(timeout);
-          window.removeEventListener("message", handler);
-          cancelRef.current = null;
-          reject(new Error("Payment cancelled"));
-        };
-
-        const handler = (e: MessageEvent) => {
-          if (e.data?.type === "PAYMENT_RESULT") {
-            clearTimeout(timeout);
-            window.removeEventListener("message", handler);
-            cancelRef.current = null;
-            if (e.data.payload?.success && e.data.payload?.transactionId) {
-              resolve(e.data.payload.transactionId);
-            } else {
-              reject(new Error(e.data.payload?.error || "Payment failed"));
-            }
-          }
-        };
-
-        window.addEventListener("message", handler);
-        window.parent?.postMessage({
-          type: "REQUEST_PAYMENT",
-          payload: { reference, to: RECEIVER, amount: CREATION_FEE, token: "WLD", description: `Create token: ${form.symbol}` },
-        }, origin);
+      const payRes = await MiniKit.commandsAsync.pay({
+        reference: generatePayReference(),
+        to: RECEIVER,
+        tokens: [{
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(CREATION_FEE, Tokens.WLD).toString(),
+        }],
+        description: `Create token: ${form.symbol}`,
       });
+
+      if (payRes?.finalPayload?.status !== "success") {
+        setStep("form");
+        return;
+      }
+
+      const transactionId = payRes.finalPayload.transaction_id;
 
       setStep("creating");
 
@@ -148,18 +129,9 @@ export default function CreatorDashboard() {
       setStep("success");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("cancelled")) {
-        setStep("form");
-      } else {
-        setError(msg);
-        setStep("form");
-      }
+      setError(msg);
+      setStep("form");
     }
-  };
-
-  const handleCancel = () => {
-    if (cancelRef.current) cancelRef.current();
-    else setStep("form");
   };
 
   return (
@@ -287,13 +259,6 @@ export default function CreatorDashboard() {
               </div>
               <div className="text-lg font-bold text-foreground">Waiting for Payment</div>
               <p className="text-sm text-muted-foreground">Confirm the {CREATION_FEE} WLD payment in World App</p>
-              <button
-                onClick={handleCancel}
-                data-testid="button-cancel-payment"
-                className="px-6 py-2.5 rounded-xl border border-border/40 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Cancel
-              </button>
             </motion.div>
           )}
 
