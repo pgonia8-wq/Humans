@@ -1,18 +1,17 @@
-import { supabase, cors } from "../../_supabase.mjs";
-import { requireOrb } from "../../_orbGuard.mjs";
+import { supabase, cors } from "./_supabase.mjs";
+import { requireOrb } from "./_orbGuard.mjs";
 import {
-  solveBuy, curvePercent, checkGraduation, spotPrice,
+  solveBuy, curvePercent, checkGraduation,
   TOTAL_SUPPLY, MAX_CREATOR_HOLD, WLD_USD,
-  GRADUATION_WLD, GRADUATION_HOLDERS, MAX_RETRIES,
-} from "../../_curve.mjs";
+  MAX_RETRIES,
+} from "./_curve.mjs";
 
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
-  const tokenId = req.query.id;
-  const { amountWld, userId } = req.body ?? {};
+  const { tokenId, amountWld, userId } = req.body ?? {};
   if (!tokenId || !amountWld || !userId) {
     return res.status(400).json({ error: "Missing tokenId, amountWld, userId" });
   }
@@ -35,7 +34,6 @@ export default async function handler(req, res) {
 
       const supply = Number(token.circulating_supply ?? 0);
       const { tokensOut, fee, netWld, newSupply, newPrice } = solveBuy(amountWld, supply);
-
       if (tokensOut <= 0) return res.status(400).json({ error: "Amount too small" });
 
       if (userId === token.creator_id) {
@@ -160,7 +158,6 @@ async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
   try {
     const toPool     = totalWld * 0.70;
     const toTreasury = totalWld * 0.30;
-
     await supabase
       .from("tokens")
       .update({
@@ -184,7 +181,6 @@ async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
       total: totalWld,
       timestamp: new Date().toISOString(),
     });
-
     console.log(`[GRADUATION] ${symbol} graduated! Pool: ${toPool.toFixed(2)}, Treasury: ${toTreasury.toFixed(2)}`);
   } catch (err) {
     console.error("[GRADUATION_TRIGGER]", err.message);
