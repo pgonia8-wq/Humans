@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import { api } from "@/services/api";
-import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 
 type Step = "form" | "checking_orb" | "paying" | "creating" | "success" | "orb_required";
 
@@ -100,32 +99,40 @@ export default function CreatorDashboard() {
     setError(null);
 
     try {
-      if (!MiniKit.isInstalled()) {
-        throw new Error("World App not detected. Open this app from World App.");
-      }
-
       const reference = generatePayReference();
+      const origin = (import.meta as any).env?.VITE_PARENT_ORIGIN || "*";
 
-      const payRes = await MiniKit.commandsAsync.pay({
-        reference,
-        to: RECEIVER,
-        tokens: [
-          {
-            symbol: Tokens.WLD,
-            token_amount: tokenToDecimals(CREATION_FEE, Tokens.WLD).toString(),
+      const transactionId = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          window.removeEventListener("message", handler);
+          reject(new Error("Payment timeout — no response from H app"));
+        }, 120000);
+
+        const handler = (e: MessageEvent) => {
+          if (e.data?.type === "PAYMENT_RESULT") {
+            clearTimeout(timeout);
+            window.removeEventListener("message", handler);
+            if (e.data.payload?.success && e.data.payload?.transactionId) {
+              resolve(e.data.payload.transactionId);
+            } else {
+              reject(new Error(e.data.payload?.error || "Payment cancelled or failed"));
+            }
+          }
+        };
+
+        window.addEventListener("message", handler);
+
+        window.parent?.postMessage({
+          type: "REQUEST_PAYMENT",
+          payload: {
+            reference,
+            to: RECEIVER,
+            amount: CREATION_FEE,
+            token: "WLD",
+            description: `Create token: ${form.name} ($${form.symbol.toUpperCase()})`,
           },
-        ],
-        description: `Create token: ${form.name} ($${form.symbol.toUpperCase()})`,
+        }, origin);
       });
-
-      if (payRes?.finalPayload?.status !== "success") {
-        throw new Error("Payment cancelled or failed");
-      }
-
-      const transactionId = payRes.finalPayload.transaction_id;
-      if (!transactionId) {
-        throw new Error("No transaction ID received from payment");
-      }
 
       setTxHash(transactionId);
 
@@ -385,7 +392,7 @@ export default function CreatorDashboard() {
               }}>
                 <span style={{ fontSize: 16 }}>🔐</span>
                 <span style={{ fontSize: 11, color: "#10f090", fontWeight: 600 }}>
-                  ORB verification required · On-chain payment via MiniKit
+                  ORB verification required · On-chain payment via World App
                 </span>
               </div>
 
@@ -510,7 +517,7 @@ export default function CreatorDashboard() {
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#f7a606" }}>Creation Fee</div>
                     <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
-                      On-chain payment via MiniKit Pay
+                      On-chain payment via World App
                     </div>
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "#f7a606" }}>

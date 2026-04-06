@@ -1,13 +1,10 @@
-import {
-  MOCK_TOKENS,
-  MOCK_AIRDROPS,
-  MOCK_HOLDINGS,
-  MOCK_ACTIVITY,
-  type Token,
-  type Airdrop,
-  type Holding,
-  type ActivityItem,
-} from "./mockData";
+import type {
+  Token, TokenDetail, TokenListResponse, AirdropListResponse,
+  HoldingsResponse, ActivityListResponse, UserProfile, HolderInfo,
+  BuyRequest, BuyResult, SellRequest, SellResult,
+  ClaimAirdropRequest, ClaimResult, CreateTokenRequest,
+  UploadResult, GraduateResult, Airdrop,
+} from "./types";
 
 const BASE = "/api";
 
@@ -16,239 +13,139 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `API ${res.status}: ${res.statusText}`);
+  }
   return res.json() as Promise<T>;
 }
 
-export interface TokenListResponse {
-  tokens: Token[];
-  total: number;
-  hasMore: boolean;
-}
-
-export interface AirdropListResponse {
-  airdrops: Airdrop[];
-  total: number;
-}
-
-export interface HoldingsResponse {
-  holdings: Holding[];
-  totalValue: number;
-  totalPnl: number;
-  totalPnlPercent: number;
-}
-
-export interface ActivityListResponse {
-  activities: ActivityItem[];
-  total: number;
-}
-
-export interface UserProfile {
-  id: string;
-  username: string;
-  avatarUrl?: string;
-  bio?: string;
-  balanceUsdc: number;
-  balanceWld: number;
-  totalValue: number;
-  tokensCreated: number;
-  tokensHeld: number;
-  joinedAt: string;
-}
-
-export interface BuyRequest {
-  tokenId: string;
-  amount: number;
-  currency: "WLD" | "USDC";
-  userId: string;
-  paymentMethod: "WLD" | "STRIPE" | "MERCADOPAGO";
-}
-
-export interface SellRequest {
-  tokenId: string;
-  amount: number;
-  userId: string;
-}
-
-export interface TransactionResult {
-  success: boolean;
-  txHash?: string;
-  amount?: number;
-  price?: number;
-  total?: number;
-  message: string;
-}
-
-export interface ClaimAirdropRequest {
-  airdropId: string;
-  userId: string;
-}
-
-export interface ClaimResult {
-  success: boolean;
-  amount?: number;
-  nextClaimAt?: string;
-  message: string;
-}
-
-export interface CreateTokenRequest {
-  name: string;
-  symbol: string;
-  description: string;
-  emoji?: string;
-  totalSupply: number;
-  creatorId: string;
-  lockPercent?: number;
-  lockDurationDays?: number;
-}
-
 export const api = {
-  async getTokens(params?: { search?: string; sort?: string; limit?: number; offset?: number }): Promise<TokenListResponse> {
-    try {
-      const qs = new URLSearchParams(params as Record<string, string>).toString();
-      return await request<TokenListResponse>(`/tokens${qs ? `?${qs}` : ""}`);
-    } catch (err) {
-      console.warn("[api.getTokens] API no disponible, usando datos locales:", (err as Error).message);
-      let tokens = [...MOCK_TOKENS];
-      if (params?.search) {
-        const q = params.search.toLowerCase();
-        tokens = tokens.filter((t) => t.name.toLowerCase().includes(q) || t.symbol.toLowerCase().includes(q));
-      }
-      if (params?.sort === "trending") tokens.sort((a, b) => (b.isTrending ? 1 : 0) - (a.isTrending ? 1 : 0));
-      if (params?.sort === "volume") tokens.sort((a, b) => b.volume24h - a.volume24h);
-      if (params?.sort === "marketcap") tokens.sort((a, b) => b.marketCap - a.marketCap);
-      return { tokens, total: tokens.length, hasMore: false };
-    }
+  async getTokens(params?: { search?: string; sort?: string; limit?: number; offset?: number; filter?: string }): Promise<TokenListResponse> {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set("search", params.search);
+    if (params?.sort) qs.set("sort", params.sort);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.offset) qs.set("offset", String(params.offset));
+    if (params?.filter) qs.set("filter", params.filter);
+    const qstr = qs.toString();
+    return request<TokenListResponse>(`/tokens${qstr ? `?${qstr}` : ""}`);
   },
 
   async getTrendingTokens(): Promise<TokenListResponse> {
-    try {
-      return await request<TokenListResponse>("/tokens/trending");
-    } catch (err) {
-      console.warn("[api.getTrendingTokens] API no disponible, usando datos locales:", (err as Error).message);
-      const tokens = MOCK_TOKENS.filter((t) => t.isTrending);
-      return { tokens, total: tokens.length, hasMore: false };
-    }
+    return request<TokenListResponse>("/tokens?filter=trending");
   },
 
-  async getToken(id: string): Promise<Token> {
-    try {
-      return await request<Token>(`/tokens/${id}`);
-    } catch (err) {
-      console.warn("[api.getToken] API no disponible, usando datos locales:", (err as Error).message);
-      const token = MOCK_TOKENS.find((t) => t.id === id);
-      if (!token) throw new Error("Token not found");
-      return token;
-    }
+  async getToken(id: string): Promise<TokenDetail> {
+    return request<TokenDetail>(`/tokens/${id}`);
   },
 
-  async getTokenActivity(id: string, limit = 20): Promise<ActivityListResponse> {
-    try {
-      return await request<ActivityListResponse>(`/tokens/${id}/activity?limit=${limit}`);
-    } catch (err) {
-      console.warn("[api.getTokenActivity] API no disponible, usando datos locales:", (err as Error).message);
-      const activities = MOCK_ACTIVITY.filter((a) => a.tokenId === id);
-      return { activities, total: activities.length };
-    }
+  async getTokenHolders(tokenId: string): Promise<HolderInfo[]> {
+    return request<HolderInfo[]>(`/tokens/${tokenId}/holders`);
   },
 
-  async buyToken(body: BuyRequest): Promise<TransactionResult> {
-    return await request<TransactionResult>(`/tokens/${body.tokenId}/buy`, {
+  async getTokenActivity(id: string, limit = 50): Promise<ActivityListResponse> {
+    return request<ActivityListResponse>(`/tokens/${id}/activity?limit=${limit}`);
+  },
+
+  async buyToken(body: BuyRequest): Promise<BuyResult> {
+    return request<BuyResult>(`/tokens/${body.tokenId}/buy`, {
       method: "POST",
-      body: JSON.stringify({
-        amount: body.amount,
-        currency: body.currency,
-        userId: body.userId,
-        paymentMethod: body.paymentMethod,
-      }),
+      body: JSON.stringify(body),
     });
   },
 
-  async sellToken(body: SellRequest): Promise<TransactionResult> {
-    return await request<TransactionResult>(`/tokens/${body.tokenId}/sell`, {
+  async sellToken(body: SellRequest): Promise<SellResult> {
+    return request<SellResult>(`/tokens/${body.tokenId}/sell`, {
       method: "POST",
-      body: JSON.stringify({
-        amount: body.amount,
-        userId: body.userId,
-      }),
+      body: JSON.stringify(body),
+    });
+  },
+
+  async graduateToken(tokenId: string): Promise<GraduateResult> {
+    return request<GraduateResult>(`/tokens/${tokenId}/graduate`, {
+      method: "POST",
+      body: JSON.stringify({ tokenId }),
+    });
+  },
+
+  async uploadAvatar(imageBase64: string, userId: string, target: "token" | "user", targetId?: string, fileName?: string): Promise<UploadResult> {
+    return request<UploadResult>("/upload", {
+      method: "POST",
+      body: JSON.stringify({ imageBase64, userId, target, targetId, fileName }),
     });
   },
 
   async getAirdrops(userId?: string): Promise<AirdropListResponse> {
-    try {
-      const qs = userId ? `?user_id=${userId}` : "";
-      return await request<AirdropListResponse>(`/airdrops${qs}`);
-    } catch (err) {
-      console.warn("[api.getAirdrops] API no disponible, usando datos locales:", (err as Error).message);
-      return { airdrops: MOCK_AIRDROPS, total: MOCK_AIRDROPS.length };
-    }
+    const qs = userId ? `?user_id=${userId}` : "";
+    return request<AirdropListResponse>(`/airdrops${qs}`);
   },
 
   async getAirdrop(id: string): Promise<Airdrop> {
-    try {
-      return await request<Airdrop>(`/airdrops/${id}`);
-    } catch (err) {
-      console.warn("[api.getAirdrop] API no disponible, usando datos locales:", (err as Error).message);
-      const a = MOCK_AIRDROPS.find((x) => x.id === id);
-      if (!a) throw new Error("Airdrop not found");
-      return a;
-    }
+    return request<Airdrop>(`/airdrops/${id}`);
   },
 
   async claimAirdrop(body: ClaimAirdropRequest): Promise<ClaimResult> {
-    return await request<ClaimResult>(`/airdrops/${body.airdropId}/claim`, {
+    return request<ClaimResult>(`/airdrops/${body.airdropId}/claim`, {
       method: "POST",
       body: JSON.stringify({ userId: body.userId }),
     });
   },
 
   async getUser(userId: string): Promise<UserProfile> {
-    try {
-      return await request<UserProfile>(`/user?user_id=${userId}`);
-    } catch (err) {
-      console.warn("[api.getUser] API no disponible, usando datos locales:", (err as Error).message);
-      return {
-        id: userId,
-        username: "worlduser.eth",
-        balanceUsdc: 380.0,
-        balanceWld: 142.5,
-        totalValue: 522.5,
-        tokensCreated: 0,
-        tokensHeld: 2,
-        joinedAt: new Date().toISOString(),
-      };
-    }
+    return request<UserProfile>(`/user?user_id=${userId}`);
+  },
+
+  async updateProfile(userId: string, data: { username?: string; bio?: string; avatarUrl?: string }): Promise<UserProfile> {
+    return request<UserProfile>(`/user/profile`, {
+      method: "PUT",
+      body: JSON.stringify({ userId, ...data }),
+    });
   },
 
   async getUserHoldings(userId: string): Promise<HoldingsResponse> {
-    try {
-      return await request<HoldingsResponse>(`/user/holdings?user_id=${userId}`);
-    } catch (err) {
-      console.warn("[api.getUserHoldings] API no disponible, usando datos locales:", (err as Error).message);
-      const totalValue = MOCK_HOLDINGS.reduce((s, h) => s + h.value, 0);
-      const totalPnl = MOCK_HOLDINGS.reduce((s, h) => s + h.pnl, 0);
-      return {
-        holdings: MOCK_HOLDINGS,
-        totalValue,
-        totalPnl,
-        totalPnlPercent: (totalPnl / (totalValue - totalPnl)) * 100,
-      };
-    }
+    return request<HoldingsResponse>(`/user/holdings?user_id=${userId}`);
   },
 
   async getUserActivity(userId: string): Promise<ActivityListResponse> {
-    try {
-      return await request<ActivityListResponse>(`/user/activity?user_id=${userId}`);
-    } catch (err) {
-      console.warn("[api.getUserActivity] API no disponible, usando datos locales:", (err as Error).message);
-      return { activities: MOCK_ACTIVITY, total: MOCK_ACTIVITY.length };
-    }
+    return request<ActivityListResponse>(`/user/activity?user_id=${userId}`);
   },
 
   async createToken(body: CreateTokenRequest): Promise<Token> {
-    return await request<Token>("/creator/tokens", {
+    return request<Token>("/tokens", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
+
+  async verifyTokenPayment(transactionId: string, userId: string, action: string): Promise<{ success: boolean; transactionStatus: string; replayed?: boolean }> {
+    return request(`/verifyTokenPayment`, {
+      method: "POST",
+      body: JSON.stringify({ transactionId, userId, action }),
+    });
+  },
+
+  async verifyOrb(payload: Record<string, unknown>): Promise<{ success: boolean; nullifier_hash: string; orbVerified: boolean; reused?: boolean }> {
+    return request(`/verifyOrb`, {
+      method: "POST",
+      body: JSON.stringify({ payload }),
+    });
+  },
+
+  async checkOrbStatus(userId: string): Promise<{ orbVerified: boolean; verificationLevel?: string }> {
+    return request(`/checkOrbStatus?userId=${encodeURIComponent(userId)}`);
+  },
+
+  async getPriceHistory(tokenId: string, period: string = "24h"): Promise<PriceHistoryResponse> {
+    return request<PriceHistoryResponse>(`/tokens/${tokenId}/priceHistory?period=${period}`);
+  },
 };
+
+export type {
+  Token, TokenDetail, TokenListResponse, AirdropListResponse,
+  HoldingsResponse, ActivityListResponse, UserProfile, HolderInfo,
+  BuyRequest, BuyResult, SellRequest, SellResult,
+  ClaimAirdropRequest, ClaimResult, CreateTokenRequest,
+  UploadResult, GraduateResult, Airdrop, TokenStats,
+  PriceSnapshot, Candle, PriceHistoryResponse,
+} from "./types";

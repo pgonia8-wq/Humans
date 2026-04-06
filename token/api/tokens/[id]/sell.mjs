@@ -1,5 +1,6 @@
 import { supabase, cors } from "../../_supabase.mjs";
 import { requireOrb } from "../../_orbGuard.mjs";
+import { recordPriceSnapshot } from "../../_snapshot.mjs";
 import {
   solveSell, curvePercent, spotPrice,
   CREATOR_LOCK_HOURS, WLD_USD, MAX_RETRIES,
@@ -133,6 +134,8 @@ export default async function handler(req, res) {
         total: wldReceived,
         timestamp: new Date().toISOString(),
       });
+
+      await recordPriceSnapshot(tokenId, newPrice, newPriceUsd, newSupply, wldReceived * WLD_USD, "sell");
 
       return res.status(200).json({
         success: true,

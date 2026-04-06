@@ -1,5 +1,6 @@
 import { supabase, cors } from "../../_supabase.mjs";
 import { requireOrb } from "../../_orbGuard.mjs";
+import { recordPriceSnapshot } from "../../_snapshot.mjs";
 import {
   solveBuy, curvePercent, checkGraduation, spotPrice,
   TOTAL_SUPPLY, MAX_CREATOR_HOLD, WLD_USD,
@@ -131,6 +132,8 @@ export default async function handler(req, res) {
         total: amountWld,
         timestamp: new Date().toISOString(),
       });
+
+      await recordPriceSnapshot(tokenId, newPrice, newPriceUsd, newSupply, amountWld * WLD_USD, "buy");
 
       if (checkGraduation(totalWldInCurve, Number(token.holders ?? 0) + (prevAmount === 0 ? 1 : 0))) {
         await triggerGraduation(tokenId, token.symbol, totalWldInCurve, newPrice);

@@ -215,6 +215,87 @@ END $$;
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('token-avatars', 'token-avatars', true) ON CONFLICT DO NOTHING;
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('user-avatars', 'user-avatars', true) ON CONFLICT DO NOTHING;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 11. PRICE_SNAPSHOTS — real candlestick / price history data
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS price_snapshots (
+  id         uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  token_id   text NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
+  price_wld  double precision NOT NULL,
+  price_usdc double precision NOT NULL,
+  supply     bigint DEFAULT 0,
+  volume     double precision DEFAULT 0,
+  type       text DEFAULT 'trade',
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_token   ON price_snapshots(token_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_time    ON price_snapshots(token_id, created_at DESC);
+
+ALTER TABLE price_snapshots ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'snapshots_read_all' AND tablename = 'price_snapshots') THEN
+    CREATE POLICY snapshots_read_all ON price_snapshots FOR SELECT USING (true);
+  END IF;
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 12. UPDATE_24H_CHANGE — function to recalculate 24h price change
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION update_24h_change(tid text)
+RETURNS void AS $$
+DECLARE
+  old_price double precision;
+  new_price double precision;
+  pct       double precision;
+BEGIN
+  SELECT price_wld INTO old_price
+  FROM price_snapshots
+  WHERE token_id = tid AND created_at <= (now() - interval '24 hours')
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  SELECT price_wld INTO new_price FROM tokens WHERE id = tid;
+
+  IF old_price IS NOT NULL AND old_price > 0 THEN
+    pct := ((new_price - old_price) / old_price) * 100;
+  ELSE
+    pct := 0;
+  END IF;
+
+  UPDATE tokens SET change_24h = pct WHERE id = tid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 13. UPDATE_BUY_PRESSURE — compute from recent activity
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION update_buy_pressure(tid text)
+RETURNS void AS $$
+DECLARE
+  total_txns integer;
+  buy_txns   integer;
+  pressure   integer;
+BEGIN
+  SELECT count(*) INTO total_txns
+  FROM token_activity
+  WHERE token_id = tid AND timestamp > (now() - interval '24 hours');
+
+  SELECT count(*) INTO buy_txns
+  FROM token_activity
+  WHERE token_id = tid AND type = 'buy' AND timestamp > (now() - interval '24 hours');
+
+  IF total_txns > 0 THEN
+    pressure := ROUND((buy_txns::numeric / total_txns::numeric) * 100);
+  ELSE
+    pressure := 50;
+  END IF;
+
+  UPDATE tokens SET buy_pressure = pressure WHERE id = tid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ============================================================================
 -- DONE. All tables, indexes, RPC functions, and RLS policies are set up.
 -- 

@@ -1,5 +1,6 @@
 import { supabase, cors, mapTokenRow } from "./_supabase.mjs";
 import { requireOrb } from "./_orbGuard.mjs";
+import { recordPriceSnapshot } from "./_snapshot.mjs";
 
 const INITIAL_PRICE = 0.0000005;
 const TOTAL_SUPPLY = 100_000_000;
@@ -173,6 +174,10 @@ export default async function handler(req, res) {
       total: CREATOR_FEE_WLD,
       timestamp: new Date().toISOString(),
     });
+
+    await recordPriceSnapshot(
+      inserted.id, INITIAL_PRICE, INITIAL_PRICE * WLD_USD, 0, CREATOR_FEE_WLD, "create"
+    );
 
     return res.status(201).json(mapTokenRow(inserted));
   } catch (err) {
