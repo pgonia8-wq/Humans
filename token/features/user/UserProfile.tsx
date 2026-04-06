@@ -4,7 +4,7 @@ import { api } from "@/services/api";
 import type { Holding, UserProfile as UserProfileType, ActivityItem } from "@/services/types";
 import { formatNum, formatCompact, timeAgo } from "@/services/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { Wallet, TrendingUp, TrendingDown, Shield, ShieldCheck, PenLine, RefreshCw, ChevronRight, Coins, Activity } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, Shield, ShieldCheck, PenLine, RefreshCw, ChevronRight, Coins, Activity, Loader2 } from "lucide-react";
 
 type ProfileTab = "holdings" | "activity";
 
@@ -20,6 +20,19 @@ export default function UserProfilePage() {
   const [tab, setTab] = useState<ProfileTab>("holdings");
   const [refreshing, setRefreshing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [orbVerified, setOrbVerified] = useState(false);
+  const [orbLoading, setOrbLoading] = useState(true);
+
+  useEffect(() => {
+    if (user?.id && user.id !== "usr_guest") {
+      api.checkOrbStatus(user.id).then((res) => {
+        setOrbVerified(res.orbVerified);
+        setOrbLoading(false);
+      }).catch(() => setOrbLoading(false));
+    } else {
+      setOrbLoading(false);
+    }
+  }, [user?.id]);
 
   const loadData = useCallback(async (showRefresh = false) => {
     if (!user?.id || user.id === "usr_guest") { setLoading(false); return; }
@@ -107,7 +120,9 @@ export default function UserProfilePage() {
           <div className="flex-1">
             <div className="font-bold text-lg text-foreground">{user?.username ?? "Guest"}</div>
             <div className="flex items-center gap-1.5 mt-0.5">
-              {user?.verificationLevel === "orb" ? (
+              {orbLoading ? (
+                <><Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" /><span className="text-[11px] text-muted-foreground font-medium">Checking...</span></>
+              ) : orbVerified ? (
                 <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /><span className="text-[11px] text-emerald-400 font-medium">ORB Verified</span></>
               ) : (
                 <><Shield className="w-3.5 h-3.5 text-amber-400" /><span className="text-[11px] text-amber-400 font-medium">Device Verified</span></>
