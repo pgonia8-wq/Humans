@@ -10,6 +10,7 @@ import React, {
 } from "react";
 
 import { supabase } from "../supabaseClient";
+import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import FeedPage from "./FeedPage";
 import { ThemeContext } from "../lib/ThemeContext";
 import { LanguageContext } from "../LanguageContext";
@@ -300,11 +301,66 @@ const HomePage: React.FC<HomePageProps> = ({
   }, [userId, profile, username, verified]);
 
   useEffect(() => {
-    const handler = (e: MessageEvent) => {
+    const handler = async (e: MessageEvent) => {
       if (!e.data || typeof e.data !== "object") return;
-      const { type } = e.data as { type: string };
+      const { type, payload } = e.data as { type: string; payload?: any };
+
       if (type === "MINI_APP_READY") {
         injectTokenContext();
+        return;
+      }
+
+      if (type === "REQUEST_PAYMENT") {
+        const win = tokenIframeRef.current?.contentWindow;
+        if (!win) return;
+        try {
+          const payRes = await MiniKit.commandsAsync.pay({
+            reference: crypto.randomUUID(),
+            to: payload.to,
+            tokens: [
+              {
+                symbol: Tokens.WLD,
+                token_amount: tokenToDecimals(
+                  payload.amount,
+                  Tokens.WLD
+                ).toString(),
+              },
+            ],
+            description: payload.description || "Token Market",
+          });
+          if (payRes?.finalPayload?.status === "success") {
+            win.postMessage(
+              {
+                type: "PAYMENT_RESULT",
+                payload: {
+                  success: true,
+                  transactionId:
+                    payRes.finalPayload.transaction_id,
+                },
+              },
+              TOKEN_APP_URL || "*"
+            );
+          } else {
+            win.postMessage(
+              {
+                type: "PAYMENT_RESULT",
+                payload: {
+                  success: false,
+                  error: "Payment cancelled",
+                },
+              },
+              TOKEN_APP_URL || "*"
+            );
+          }
+        } catch (err: any) {
+          tokenIframeRef.current?.contentWindow?.postMessage(
+            {
+              type: "PAYMENT_RESULT",
+              payload: { success: false, error: err.message },
+            },
+            TOKEN_APP_URL || "*"
+          );
+        }
       }
     };
     window.addEventListener("message", handler);
