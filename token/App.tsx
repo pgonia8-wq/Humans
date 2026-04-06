@@ -1,6 +1,3 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { AnimatePresence, motion } from "framer-motion";
 import BottomTabBar from "@/components/BottomTabBar";
@@ -9,8 +6,6 @@ import TokenPage from "@/features/tokens/TokenPage";
 import AirdropPage from "@/features/airdrops/AirdropPage";
 import UserProfilePage from "@/features/user/UserProfile";
 import CreatorDashboard from "@/features/creator/CreatorDashboard";
-
-const queryClient = new QueryClient();
 
 function SplashScreen() {
   return (
@@ -86,14 +81,9 @@ function MainApp() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AppProvider>
-        <TooltipProvider>
-          <MainApp />
-          <Toaster />
-        </TooltipProvider>
-      </AppProvider>
-    </QueryClientProvider>
+    <AppProvider>
+      <MainApp />
+    </AppProvider>
   );
 }
 
