@@ -1,9 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
-export const supabase = createClient(
-  process.env.SUPABASE_URL ?? "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
-);
+const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || "";
+
+if (!url || !key) {
+  console.error("[_supabase] MISSING ENV VARS — url:", !!url, "key:", !!key);
+  console.error("[_supabase] Available env keys:", Object.keys(process.env).filter(k => k.includes("SUPA") || k.includes("SERVICE") || k.includes("ROLE")).join(", "));
+}
+
+export const supabase = createClient(url, key);
 
 export function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
