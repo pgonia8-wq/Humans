@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import { api } from "@/services/api";
 import type { Token } from "@/services/types";
@@ -33,6 +33,7 @@ export default function BuySellUI({ token, onSuccess, defaultTab }: Props) {
   const [orbChecked, setOrbChecked] = useState(false);
   const [orbVerified, setOrbVerified] = useState(false);
   const [userHolding, setUserHolding] = useState(0);
+  const paymentCancelRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (defaultTab) setTab(defaultTab);
@@ -71,19 +72,32 @@ export default function BuySellUI({ token, onSuccess, defaultTab }: Props) {
   };
 
   const requestPayment = (amountWld: number, description: string): Promise<string> => {
+    if (!RECEIVER) {
+      return Promise.reject(new Error("Payment receiver address not configured"));
+    }
+
     const origin = (import.meta as any).env?.VITE_PARENT_ORIGIN || "*";
     const reference = generatePayReference();
 
     return new Promise<string>((resolve, reject) => {
       const timeout = setTimeout(() => {
         window.removeEventListener("message", handler);
+        paymentCancelRef.current = null;
         reject(new Error("Payment timeout — no response from World App"));
-      }, 120000);
+      }, 30000);
+
+      paymentCancelRef.current = () => {
+        clearTimeout(timeout);
+        window.removeEventListener("message", handler);
+        paymentCancelRef.current = null;
+        reject(new Error("Payment cancelled by user"));
+      };
 
       const handler = (e: MessageEvent) => {
         if (e.data?.type === "PAYMENT_RESULT") {
           clearTimeout(timeout);
           window.removeEventListener("message", handler);
+          paymentCancelRef.current = null;
           if (e.data.payload?.success && e.data.payload?.transactionId) {
             resolve(e.data.payload.transactionId);
           } else {
@@ -382,6 +396,19 @@ export default function BuySellUI({ token, onSuccess, defaultTab }: Props) {
           ? `Buy ${token.symbol} with WLD`
           : `Sell ${numAmount > 0 ? numAmount.toLocaleString() : ""} ${token.symbol}`}
       </button>
+
+      {loading && (
+        <button
+          onClick={() => { paymentCancelRef.current?.(); paymentCancelRef.current = null; }}
+          style={{
+            width: "100%", marginTop: 8, padding: "10px", borderRadius: 10,
+            background: "rgba(240,80,80,0.1)", border: "1px solid rgba(240,80,80,0.3)",
+            color: "#f05050", fontSize: 13, fontWeight: 700, cursor: "pointer",
+          }}
+        >
+          Cancel Payment
+        </button>
+      )}
     </div>
   );
 }

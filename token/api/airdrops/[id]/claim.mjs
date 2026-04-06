@@ -106,7 +106,7 @@ export default async function handler(req, res) {
     }, { onConflict: "user_id,token_id" });
 
     await supabase.from("token_activity").insert({
-      type: "airdrop",
+      type: "airdrop_claim",
       user_id: userId,
       username: "airdrop",
       token_id: airdrop.token_id,

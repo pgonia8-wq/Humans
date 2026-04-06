@@ -125,14 +125,14 @@ export const api = {
     });
   },
 
-  async verifyOrb(payload: Record<string, unknown>): Promise<{ success: boolean; nullifier_hash: string; orbVerified: boolean; reused?: boolean }> {
+  async verifyOrb(payload: Record<string, unknown>, userId: string): Promise<{ success: boolean; nullifier_hash: string; orbVerified: boolean; reused?: boolean }> {
     return request(`/verifyOrb`, {
       method: "POST",
-      body: JSON.stringify({ payload }),
+      body: JSON.stringify({ payload, userId }),
     });
   },
 
-  async checkOrbStatus(userId: string): Promise<{ orbVerified: boolean; verificationLevel?: string }> {
+  async checkOrbStatus(userId: string): Promise<{ orbVerified: boolean; verified: boolean; reason?: string }> {
     return request(`/checkOrbStatus?userId=${encodeURIComponent(userId)}`);
   },
 

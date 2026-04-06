@@ -7,6 +7,7 @@
 -- 1. PROFILES — add ORB verification columns (idempotent)
 -- ─────────────────────────────────────────────────────────────────────────────
 ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS verified           boolean DEFAULT false,
   ADD COLUMN IF NOT EXISTS verification_level text DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS orb_verified_at    timestamptz DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS wallet_address     text DEFAULT NULL,
@@ -138,9 +139,21 @@ CREATE TABLE IF NOT EXISTS airdrop_claims (
   airdrop_id uuid NOT NULL REFERENCES airdrops(id) ON DELETE CASCADE,
   user_id    text NOT NULL,
   amount     bigint DEFAULT 0,
-  claimed_at timestamptz DEFAULT now(),
-  UNIQUE(airdrop_id, user_id)
+  claimed_at timestamptz DEFAULT now()
 );
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'airdrop_claims_airdrop_id_user_id_key'
+      AND conrelid = 'airdrop_claims'::regclass
+  ) THEN
+    ALTER TABLE airdrop_claims DROP CONSTRAINT airdrop_claims_airdrop_id_user_id_key;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_claims_airdrop_user ON airdrop_claims(airdrop_id, user_id);
 
 CREATE INDEX IF NOT EXISTS idx_claims_airdrop ON airdrop_claims(airdrop_id);
 CREATE INDEX IF NOT EXISTS idx_claims_user    ON airdrop_claims(user_id);

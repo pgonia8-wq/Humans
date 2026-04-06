@@ -43,6 +43,7 @@ export default function CreatorDashboard() {
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const paymentCancelRef = useRef<(() => void) | null>(null);
 
   const set = (k: keyof TokenForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -77,11 +78,7 @@ export default function CreatorDashboard() {
 
       if (!status.orbVerified) {
         setStep("orb_required");
-        setError(
-          status.verificationLevel === "device"
-            ? "Device verification is not sufficient. You need ORB verification."
-            : "ORB verification required. Verify in the main H app first."
-        );
+        setError("ORB verification required. Verify in the main H app first.");
         return false;
       }
 
@@ -102,16 +99,29 @@ export default function CreatorDashboard() {
       const reference = generatePayReference();
       const origin = (import.meta as any).env?.VITE_PARENT_ORIGIN || "*";
 
+      if (!RECEIVER) {
+        throw new Error("Payment receiver address not configured");
+      }
+
       const transactionId = await new Promise<string>((resolve, reject) => {
         const timeout = setTimeout(() => {
           window.removeEventListener("message", handler);
+          paymentCancelRef.current = null;
           reject(new Error("Payment timeout — no response from H app"));
-        }, 120000);
+        }, 30000);
+
+        paymentCancelRef.current = () => {
+          clearTimeout(timeout);
+          window.removeEventListener("message", handler);
+          paymentCancelRef.current = null;
+          reject(new Error("Payment cancelled by user"));
+        };
 
         const handler = (e: MessageEvent) => {
           if (e.data?.type === "PAYMENT_RESULT") {
             clearTimeout(timeout);
             window.removeEventListener("message", handler);
+            paymentCancelRef.current = null;
             if (e.data.payload?.success && e.data.payload?.transactionId) {
               resolve(e.data.payload.transactionId);
             } else {
@@ -372,6 +382,17 @@ export default function CreatorDashboard() {
               <p style={{ fontSize: 11, color: "#555", marginTop: 8 }}>
                 On-chain verification in progress
               </p>
+              <button
+                onClick={() => { paymentCancelRef.current?.(); paymentCancelRef.current = null; }}
+                style={{
+                  marginTop: 20, padding: "10px 28px",
+                  background: "rgba(240,80,80,0.15)", border: "1px solid rgba(240,80,80,0.4)",
+                  borderRadius: 10, color: "#f05050", fontSize: 13, fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
             </div>
           ) : step === "creating" ? (
             <div style={{ textAlign: "center", padding: "60px 20px" }}>

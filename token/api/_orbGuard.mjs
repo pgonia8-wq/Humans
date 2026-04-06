@@ -9,7 +9,7 @@ export async function requireOrb(userId, res) {
   try {
     const { data: profile, error } = await supabase
       .from("profiles")
-      .select("id, verified, verification_level")
+      .select("id, verified")
       .eq("id", userId)
       .maybeSingle();
 
@@ -28,22 +28,11 @@ export async function requireOrb(userId, res) {
       return false;
     }
 
-    if (!profile.verified) {
+    if (profile.verified !== true) {
       res.status(403).json({
         error: "ORB verification required to use this feature.",
         orbRequired: true,
         code: "NOT_VERIFIED",
-      });
-      return false;
-    }
-
-    const level = (profile.verification_level ?? "").toLowerCase();
-    if (level && level !== "orb") {
-      res.status(403).json({
-        error: "ORB-level verification required. Device verification is not sufficient.",
-        orbRequired: true,
-        code: "ORB_REQUIRED",
-        currentLevel: level,
       });
       return false;
     }
