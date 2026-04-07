@@ -253,7 +253,6 @@ function BurnPanel({ token, userId, onDone }: { token: Token; userId: string; on
 }
 
 function AirdropPanel({ token, userId, onDone }: { token: Token; userId: string; onDone: () => void }) {
-  const { orbVerified } = useApp();
   const AIRDROP_COST = 25;
   const AIRDROP_POOL_SIZE = 2500000;
   const MAX_LINKS = 5;
@@ -261,6 +260,7 @@ function AirdropPanel({ token, userId, onDone }: { token: Token; userId: string;
   const [pool, setPool] = useState<{ id: string; available: number; linkCount: number } | null>(null);
   const [links, setLinks] = useState<Array<{ id: string; code: string; amount: number; claimedAmount: number; remaining: number; mode: string; claims: number; link: string; isActive: boolean }>>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [orbVerified, setOrbVerified] = useState(false);
   const [buyStep, setBuyStep] = useState<"idle" | "paying" | "processing">("idle");
   const [createMode, setCreateMode] = useState<"permanent" | "one_time">("permanent");
   const [createAmount, setCreateAmount] = useState("");
@@ -270,6 +270,12 @@ function AirdropPanel({ token, userId, onDone }: { token: Token; userId: string;
   const [copied, setCopied] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const paymentCancelRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (userId) {
+      api.checkOrbStatus(userId).then((res) => setOrbVerified(res.orbVerified)).catch(() => {});
+    }
+  }, [userId]);
 
   const loadData = useCallback(async () => {
     try {
