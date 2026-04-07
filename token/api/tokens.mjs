@@ -2,7 +2,7 @@ import { supabase, cors, mapTokenRow } from "./_supabase.mjs";
 import { requireOrb } from "./_orbGuard.mjs";
 import { recordPriceSnapshot } from "./_snapshot.mjs";
 
-import { getWldUsdRate, INITIAL_PRICE } from "./_curve.mjs";
+import { getWldUsdRate, INITIAL_PRICE_WLD as INITIAL_PRICE } from "./_curve.mjs";
 
 const TOTAL_SUPPLY = 100_000_000;
 const INITIAL_SUPPLY = 500_000;
