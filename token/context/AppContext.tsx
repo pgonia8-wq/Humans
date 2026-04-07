@@ -162,10 +162,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           worldAppReady: true,
         }));
         if (uid) checkOrbFromDb(uid, parentLevel);
-      }
-    };
+        }
 
-    window.addEventListener("message", handler);
+        if (type === "ORB_VERIFIED_FROM_H") {
+          console.log("[TOKEN] ORB_VERIFIED_FROM_H received:", JSON.stringify(payload));
+          if (payload?.success && payload?.verificationLevel === "orb") {
+            setState((s) => ({
+              ...s,
+              user: s.user ? { ...s.user, verificationLevel: "orb" } : null,
+            }));
+          }
+        }
+      };
+
+      window.addEventListener("message", handler);
 
     const retryInterval = setInterval(() => {
       if (contextReceived) { clearInterval(retryInterval); return; }
