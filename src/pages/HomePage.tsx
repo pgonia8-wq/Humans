@@ -321,20 +321,22 @@ const HomePage: React.FC<HomePageProps> = ({
             verification_level: VerificationLevel.Orb,
           });
           const proof = verifyRes?.finalPayload;
-          if (proof && proof.verification_level === "orb") {
-            const orbRes = await fetch(
-              (TOKEN_APP_URL || "") + "/api/verifyOrb",
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ payload: proof, userId: userId ?? "" }),
-              }
-            );
-            const orbData = await orbRes.json();
-            win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: !!orbData.success, orbVerified: !!orbData.orbVerified } }, TOKEN_APP_URL || "*");
-          } else {
-            win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: false, error: "ORB verification not completed" } }, TOKEN_APP_URL || "*");
-          }
+            if (proof?.status === "error") {
+              win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: false, error: proof.error_code || "minikit_error" } }, TOKEN_APP_URL || "*");
+            } else if (proof && proof.verification_level === "orb") {
+              const orbRes = await fetch(
+                (TOKEN_APP_URL || "") + "/api/verifyOrb",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ payload: proof, userId: userId ?? "" }),
+                }
+              );
+              const orbData = await orbRes.json();
+              win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: !!orbData.success, orbVerified: !!orbData.orbVerified } }, TOKEN_APP_URL || "*");
+            } else {
+              win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: false, error: "ORB verification not completed" } }, TOKEN_APP_URL || "*");
+            }
         } catch (err: any) {
           win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: false, error: err.message } }, TOKEN_APP_URL || "*");
         }
