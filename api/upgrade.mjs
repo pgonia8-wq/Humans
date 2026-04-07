@@ -45,13 +45,13 @@ async function getUpgradePrice(tier) {
       .from("upgrades")
       .select("*", { count: "exact" })
       .eq("tier", "premium");
-    return count < PREMIUM_LIMIT ? 10 : 20;
+    return (count ?? 0) < PREMIUM_LIMIT ? 10 : 20;
   } else {
     const { count } = await supabase
       .from("upgrades")
       .select("*", { count: "exact" })
       .eq("tier", "premium+");
-    return count < PREMIUM_PLUS_LIMIT ? 15 : 35;
+    return (count ?? 0) < PREMIUM_PLUS_LIMIT ? 15 : 35;
   }
 }
 
@@ -76,13 +76,18 @@ async function verifyTxOnChain(transactionId) {
   // [FIX-3] Clave desde variable de entorno — añadir ETHERSCAN_API_KEY en Vercel
   const apiKey = process.env.ETHERSCAN_API_KEY ?? "";
   // [FIX-2] Template literal corregido: ${} en lugar de \( \)
-  const res = await fetch(`https://api-optimistic.etherscan.io/api?module=transaction&action=gettxreceiptstatus&txhash=${transactionId}&apikey=${apiKey}`);
-  const data = await res.json();
-  return data.status === "1" && data.result === "1";  // 1 = success
+  const resp = await fetch(`https://api-optimistic.etherscan.io/api?module=transaction&action=gettxreceiptstatus&txhash=${transactionId}&apikey=${apiKey}`);
+  const data = await resp.json();
+  return data.status === "1" && data.result?.status === "1";
 }
 
 // Handler principal
 export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.status(200).end();
+
   if (req.method === "GET" && req.query.getPrice === "true") {
     const tier = req.query.tier;
     if (!tier) return res.status(400).json({ success: false, error: "Missing tier" });
@@ -102,7 +107,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Verificar tx on chain
+    const { data: existingTx } = await supabase
+      .from("upgrades")
+      .select("id")
+      .eq("transaction_id", transactionId)
+      .maybeSingle();
+    if (existingTx) {
+      return res.status(200).json({ success: true, message: "Upgrade ya procesado" });
+    }
+
     const isTxSuccess = await verifyTxOnChain(transactionId);
     if (!isTxSuccess) {
       return res.status(400).json({ success: false, error: "Transacción no exitosa on chain" });
@@ -110,7 +123,6 @@ export default async function handler(req, res) {
 
     const price = await getUpgradePrice(tier);
 
-    // Insert upgrade
     const { error: insertError } = await supabase.from("upgrades").insert({
       user_id: userId,
       tier,
