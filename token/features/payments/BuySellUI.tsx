@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
   import { useApp } from "@/context/AppContext";
+  import { useWldBalance } from "@/hooks/useWldBalance";
   import { api } from "@/services/api";
   import type { Token } from "@/services/types";
   import { motion } from "framer-motion";
@@ -27,6 +28,7 @@ import { useState, useEffect, useRef } from "react";
 
   export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Props) {
     const { balanceWld, updateBalance, emitToBridge, user, displayCurrency, wldUsdRate } = useApp();
+    const { balance: realWldBalance, refetch: refetchBalance } = useWldBalance();
     const [tab, setTab] = useState<Tab>(defaultTab ?? "buy");
     const [amount, setAmount] = useState("");
     const [buyStep, setBuyStep] = useState<BuyStep>("idle");
@@ -50,8 +52,9 @@ import { useState, useEffect, useRef } from "react";
 
     const numAmount = parseFloat(amount) || 0;
 
+    const walletBal = realWldBalance ? parseFloat(realWldBalance) : 0;
     const handlePercentBuy = (percent: number) => {
-      const val = (balanceWld * percent / 100).toFixed(4);
+      const val = (walletBal * percent / 100).toFixed(4);
       setAmount(val);
       setError(null);
     };
@@ -152,6 +155,7 @@ import { useState, useEffect, useRef } from "react";
           amountWld, newPrice: result.newPrice, userId: user.id,
         });
 
+        refetchBalance();
         setBuyStep("success");
         setTimeout(() => { setBuyStep("idle"); onSuccess(); }, 1500);
       } catch (err: unknown) {
@@ -301,7 +305,7 @@ import { useState, useEffect, useRef } from "react";
         </div>
 
         <div className="text-[11px] text-muted-foreground">
-          {tab === "buy" ? "Price: " + token.priceWld.toFixed(7) + " WLD per " + token.symbol : "Holdings: " + userHolding.toLocaleString() + " " + token.symbol}
+          {tab === "buy" ? "Balance: " + walletBal.toFixed(4) + " WLD" : "Holdings: " + userHolding.toLocaleString() + " " + token.symbol}
         </div>
 
         <input
