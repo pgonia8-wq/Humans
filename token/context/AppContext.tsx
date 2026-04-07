@@ -121,6 +121,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let contextReceived = false;
 
+    const checkOrbFromDb = async (uid: string, parentLevel: string) => {
+      if (parentLevel === "orb") return;
+      try {
+        const base = import.meta.env.VITE_API_BASE || "/api";
+        const res = await fetch(`${base}/checkOrbStatus?userId=${encodeURIComponent(uid)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.orbVerified || data.verificationLevel === "orb") {
+          setState((s) => ({
+            ...s,
+            user: s.user ? { ...s.user, verificationLevel: "orb" } : null,
+          }));
+        }
+      } catch (_) {}
+    };
+
     const handler = (e: MessageEvent) => {
       if (!e.data || typeof e.data !== "object") return;
       const { type, payload } = e.data;
@@ -129,6 +145,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         contextReceived = true;
         const uid = payload?.userId ?? null;
         if (uid) setApiUserId(uid);
+        const parentLevel = payload?.verificationLevel ?? "device";
         setState((s) => ({
           ...s,
           user: {
@@ -136,13 +153,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
             username: payload?.username ?? s.user?.username ?? "guest",
             profilePicture: payload?.profilePicture ?? "",
             avatarUrl: payload?.avatarUrl ?? "",
-            verificationLevel: payload?.verificationLevel ?? "device",
+            verificationLevel: parentLevel,
           },
           walletAddress: payload?.walletAddress ?? s.walletAddress,
           balanceWld: payload?.balanceWld ?? s.balanceWld,
           balanceUsdc: payload?.balanceUsdc ?? s.balanceUsdc,
           worldAppReady: true,
         }));
+        if (uid) checkOrbFromDb(uid, parentLevel);
       }
     };
 
