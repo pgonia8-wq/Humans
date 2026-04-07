@@ -14,7 +14,6 @@ import { supabase, cors, mapAirdropRow } from "./_supabase.mjs";
           .eq("is_active", true)
           .order("created_at", { ascending: false });
         if (error) throw error;
-
         let claimedSet = new Set();
         let nextClaimMap = {};
         if (user_id) {
@@ -60,44 +59,31 @@ import { supabase, cors, mapAirdropRow } from "./_supabase.mjs";
           .single();
         if (tErr || !token) return res.status(404).json({ error: "Token not found" });
         if (token.creator_id !== creatorId) return res.status(403).json({ error: "Only the token creator can create airdrops" });
-
         const endDate = new Date(Date.now() + (durationDays || 30) * 86400000).toISOString();
         const newAirdrop = {
           id: "adr_" + Math.random().toString(36).slice(2, 10),
-          token_id: tokenId,
-          token_name: token.name,
-          token_symbol: token.symbol,
-          token_emoji: token.emoji ?? "🌟",
-          title: title.trim(),
-          description: (description || "").trim(),
-          total_amount: totalAmount,
-          claimed_amount: 0,
-          daily_amount: dailyAmount,
-          participants: 0,
-          max_participants: maxParticipants || 500,
-          end_date: endDate,
-          is_active: true,
-          cooldown_hours: cooldownHours || 24,
-          created_at: new Date().toISOString(),
+          token_id: tokenId, token_name: token.name, token_symbol: token.symbol,
+          token_emoji: token.emoji ?? "🌟", title: title.trim(),
+          description: (description || "").trim(), total_amount: totalAmount,
+          claimed_amount: 0, daily_amount: dailyAmount, participants: 0,
+          max_participants: maxParticipants || 500, end_date: endDate,
+          is_active: true, cooldown_hours: cooldownHours || 24, created_at: new Date().toISOString(),
         };
         const { data: inserted, error: iErr } = await supabase
           .from("airdrops").insert(newAirdrop).select().single();
         if (iErr) throw iErr;
-
         const { data: profile } = await supabase.from("profiles").select("username").eq("id", creatorId).maybeSingle();
         await supabase.from("token_activity").insert({
           type: "airdrop", user_id: creatorId, username: profile?.username ?? "anon",
           token_id: tokenId, token_symbol: token.symbol, amount: totalAmount,
           price: 0, total: 0, timestamp: new Date().toISOString(),
         });
-
         return res.status(201).json({ success: true, airdropId: inserted.id, message: totalAmount.toLocaleString() + " " + token.symbol + " airdrop created" });
       } catch (err) {
         console.error("[POST /api/airdrops]", err.message);
         return res.status(500).json({ error: err.message });
       }
     }
-
     return res.status(405).json({ error: "Method not allowed" });
   }
   
