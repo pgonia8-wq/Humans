@@ -1,7 +1,7 @@
 import { supabase, cors } from "./_supabase.mjs";
 
 const APP_ID = process.env.APP_ID ?? "";
-const ACTION_ID = process.env.WORLDCOIN_ACTION_ID ?? "verify-user";
+const ACTION_ID = process.env.WORLDCOIN_ACTION_ID ?? "user-orb";
 
 export default async function handler(req, res) {
   cors(res);
