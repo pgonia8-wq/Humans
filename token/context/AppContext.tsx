@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { formatCompact } from "@/services/types";
 import { api } from "@/services/api";
 
 export type Screen = "discovery" | "token" | "profile" | "creator" | "settings";
@@ -26,6 +25,7 @@ export interface AppState {
   worldAppReady: boolean;
   displayCurrency: DisplayCurrency;
   wldUsdRate: number;
+  rateLoaded: boolean;
 }
 
 interface AppContextValue extends AppState {
@@ -50,6 +50,38 @@ interface AppContextValue extends AppState {
   currencySuffix: string;
 }
 
+function smartFormat(val: number, decimals?: number): string {
+  if (val === 0) return "0";
+  const abs = Math.abs(val);
+  const sign = val < 0 ? "-" : "";
+  if (decimals !== undefined) {
+    if (abs >= 1_000_000) return sign + (abs / 1_000_000).toFixed(2) + "M";
+    if (abs >= 1_000) return sign + (abs / 1_000).toFixed(2) + "K";
+    return sign + abs.toFixed(decimals);
+  }
+  if (abs >= 1_000_000) return sign + (abs / 1_000_000).toFixed(2) + "M";
+  if (abs >= 1_000) return sign + abs.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (abs >= 1) return sign + abs.toFixed(4);
+  if (abs >= 0.001) return sign + abs.toFixed(6);
+  if (abs >= 0.0000001) {
+    const s = abs.toFixed(10);
+    const trimmed = s.replace(/0+$/, "");
+    return sign + (trimmed.endsWith(".") ? trimmed + "0" : trimmed);
+  }
+  return sign + abs.toFixed(10).replace(/0+$/, "0");
+}
+
+function smartCompact(val: number): string {
+  const abs = Math.abs(val);
+  const sign = val < 0 ? "-" : "";
+  if (abs >= 1_000_000_000) return sign + (abs / 1_000_000_000).toFixed(2) + "B";
+  if (abs >= 1_000_000) return sign + (abs / 1_000_000).toFixed(2) + "M";
+  if (abs >= 1_000) return sign + (abs / 1_000).toFixed(2) + "K";
+  if (abs >= 1) return sign + abs.toFixed(2);
+  if (abs >= 0.01) return sign + abs.toFixed(4);
+  return sign + abs.toFixed(6);
+}
+
 const PARENT_ORIGIN = import.meta.env?.VITE_PARENT_ORIGIN || "*";
 const AppContext = createContext<AppContextValue | null>(null);
 
@@ -66,7 +98,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isSettingsOpen: false,
     worldAppReady: false,
     displayCurrency: "USD",
-    wldUsdRate: 3.0,
+    wldUsdRate: 1.0,
+    rateLoaded: false,
   });
 
   useEffect(() => {
@@ -74,7 +107,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       api.getWldRate()
         .then((res) => {
           if (res.rate > 0) {
-            setState((s) => ({ ...s, wldUsdRate: res.rate }));
+            setState((s) => ({ ...s, wldUsdRate: res.rate, rateLoaded: true }));
           }
         })
         .catch(() => {});
@@ -166,15 +199,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })), []);
 
   const formatPrice = useCallback((wldPrice: number): string => {
-    if (state.displayCurrency === "WLD") {
-      if (wldPrice < 0.001) return wldPrice.toExponential(2) + " WLD";
-      if (wldPrice < 1) return wldPrice.toFixed(7) + " WLD";
-      return wldPrice.toFixed(4) + " WLD";
-    }
-    const usd = wldPrice * state.wldUsdRate;
-    if (usd < 0.001) return "$" + usd.toExponential(2);
-    if (usd < 1) return "$" + usd.toFixed(7);
-    return "$" + usd.toFixed(4);
+    const prefix = state.displayCurrency === "USD" ? "$" : "";
+    const suffix = state.displayCurrency === "WLD" ? " WLD" : "";
+    const val = state.displayCurrency === "WLD" ? wldPrice : wldPrice * state.wldUsdRate;
+    return prefix + smartFormat(val) + suffix;
   }, [state.displayCurrency, state.wldUsdRate]);
 
   const formatPriceValue = useCallback((wldPrice: number): number => {
@@ -194,16 +222,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const val = state.displayCurrency === "WLD" ? wld : wld * state.wldUsdRate;
     const prefix = state.displayCurrency === "USD" ? "$" : "";
     const suffix = state.displayCurrency === "WLD" ? " WLD" : "";
-    if (opts?.compact) return `${prefix}${formatCompact(Math.abs(val))}${suffix}`;
-    return `${prefix}${val.toFixed(opts?.decimals ?? 4)}${suffix}`;
+    if (opts?.compact) return prefix + smartCompact(val) + suffix;
+    return prefix + smartFormat(val, opts?.decimals) + suffix;
   }, [state.displayCurrency, state.wldUsdRate]);
 
   const fmtUsd = useCallback((usd: number, opts?: { compact?: boolean; decimals?: number }): string => {
     const val = state.displayCurrency === "USD" ? usd : usd / state.wldUsdRate;
     const prefix = state.displayCurrency === "USD" ? "$" : "";
     const suffix = state.displayCurrency === "WLD" ? " WLD" : "";
-    if (opts?.compact) return `${prefix}${formatCompact(Math.abs(val))}${suffix}`;
-    return `${prefix}${val.toFixed(opts?.decimals ?? 4)}${suffix}`;
+    if (opts?.compact) return prefix + smartCompact(val) + suffix;
+    return prefix + smartFormat(val, opts?.decimals) + suffix;
   }, [state.displayCurrency, state.wldUsdRate]);
 
   const currencySymbol = state.displayCurrency === "WLD" ? "WLD" : "$";

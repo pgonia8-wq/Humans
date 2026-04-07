@@ -266,8 +266,8 @@ export default function TokenPage() {
             />
           </div>
           <div className="flex justify-between text-[9px] text-muted-foreground mt-1.5">
-            <span>{fmtWld(token.totalWldInCurve ?? 0, { decimals: 2 })} raised</span>
-            <span>{fmtWld(2000, { decimals: 0 })} goal</span>
+            <span>{(token.totalWldInCurve ?? 0).toFixed(2)} WLD raised</span>
+            <span>2,000 WLD goal</span>
           </div>
         </div>
 

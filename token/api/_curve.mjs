@@ -13,7 +13,7 @@ const POOL_PERCENT        = 0.70;
 const TREASURY_PERCENT    = 0.30;
 const CREATOR_LOCK_HOURS  = 24;
 const MAX_CREATOR_HOLD    = 0.10;
-const WLD_USD             = 3.0;
+const WLD_USD             = 1.0;
 const MAX_RETRIES         = 3;
 
 export async function getWldUsdRate() {
