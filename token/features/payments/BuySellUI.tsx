@@ -114,10 +114,7 @@ import { useState, useEffect, useRef } from "react";
       if (!numAmount || numAmount <= 0 || !user?.id) return;
 
       const amountWld = displayCurrency === "WLD" ? numAmount : numAmount / wldUsdRate;
-      if (amountWld > balanceWld) {
-        setError("Insufficient WLD balance");
-        return;
-      }
+  
 
       setError(null);
       setBuyStep("checking_orb");
@@ -148,7 +145,7 @@ import { useState, useEffect, useRef } from "react";
           return;
         }
 
-        updateBalance(balanceWld - amountWld, 0);
+  
         emitToBridge("onTokenPurchased", {
           tokenId: token.id, tokenSymbol: token.symbol,
           tokensReceived: result.tokensReceived,
