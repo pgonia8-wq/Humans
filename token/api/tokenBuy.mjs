@@ -202,11 +202,16 @@ async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
     const toPool = totalWld * 0.70;
     const toTreasury = totalWld * 0.30;
 
-    await supabase.from("tokens").update({
+    const { data: updated } = await supabase.from("tokens").update({
       graduated: true, graduated_at: new Date().toISOString(),
       graduation_pool_wld: toPool, graduation_treasury_wld: toTreasury,
       curve_percent: 100,
-    }).eq("id", tokenId).eq("graduated", false);
+    }).eq("id", tokenId).eq("graduated", false).select("id").maybeSingle();
+
+    if (!updated) {
+      console.log("[GRADUATION] Already graduated (concurrent), skipping:", symbol);
+      return;
+    }
 
     await supabase.from("token_activity").insert({
       type: "graduate", user_id: "system", username: "system",
