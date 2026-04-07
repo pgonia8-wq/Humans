@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { getBalances } from "@/lib/worldchain";
 
-export type Screen = "discovery" | "token" | "airdrops" | "profile" | "creator" | "settings";
+export type Screen = "discovery" | "token" | "profile" | "creator" | "settings";
 export type DisplayCurrency = "USD" | "WLD";
 
 export interface WorldAppUser {
@@ -14,7 +13,6 @@ export interface WorldAppUser {
 
 export interface AppState {
   user: WorldAppUser | null;
-  walletAddress: string | null;
   balanceWld: number;
   balanceUsdc: number;
   screen: Screen;
@@ -49,7 +47,6 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>({
     user: null,
-    walletAddress: null,
     balanceWld: 0,
     balanceUsdc: 0,
     screen: "discovery",
@@ -79,7 +76,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             avatarUrl: payload?.avatarUrl ?? "",
             verificationLevel: payload?.verificationLevel ?? "device",
           },
-          walletAddress: payload?.walletAddress ?? s.walletAddress,
+          balanceWld: payload?.balanceWld ?? s.balanceWld,
+          balanceUsdc: payload?.balanceUsdc ?? s.balanceUsdc,
           worldAppReady: true,
         }));
       }
@@ -108,50 +106,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-      if (!state.user?.id || state.user.id === "usr_guest" || state.walletAddress) return;
-      let active = true;
-
-      const fetchWallet = async () => {
-        try {
-          const base = import.meta.env.VITE_API_BASE || "/api";
-          const res = await fetch(base + "/user/wallet?userId=" + encodeURIComponent(state.user!.id));
-          if (!res.ok) return;
-          const { wallet } = await res.json();
-          if (active && wallet) {
-            setState((s) => ({ ...s, walletAddress: wallet }));
-          }
-        } catch (err) {
-          console.warn("Wallet fetch failed:", err);
-        }
-      };
-
-      fetchWallet();
-      return () => { active = false; };
-    }, [state.user?.id, state.walletAddress]);
-
-    useEffect(() => {
-      if (!state.walletAddress) return;
-      let active = true;
-
-      const fetchBalance = async () => {
-        try {
-          const { wld, usdc } = await getBalances(state.walletAddress!);
-          if (active) {
-            setState((s) => ({ ...s, balanceWld: wld, balanceUsdc: usdc }));
-          }
-        } catch (err) {
-          console.warn("Balance fetch failed:", err);
-        }
-      };
-
-      fetchBalance();
-      const interval = setInterval(fetchBalance, 10000);
-
-      return () => { active = false; clearInterval(interval); };
-    }, [state.walletAddress]);
-
-    const emitToBridge = useCallback((event: string, payload?: unknown) => {
+  const emitToBridge = useCallback((event: string, payload?: unknown) => {
     const origin = import.meta.env?.VITE_PARENT_ORIGIN || "*";
     window.parent?.postMessage({ type: event, payload }, origin);
   }, []);
