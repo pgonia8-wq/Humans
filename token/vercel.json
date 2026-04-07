@@ -44,6 +44,10 @@
       "destination": "/api/userWallet"
     },
     {
+      "source": "/api/seedHBH",
+      "destination": "/api/seedHBH"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
