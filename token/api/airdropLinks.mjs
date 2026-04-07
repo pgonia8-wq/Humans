@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { supabase, cors } from "./_supabase.mjs";
 import { requireOrb } from "./_orbGuard.mjs";
 
@@ -10,7 +11,8 @@ const APP_URL = "https://h-token.vercel.app";
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     for (let attempt = 0; attempt < 5; attempt++) {
       let code = "";
-      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      const bytes = crypto.randomBytes(8);
+      for (let i = 0; i < 8; i++) code += chars[bytes[i] % chars.length];
       const { data } = await supabase
         .from("airdrop_links")
         .select("id")
@@ -115,7 +117,7 @@ export default async function handler(req, res) {
           }
 
           const pool = {
-            id: "pool_" + Math.random().toString(36).slice(2, 10),
+            id: "pool_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
             token_id: tokenId,
             token_symbol: token.symbol,
             token_name: token.name,
@@ -187,7 +189,7 @@ export default async function handler(req, res) {
 
           const code = await generateUniqueCode();
           const newLink = {
-            id: "adl_" + Math.random().toString(36).slice(2, 10),
+            id: "adl_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
             pool_id: poolId,
             token_id: pool.token_id,
             token_symbol: pool.token_symbol,
