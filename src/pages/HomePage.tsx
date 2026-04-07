@@ -733,14 +733,16 @@ const HomePage: React.FC<HomePageProps> = ({
           <motion.button
             onClick={async () => {
                 const res = await verifyOrb();
-                if (res.success) {
-                  setShowTokenApp(true);
-                  setTimeout(() => {
+                  if (res.success) {
                     const win = tokenIframeRef.current?.contentWindow;
                     if (win) win.postMessage({ type: "ORB_VERIFIED_FROM_H", payload: { success: true, verificationLevel: "orb" } }, TOKEN_APP_URL || "*");
-                  }, 1000);
-                }
-              }}
+                    setShowTokenApp(true);
+                    setTimeout(() => {
+                      const w2 = tokenIframeRef.current?.contentWindow;
+                      if (w2) w2.postMessage({ type: "ORB_VERIFIED_FROM_H", payload: { success: true, verificationLevel: "orb" } }, TOKEN_APP_URL || "*");
+                    }, 2000);
+                  }
+                }}
               whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.94 }}
             className={`w-9 h-9 flex items-center justify-center rounded-full text-base transition-colors ${isDark ? "text-gray-300 hover:text-white hover:bg-white/10" : "text-gray-600 hover:text-gray-900 hover:bg-black/5"}`}
