@@ -1,6 +1,6 @@
 import { supabase, cors } from "./_supabase.mjs";
 import {
-  checkGraduation, graduationSplit, spotPrice,
+  checkGraduation, graduationSplit, spotPrice, getWldUsdRate,
   GRADUATION_WLD, GRADUATION_HOLDERS,
 } from "./_curve.mjs";
 
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
       toPool,
       toTreasury,
       finalPrice,
-      finalPriceUsd: finalPrice * 3.0,
+      finalPriceUsd: finalPrice * (await getWldUsdRate()),
       holders,
       message: `${token.symbol} graduated! ${toPool.toFixed(2)} WLD → DEX pool, ${toTreasury.toFixed(2)} WLD → treasury.`,
     });
