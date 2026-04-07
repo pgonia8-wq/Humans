@@ -28,6 +28,14 @@
       "destination": "/api/tokenGraduate?id=:id"
     },
     {
+      "source": "/api/tokens/:id/lock",
+      "destination": "/api/tokenLock?id=:id"
+    },
+    {
+      "source": "/api/tokens/:id/burn",
+      "destination": "/api/tokenBurn?id=:id"
+    },
+    {
       "source": "/api/tokens/:id",
       "destination": "/api/tokenGet?id=:id"
     },
@@ -42,14 +50,6 @@
     {
       "source": "/api/user/wallet",
       "destination": "/api/userWallet"
-    },
-    {
-      "source": "/api/tokens/:id/burn",
-      "destination": "/api/tokenBurn?id=:id"
-    },
-    {
-      "source": "/api/tokens/:id/lock",
-      "destination": "/api/tokenLock?id=:id"
     },
     {
       "source": "/api/(.*)",
