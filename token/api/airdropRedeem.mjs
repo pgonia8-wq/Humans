@@ -20,7 +20,7 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: "Invalid or expired airdrop code" });
       }
 
-      const remaining = link.total_amount - (link.claimed_amount ?? 0);
+      const remaining = link.amount - (link.claimed_amount ?? 0);
       if (remaining <= 0) {
         await supabase.from("airdrop_links").update({ is_active: false }).eq("id", link.id);
         return res.status(410).json({ error: "This airdrop is fully claimed" });
@@ -50,7 +50,7 @@ export default async function handler(req, res) {
         return res.status(409).json({ error: "You already claimed this airdrop" });
       }
 
-      const claimAmount = link.mode === "one_time" ? remaining : Math.min(remaining, Math.floor(link.total_amount / 100));
+      const claimAmount = link.mode === "one_time" ? remaining : Math.min(remaining, Math.floor(link.amount / 100));
 
       const { error: hErr } = await supabase.rpc("add_holding", {
         p_user_id: userId,
