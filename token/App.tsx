@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import BottomTabBar from "@/components/BottomTabBar";
 import DiscoveryPage from "@/features/tokens/DiscoveryPage";
 import TokenPage from "@/features/tokens/TokenPage";
-import AirdropPage from "@/features/airdrops/AirdropPage";
+
 import UserProfilePage from "@/features/user/UserProfile";
 import CreatorDashboard from "@/features/creator/CreatorDashboard";
 
@@ -37,7 +37,7 @@ function MainApp() {
     switch (screen) {
       case "discovery": return <DiscoveryPage />;
       case "token": return <TokenPage />;
-      case "airdrops": return <AirdropPage />;
+
       case "profile": return <UserProfilePage />;
       default: return <DiscoveryPage />;
     }
