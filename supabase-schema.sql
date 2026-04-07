@@ -615,23 +615,26 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_token ON price_snapshots(token_id);
 CREATE INDEX IF NOT EXISTS idx_snapshots_time  ON price_snapshots(token_id, created_at DESC);
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 23. RPC FUNCTIONS
+-- 23. RPC FUNCTIONS (DROP first to avoid parameter name conflicts)
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION increment_holders(tid TEXT)
+DROP FUNCTION IF EXISTS increment_holders(TEXT);
+CREATE FUNCTION increment_holders(tid TEXT)
 RETURNS void AS $$
 BEGIN
   UPDATE tokens SET holders = holders + 1 WHERE id = tid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION decrement_holders(tid TEXT)
+DROP FUNCTION IF EXISTS decrement_holders(TEXT);
+CREATE FUNCTION decrement_holders(tid TEXT)
 RETURNS void AS $$
 BEGIN
   UPDATE tokens SET holders = GREATEST(holders - 1, 0) WHERE id = tid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION update_24h_change(tid TEXT)
+DROP FUNCTION IF EXISTS update_24h_change(TEXT);
+CREATE FUNCTION update_24h_change(tid TEXT)
 RETURNS void AS $$
 DECLARE
   old_price DOUBLE PRECISION;
@@ -655,7 +658,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION update_buy_pressure(tid TEXT)
+DROP FUNCTION IF EXISTS update_buy_pressure(TEXT);
+CREATE FUNCTION update_buy_pressure(tid TEXT)
 RETURNS void AS $$
 DECLARE
   total_txns INTEGER;
@@ -680,14 +684,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION increment_ad_impression(pid UUID)
+DROP FUNCTION IF EXISTS increment_ad_impression(UUID);
+CREATE FUNCTION increment_ad_impression(pid UUID)
 RETURNS void AS $$
 BEGIN
   UPDATE posts SET ad_impressions = COALESCE(ad_impressions, 0) + 1 WHERE id = pid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION increment_post_views(pid UUID)
+DROP FUNCTION IF EXISTS increment_post_views(UUID);
+CREATE FUNCTION increment_post_views(pid UUID)
 RETURNS void AS $$
 BEGIN
   UPDATE posts SET views = COALESCE(views, 0) + 1 WHERE id = pid;
