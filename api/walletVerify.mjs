@@ -46,8 +46,6 @@ function verifySignedNonce(message, signature) {
 }
 
 export default async function handler(req, res) {
-  console.log("[WALLET_VERIFY] Verificando wallet signature...");
-
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -70,7 +68,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "address es requerida" });
   }
 
-  console.log("[WALLET_VERIFY] address:", address, "userId:", userId ?? "(no proporcionado)");
 
   // Verificar expiración del nonce (TTL 5 minutos)
   const tsMatch = message.match(/Timestamp:\s*(\d{4}-\d{2}-\d{2}T[\d:.Z]+)/);
@@ -92,10 +89,8 @@ export default async function handler(req, res) {
   }
 
   const recoveredAddress = verifyResult.address;
-  console.log("[WALLET_VERIFY] Dirección recuperada:", recoveredAddress, "esperada:", address);
 
   if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
-    console.error("[WALLET_VERIFY] La firma no corresponde a la dirección declarada.");
     return res.status(401).json({
       success: false,
       error: "La firma no corresponde a la dirección proporcionada",
@@ -117,17 +112,15 @@ export default async function handler(req, res) {
         .eq("id", userId);
 
       if (updateErr) {
-        console.error("[WALLET_VERIFY] Error actualizando perfil:", updateErr.message);
+        console.error("[WALLET_VERIFY] Error:", updateErr.message);
         return res.status(200).json({
           success: true,
           address: recoveredAddress,
           warning: "Firma válida pero no se pudo actualizar el perfil: " + updateErr.message,
         });
       }
-
-      console.log("[WALLET_VERIFY] Perfil actualizado con wallet:", address, "userId:", userId);
     } catch (dbErr) {
-      console.error("[WALLET_VERIFY] Error inesperado en Supabase:", dbErr.message);
+      console.error("[WALLET_VERIFY] Error:", dbErr.message);
     }
   }
 

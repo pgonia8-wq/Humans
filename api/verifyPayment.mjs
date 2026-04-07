@@ -34,7 +34,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
 );
 
-const APP_ID = process.env.WORLDCOIN_APP_ID ?? "app_6a98c88249208506dcd4e04b529111fc";
+const APP_ID = process.env.WORLDCOIN_APP_ID ?? "";
 
 async function verifyWorldcoinTransaction(transactionId) {
   try {
@@ -49,7 +49,6 @@ async function verifyWorldcoinTransaction(transactionId) {
       }
     );
     const data = await res.json();
-    console.log("[VERIFY_PAYMENT] Worldcoin tx:", transactionId, "status:", data.transactionStatus ?? data.status, "ok:", res.ok);
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
     console.error("[VERIFY_PAYMENT] Error de red al verificar transacción:", err.message);
@@ -78,8 +77,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `action inválida: "${action}". Valores válidos: chat_gold, extra_room` });
   }
 
-  console.log("[VERIFY_PAYMENT] action:", action, "userId:", userId, "txId:", transactionId);
-
   // Anti-replay
   try {
     const table = action === "chat_gold" ? "subscriptions" : "room_credits";
@@ -90,13 +87,12 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (checkErr) {
-      console.warn("[VERIFY_PAYMENT] No se pudo verificar anti-replay:", checkErr.message);
+      console.error("[VERIFY_PAYMENT] Anti-replay check failed:", checkErr.message);
     } else if (existingTx) {
-      console.warn("[VERIFY_PAYMENT] transactionId ya procesado:", transactionId);
       return res.status(200).json({ success: true, message: "Acceso ya otorgado", replayed: true });
     }
   } catch (e) {
-    console.warn("[VERIFY_PAYMENT] Error al verificar anti-replay:", e.message);
+    console.error("[VERIFY_PAYMENT] Anti-replay error:", e.message);
   }
 
   // Verificar transacción con Worldcoin
@@ -104,7 +100,6 @@ export default async function handler(req, res) {
   const txStatus = txData?.transactionStatus ?? txData?.status ?? "";
 
   if (!txOk) {
-    console.error("[VERIFY_PAYMENT] Error al contactar Worldcoin:", txData);
     return res.status(502).json({ error: "No se pudo verificar la transacción con Worldcoin. Intenta de nuevo.", txStatus: "unverified" });
   } else if (txStatus === "failed") {
     return res.status(402).json({ error: "Transacción de pago fallida en Worldcoin", txStatus });
@@ -128,10 +123,9 @@ export default async function handler(req, res) {
         );
 
       if (upsertErr) {
-        console.error("[VERIFY_PAYMENT] Error activando chat_gold:", upsertErr.message);
+        console.error("[VERIFY_PAYMENT] Error:", upsertErr.message);
         return res.status(500).json({ error: upsertErr.message });
       }
-      console.log("[VERIFY_PAYMENT] chat_gold activado para userId:", userId);
 
     } else if (action === "extra_room") {
       const { error: insertErr } = await supabase
@@ -143,13 +137,12 @@ export default async function handler(req, res) {
         });
 
       if (insertErr) {
-        console.error("[VERIFY_PAYMENT] Error insertando room_credit:", insertErr.message);
+        console.error("[VERIFY_PAYMENT] Error:", insertErr.message);
         return res.status(500).json({ error: insertErr.message });
       }
-      console.log("[VERIFY_PAYMENT] room_credit creado para userId:", userId);
     }
   } catch (e) {
-    console.error("[VERIFY_PAYMENT] Error inesperado en Supabase:", e.message);
+    console.error("[VERIFY_PAYMENT] Error:", e.message);
     return res.status(500).json({ error: "Error interno al activar acceso" });
   }
 

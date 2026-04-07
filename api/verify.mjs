@@ -30,12 +30,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
 );
 
-const APP_ID = process.env.WORLDCOIN_APP_ID ?? "app_6a98c88249208506dcd4e04b529111fc";
+const APP_ID = process.env.WORLDCOIN_APP_ID ?? "";
 const ACTION_ID = process.env.WORLDCOIN_ACTION_ID ?? "verify-user";
 
 export default async function handler(req, res) {
-  console.log("[VERIFY] Verificando World ID...");
-
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -45,7 +43,6 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== "POST") {
-    console.warn("[VERIFY] Método no permitido:", req.method);
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
@@ -59,18 +56,10 @@ export default async function handler(req, res) {
     !payload.merkle_root ||
     !payload.verification_level
   ) {
-    console.error("[VERIFY] Faltan campos en proof:", {
-      hasPayload: !!payload,
-      hasNullifierHash: !!payload?.nullifier_hash,
-      hasProof: !!payload?.proof,
-      hasMerkleRoot: !!payload?.merkle_root,
-      hasVerificationLevel: !!payload?.verification_level,
-    });
     return res.status(400).json({ success: false, error: "Faltan campos en proof" });
   }
 
   const nullifierHash = payload.nullifier_hash;
-  console.log("[VERIFY] nullifier_hash recibido:", nullifierHash);
 
   // Anti-replay: verificar si este nullifier_hash ya fue verificado
   try {
@@ -81,7 +70,6 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (existing?.verified) {
-      console.log("[VERIFY] nullifier_hash ya verificado anteriormente:", nullifierHash);
       return res.status(200).json({ success: true, nullifier_hash: nullifierHash, reused: true });
     }
   } catch (err) {
@@ -91,8 +79,6 @@ export default async function handler(req, res) {
   // Verificar con Worldcoin Developer Portal
   let verifyData;
   try {
-    console.log("[VERIFY] Llamando a Worldcoin API. app_id:", APP_ID, "action:", ACTION_ID);
-
     const verifyResponse = await fetch(
       `https://developer.worldcoin.org/api/v2/verify/${APP_ID}`,
       {
@@ -109,12 +95,10 @@ export default async function handler(req, res) {
     );
 
     verifyData = await verifyResponse.json();
-    console.log("[VERIFY] Respuesta de Worldcoin. status:", verifyResponse.status, "body:", JSON.stringify(verifyData));
 
     const isSuccess = verifyResponse.ok && (verifyData.success === true || verifyData.success === "true");
 
     if (!isSuccess) {
-      console.error("[VERIFY] Worldcoin rechazó la verificación:", verifyData);
       return res.status(verifyResponse.status || 400).json({
         success: false,
         error: verifyData.detail ?? verifyData.error ?? "Verificación fallida en Worldcoin",
@@ -141,13 +125,11 @@ export default async function handler(req, res) {
       );
 
     if (upsertError) {
-      console.error("[VERIFY] Error upsert profiles:", upsertError.message, upsertError.details);
+      console.error("[VERIFY] Error upsert:", upsertError.message);
       return res.status(500).json({ success: false, error: upsertError.message });
     }
-
-    console.log("[VERIFY] Perfil creado/actualizado exitosamente:", nullifierHash);
   } catch (err) {
-    console.error("[VERIFY] Error inesperado en Supabase profiles:", err.message);
+    console.error("[VERIFY] Error:", err.message);
     return res.status(500).json({ success: false, error: "Error al guardar perfil" });
   }
 

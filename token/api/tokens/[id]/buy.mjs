@@ -190,7 +190,6 @@ async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
       timestamp: new Date().toISOString(),
     });
 
-    console.log(`[GRADUATION] ${symbol} graduated! Pool: ${toPool.toFixed(2)}, Treasury: ${toTreasury.toFixed(2)}`);
   } catch (err) {
     console.error("[GRADUATION_TRIGGER]", err.message);
   }

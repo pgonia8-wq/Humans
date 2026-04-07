@@ -40,7 +40,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
 );
 
-const APP_ID = process.env.WORLDCOIN_APP_ID ?? "app_6a98c88249208506dcd4e04b529111fc";
+const APP_ID = process.env.WORLDCOIN_APP_ID ?? "";
 
 async function verifyWorldcoinPayment(transactionId) {
   try {
@@ -52,7 +52,6 @@ async function verifyWorldcoinPayment(transactionId) {
       }
     );
     const data = await res.json();
-    console.log("[SUBSCRIBE] Worldcoin transaction status:", transactionId, JSON.stringify(data));
     return { ok: res.ok, data };
   } catch (err) {
     console.error("[SUBSCRIBE] Error al verificar transacción con Worldcoin:", err.message);
@@ -61,8 +60,6 @@ async function verifyWorldcoinPayment(transactionId) {
 }
 
 export default async function handler(req, res) {
-  console.log("[SUBSCRIBE] Iniciando suscripción premium chat...");
-
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -76,15 +73,11 @@ export default async function handler(req, res) {
   const { userId, transactionId } = body;
 
   if (!userId || typeof userId !== "string" || userId.trim() === "") {
-    console.error("[SUBSCRIBE] userId inválido:", userId);
     return res.status(400).json({ error: "userId es requerido" });
   }
   if (!transactionId || typeof transactionId !== "string" || transactionId.trim() === "") {
-    console.error("[SUBSCRIBE] transactionId inválido:", transactionId);
     return res.status(400).json({ error: "transactionId es requerido" });
   }
-
-  console.log("[SUBSCRIBE] userId:", userId, "transactionId:", transactionId);
 
   // Anti-replay
   try {
@@ -95,7 +88,6 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (existingTx) {
-      console.warn("[SUBSCRIBE] transactionId ya procesado (anti-replay):", transactionId);
       return res.status(200).json({
         success: true,
         message: "Suscripción ya activa",
@@ -103,7 +95,7 @@ export default async function handler(req, res) {
       });
     }
   } catch (dbErr) {
-    console.warn("[SUBSCRIBE] No se pudo verificar anti-replay:", dbErr.message);
+    console.error("[SUBSCRIBE] Anti-replay check failed:", dbErr.message);
   }
 
   // Verificar el pago con Worldcoin
@@ -112,16 +104,11 @@ export default async function handler(req, res) {
   const isPending = txStatus === "pending" || txStatus === "";
 
   if (!txOk) {
-    console.error("[SUBSCRIBE] Error al contactar Worldcoin para verificación:", txData);
     return res.status(502).json({ error: "No se pudo verificar el pago con Worldcoin. Intenta de nuevo.", details: txData });
   } else if (txStatus === "failed") {
-    console.error("[SUBSCRIBE] Transacción fallida en Worldcoin:", transactionId, txData);
     return res.status(402).json({ error: "Transacción de pago fallida", details: txData });
   } else if (isPending) {
-    console.warn("[SUBSCRIBE] Transacción pendiente — no se otorga acceso hasta confirmación:", transactionId);
     return res.status(202).json({ error: "Pago pendiente de confirmación. Intenta de nuevo en unos segundos.", transactionStatus: "pending" });
-  } else {
-    console.log("[SUBSCRIBE] Transacción confirmada on-chain:", transactionId, "status:", txStatus);
   }
 
   // Insertar suscripción
@@ -141,16 +128,14 @@ export default async function handler(req, res) {
       );
 
     if (insertError) {
-      console.error("[SUBSCRIBE] Error guardando suscripción en Supabase:", insertError.message, insertError.details);
+      console.error("[SUBSCRIBE] Error:", insertError.message);
       return res.status(500).json({
         error: "Error al activar suscripción en base de datos",
         details: insertError.message,
       });
     }
-
-    console.log("[SUBSCRIBE] Suscripción guardada. userId:", userId, "txId:", transactionId, "status:", txStatus);
   } catch (dbErr) {
-    console.error("[SUBSCRIBE] Error inesperado en Supabase:", dbErr.message);
+    console.error("[SUBSCRIBE] Error:", dbErr.message);
     return res.status(500).json({ error: "Error inesperado al activar suscripción" });
   }
 

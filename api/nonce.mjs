@@ -25,7 +25,6 @@ export default async function handler(req, res) {
 
   try {
     const nonce = crypto.randomBytes(32).toString("hex");
-    console.log("[NONCE] Generado:", nonce);
     return res.status(200).json({ nonce });
   } catch (err) {
     console.error("[NONCE] Error:", err);

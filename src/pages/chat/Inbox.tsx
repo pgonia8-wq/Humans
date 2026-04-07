@@ -1251,8 +1251,8 @@ INSTRUCCIONES DE INTEGRACIÓN
 
 4. VARIABLES DE ENTORNO (.env.local)
 ─────────────────────────────────────
-  VITE_SUPABASE_URL=https://vtjqfzpfehfofamhowjz.supabase.co
-  VITE_SUPABASE_ANON_KEY=eyJ...
+  VITE_SUPABASE_URL=<tu-url-de-supabase>
+  VITE_SUPABASE_ANON_KEY=<tu-anon-key>
 
 5. DEPENDENCIAS
 ────────────────

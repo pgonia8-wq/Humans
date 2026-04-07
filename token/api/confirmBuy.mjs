@@ -185,7 +185,7 @@ async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
     }).eq("id", tokenId).eq("graduated", false).select("id").maybeSingle();
 
     if (!updated) {
-      console.log("[GRADUATION] Already graduated or concurrent graduation for " + symbol);
+
       return;
     }
 
@@ -198,7 +198,7 @@ async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
 
     await createGraduationTickets({ tokenId, tokenSymbol: symbol, totalWld, toPool, toTreasury, finalPrice });
 
-    console.log("[GRADUATION] " + symbol + " graduated! Pool: " + toPool.toFixed(2) + ", Treasury: " + toTreasury.toFixed(2));
+
   } catch (err) {
     console.error("[GRADUATION_TRIGGER]", err.message);
   }

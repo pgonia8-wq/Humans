@@ -209,7 +209,7 @@ async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
     }).eq("id", tokenId).eq("graduated", false).select("id").maybeSingle();
 
     if (!updated) {
-      console.log("[GRADUATION] Already graduated (concurrent), skipping:", symbol);
+
       return;
     }
 
@@ -226,7 +226,7 @@ async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
       console.error("[GRADUATION] ledger error:", le.message);
     }
 
-    console.log("[GRADUATION] " + symbol + " graduated!");
+
   } catch (err) {
     console.error("[GRADUATION_TRIGGER]", err.message);
   }

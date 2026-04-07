@@ -29,9 +29,6 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  console.log("[GET_PROFILE] Llamada recibida");
-
-  // [G1] CORS — requerido para World App WebView
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -39,15 +36,12 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   if (req.method !== "GET") {
-    console.log("[GET_PROFILE] Método no permitido:", req.method);
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
   const userId = req.query?.userId;
-  console.log("[GET_PROFILE] userId recibido:", userId);
 
   if (!userId) {
-    console.log("[GET_PROFILE] No se recibió userId");
     return res.status(400).json({ success: false, error: "Missing userId" });
   }
 
@@ -59,19 +53,17 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (error) {
-      console.error("[GET_PROFILE] Error al consultar profile:", error);
+      console.error("[GET_PROFILE] Error:", error);
       return res.status(500).json({ success: false, error: error.message });
     }
 
     if (!profile) {
-      console.log("[GET_PROFILE] Perfil no encontrado para userId:", userId);
       return res.status(404).json({ success: false, error: "Profile not found" });
     }
 
-    console.log("[GET_PROFILE] Perfil encontrado:", profile.id);
     return res.status(200).json({ success: true, profile });
   } catch (err) {
-    console.error("[GET_PROFILE] Error completo:", err);
+    console.error("[GET_PROFILE] Error:", err);
     return res.status(500).json({ success: false, error: err.message || "Internal server error" });
   }
 }
