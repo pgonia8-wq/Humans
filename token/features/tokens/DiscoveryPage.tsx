@@ -331,7 +331,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
               <div className="space-y-1.5">
                 {filtered.length === 0 ? (
                   <div className="text-center py-16">
-                    <div className="text-3xl mb-2">\u{1F50D}</div>
+                    <div className="text-3xl mb-2">🔍</div>
                     <div className="text-sm text-muted-foreground">No tokens found</div>
                   </div>
                 ) : (
