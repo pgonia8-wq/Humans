@@ -127,7 +127,7 @@ import { supabase, cors, mapAirdropRow } from "./_supabase.mjs";
         return res.status(201).json({
           success: true,
           airdropId: inserted.id,
-          message: `Airdrop created: ${totalAmount.toLocaleString()} ${token.symbol}`,
+          message: totalAmount.toLocaleString() + " " + token.symbol + " airdrop created",
         });
       } catch (err) {
         console.error("[POST /api/airdrops]", err.message);
