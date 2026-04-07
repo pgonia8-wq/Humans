@@ -52,6 +52,14 @@
       "destination": "/api/userWallet"
     },
     {
+      "source": "/api/airdropLinks",
+      "destination": "/api/airdropLinks"
+    },
+    {
+      "source": "/api/airdropRedeem",
+      "destination": "/api/airdropRedeem"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
