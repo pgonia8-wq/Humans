@@ -175,6 +175,12 @@ ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT 
 
 CREATE INDEX IF NOT EXISTS idx_dm_messages_convo ON dm_messages(conversation_id);
 
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.views WHERE table_name = 'conversation_unread_counts') THEN
+    DROP VIEW conversation_unread_counts;
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS conversation_unread_counts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );
