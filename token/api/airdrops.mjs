@@ -1,7 +1,7 @@
 import { supabase, cors, mapAirdropRow } from "./_supabase.mjs";
-import { requireOrb } from "./_orbGuard.mjs";
+  import { requireOrb } from "./_orbGuard.mjs";
 
-export default async function handler(req, res) {
+  export default async function handler(req, res) {
     cors(res);
     if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -52,11 +52,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const {
-        tokenId, title, description, totalAmount,
-        dailyAmount, maxParticipants, cooldownHours,
-        durationDays, creatorId,
-      } = req.body ?? {};
+      const { tokenId, title, description, totalAmount, dailyAmount, maxParticipants, cooldownHours, durationDays, creatorId } = req.body ?? {};
 
       if (!tokenId || !title || !totalAmount || !dailyAmount || !creatorId) {
         return res.status(400).json({ error: "Missing required fields" });
