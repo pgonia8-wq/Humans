@@ -5,7 +5,7 @@ import type {
   ClaimAirdropRequest, ClaimResult, CreateTokenRequest,
   UploadResult, GraduateResult, Airdrop, PriceHistoryResponse,
   LockRequest, LockResult, BurnRequest, BurnResult,
-  CreateAirdropRequest, CreateAirdropResult,
+  BuyAirdropRequest, BuyAirdropResult, AirdropLinksResponse, RedeemAirdropRequest, RedeemAirdropResult,
 } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE || "/api";
