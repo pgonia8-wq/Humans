@@ -113,12 +113,13 @@ export default async function handler(req, res) {
 
   if (!txOk) {
     console.error("[SUBSCRIBE] Error al contactar Worldcoin para verificación:", txData);
-    console.warn("[SUBSCRIBE] Procediendo sin confirmación de Worldcoin (red error).");
+    return res.status(502).json({ error: "No se pudo verificar el pago con Worldcoin. Intenta de nuevo.", details: txData });
   } else if (txStatus === "failed") {
     console.error("[SUBSCRIBE] Transacción fallida en Worldcoin:", transactionId, txData);
     return res.status(402).json({ error: "Transacción de pago fallida", details: txData });
   } else if (isPending) {
-    console.warn("[SUBSCRIBE] Transacción pendiente. Otorgando acceso provisional:", transactionId);
+    console.warn("[SUBSCRIBE] Transacción pendiente — no se otorga acceso hasta confirmación:", transactionId);
+    return res.status(202).json({ error: "Pago pendiente de confirmación. Intenta de nuevo en unos segundos.", transactionStatus: "pending" });
   } else {
     console.log("[SUBSCRIBE] Transacción confirmada on-chain:", transactionId, "status:", txStatus);
   }
