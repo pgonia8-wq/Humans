@@ -159,12 +159,35 @@ const App = () => {
   };
 
   const verifyUser = async () => {
-    if (verifying || !miniKitReady) return;
-    await runVerification();
-  };
+      if (verifying || !miniKitReady) return;
+      await runVerification();
+    };
 
-  return (
-    <HomePage
+    const verifyOrb = async (): Promise<{ success: boolean; proof?: any }> => {
+      if (!miniKitReady) return { success: false };
+      try {
+        const verifyRes = await MiniKit.commandsAsync.verify({
+          action: "user-orb",
+          signal: wallet ?? "",
+          verification_level: VerificationLevel.Orb,
+        });
+        const proof = verifyRes?.finalPayload;
+        if (proof?.status === "error") {
+          console.warn("[APP] Orb verify error:", proof.error_code);
+          return { success: false };
+        }
+        if (proof && proof.verification_level === "orb") {
+          return { success: true, proof };
+        }
+        return { success: false };
+      } catch (err: any) {
+        console.error("[APP] Orb verify failed:", err);
+        return { success: false };
+      }
+    };
+
+    return (
+      <HomePage
       userId={userId}
       verifyUser={verifyUser}
       verified={verified}
@@ -174,6 +197,7 @@ const App = () => {
       error={error}
       verifying={verifying}
       setUserId={setUserId}
+      verifyOrb={verifyOrb}
     />
   );
 };
