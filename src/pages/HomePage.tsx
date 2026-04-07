@@ -294,7 +294,6 @@ const HomePage: React.FC<HomePageProps> = ({
           walletAddress: wallet ?? "",
           balanceWld: 0,
           balanceUsdc: 0,
-          verificationLevel: "device",
         },
       },
       TOKEN_APP_URL || "*"
