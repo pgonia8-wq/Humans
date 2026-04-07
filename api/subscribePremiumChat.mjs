@@ -3,11 +3,11 @@
    ESTADO: Correcto tal como está. Se entrega aquí como referencia auditada.
 
    REQUISITO DE ENV VAR:
-   [S-ENV] WORLDCOIN_API_KEY — requerida para autenticar la verificación de
+   [S-ENV] RP_SIGNING_KEY — requerida para autenticar la verificación de
            transacciones con el Developer Portal de Worldcoin. Sin esta key
            el header `Authorization: Bearer ` se envía vacío y Worldcoin
            puede rechazar la solicitud.
-           Añadir WORLDCOIN_API_KEY en las variables de entorno de Vercel.
+           Añadir RP_SIGNING_KEY en las variables de entorno de Vercel.
 
    TABLA SUPABASE REQUERIDA: subscriptions
    Columnas mínimas: id, user_id, product, transaction_id, active, created_at, updated_at
@@ -31,8 +31,8 @@ if (!process.env.SUPABASE_URL) {
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error("[SUBSCRIBE] ERROR: SUPABASE_SERVICE_ROLE_KEY no está configurada");
 }
-if (!process.env.WORLDCOIN_API_KEY) {
-  console.warn("[SUBSCRIBE] ADVERTENCIA: WORLDCOIN_API_KEY no configurada — la verificación de pagos puede fallar");
+if (!process.env.RP_SIGNING_KEY) {
+  console.warn("[SUBSCRIBE] ADVERTENCIA: RP_SIGNING_KEY no configurada");
 }
 
 const supabase = createClient(
@@ -48,7 +48,7 @@ async function verifyWorldcoinPayment(transactionId) {
       `https://developer.worldcoin.org/api/v2/minikit/transaction/${transactionId}?app_id=${APP_ID}`,
       {
         method: "GET",
-        headers: { Authorization: `Bearer ${process.env.WORLDCOIN_API_KEY ?? ""}` },
+        headers: { Authorization: `Bearer ${process.env.RP_SIGNING_KEY ?? ""}` },
       }
     );
     const data = await res.json();

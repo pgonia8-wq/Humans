@@ -3,12 +3,12 @@
    ESTADO: Correcto tal como está. Se entrega aquí como referencia auditada.
 
    REQUISITO DE ENV VAR NO DOCUMENTADO:
-   [VP1] WORLDCOIN_API_KEY — requerida para autenticar la verificación de
+   [VP1] RP_SIGNING_KEY — requerida para autenticar la verificación de
          transacciones con el Developer Portal de Worldcoin:
-           Authorization: Bearer ${process.env.WORLDCOIN_API_KEY}
+           Authorization: Bearer ${process.env.RP_SIGNING_KEY}
          Sin esta key el header se envía vacío ("Bearer ") y Worldcoin puede
          rechazar la solicitud, haciendo que las verificaciones de pago fallen.
-         Añadir WORLDCOIN_API_KEY en las variables de entorno de Vercel.
+         Añadir RP_SIGNING_KEY en las variables de entorno de Vercel.
          Se obtiene en: Worldcoin Developer Portal → tu app → API Keys.
 
    LÓGICA SOPORTADA:
@@ -25,8 +25,8 @@ if (!process.env.SUPABASE_URL) {
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error("[VERIFY_PAYMENT] ERROR: SUPABASE_SERVICE_ROLE_KEY no configurada");
 }
-if (!process.env.WORLDCOIN_API_KEY) {
-  console.warn("[VERIFY_PAYMENT] ADVERTENCIA: WORLDCOIN_API_KEY no configurada — la verificación de transacciones puede fallar");
+if (!process.env.RP_SIGNING_KEY) {
+  console.warn("[VERIFY_PAYMENT] ADVERTENCIA: RP_SIGNING_KEY no configurada");
 }
 
 const supabase = createClient(
@@ -43,7 +43,7 @@ async function verifyWorldcoinTransaction(transactionId) {
       {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${process.env.WORLDCOIN_API_KEY ?? ""}`,
+          Authorization: `Bearer ${process.env.RP_SIGNING_KEY ?? ""}`,
           "Content-Type": "application/json",
         },
       }
