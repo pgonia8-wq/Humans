@@ -312,8 +312,9 @@ const HomePage: React.FC<HomePageProps> = ({
       }
 
       if (type === "REQUEST_ORB_VERIFY") {
+        console.log("[H] REQUEST_ORB_VERIFY received from token");
         const win = tokenIframeRef.current?.contentWindow;
-        if (!win) return;
+        if (!win) { console.warn("[H] tokenIframeRef.contentWindow is null"); return; }
         try {
           const verifyRes = await MiniKit.commandsAsync.verify({
             action: "verify-user",
