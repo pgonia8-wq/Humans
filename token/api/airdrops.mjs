@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { supabase, cors, mapAirdropRow } from "./_supabase.mjs";
   import { requireOrb } from "./_orbGuard.mjs";
 
@@ -61,7 +62,7 @@ import { supabase, cors, mapAirdropRow } from "./_supabase.mjs";
         if (token.creator_id !== creatorId) return res.status(403).json({ error: "Only the token creator can create airdrops" });
         const endDate = new Date(Date.now() + (durationDays || 30) * 86400000).toISOString();
         const newAirdrop = {
-          id: "adr_" + Math.random().toString(36).slice(2, 10),
+          id: "adr_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
           token_id: tokenId, token_name: token.name, token_symbol: token.symbol,
           token_emoji: token.emoji ?? "🌟", title: title.trim(),
           description: (description || "").trim(), total_amount: totalAmount,
