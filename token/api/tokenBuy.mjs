@@ -1,195 +1,227 @@
 import { supabase, cors } from "./_supabase.mjs";
-import { requireOrb } from "./_orbGuard.mjs";
-import { recordPriceSnapshot } from "./_snapshot.mjs";
-import {
-  solveBuy, curvePercent, checkGraduation, spotPrice,
-  TOTAL_SUPPLY, MAX_CREATOR_HOLD, WLD_USD,
-  GRADUATION_WLD, GRADUATION_HOLDERS, MAX_RETRIES,
-} from "./_curve.mjs";
+  import { requireOrb } from "./_orbGuard.mjs";
+  import { recordPriceSnapshot } from "./_snapshot.mjs";
+  import { createBuyTickets, createGraduationTickets } from "./_ledger.mjs";
+  import {
+    solveBuy, curvePercent, checkGraduation, spotPrice,
+    TOTAL_SUPPLY, MAX_CREATOR_HOLD, WLD_USD,
+    GRADUATION_WLD, GRADUATION_HOLDERS, MAX_RETRIES,
+  } from "./_curve.mjs";
 
-export default async function handler(req, res) {
-  cors(res);
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  export default async function handler(req, res) {
+    cors(res);
+    if (req.method === "OPTIONS") return res.status(200).end();
+    if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
-  const tokenId = req.query.id;
-  const { amountWld, userId } = req.body ?? {};
-  if (!tokenId || !amountWld || !userId) {
-    return res.status(400).json({ error: "Missing tokenId, amountWld, userId" });
-  }
-  if (amountWld <= 0 || amountWld > 500) {
-    return res.status(400).json({ error: "amountWld must be between 0 and 500" });
-  }
+    const tokenId = req.query.id;
+    const { amountWld, userId, transactionId } = req.body ?? {};
+    if (!tokenId || !amountWld || !userId) {
+      return res.status(400).json({ error: "Missing tokenId, amountWld, userId" });
+    }
+    if (amountWld <= 0 || amountWld > 500) {
+      return res.status(400).json({ error: "amountWld must be between 0 and 500" });
+    }
 
-  const orbOk = await requireOrb(userId, res);
-  if (!orbOk) return;
+    const orbOk = await requireOrb(userId, res);
+    if (!orbOk) return;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", userId)
+      .maybeSingle();
+    const username = profile?.username ?? "anon";
+
+    let orderId = null;
     try {
-      const { data: token, error: tErr } = await supabase
-        .from("tokens")
-        .select("*")
-        .eq("id", tokenId)
-        .single();
-      if (tErr || !token) return res.status(404).json({ error: "Token not found" });
-      if (token.graduated) return res.status(400).json({ error: "Token graduated — trade on DEX" });
+      const reference = "ref_" + (transactionId || Date.now().toString(36)).slice(0, 16);
+      const { data: order } = await supabase
+        .from("payment_orders")
+        .insert({
+          user_id: userId,
+          username,
+          token_id: tokenId,
+          token_symbol: "",
+          amount_wld: amountWld,
+          estimated_tokens: 0,
+          spot_price: 0,
+          reference,
+          transaction_id: transactionId || null,
+          status: "processing",
+          type: "buy",
+        })
+        .select("id")
+        .maybeSingle();
+      orderId = order?.id || null;
+    } catch (e) {
+      console.error("[BUY] order creation skipped:", e.message);
+    }
 
-      const supply = Number(token.circulating_supply ?? 0);
-      const { tokensOut, fee, netWld, newSupply, newPrice } = solveBuy(amountWld, supply);
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const { data: token, error: tErr } = await supabase
+          .from("tokens")
+          .select("*")
+          .eq("id", tokenId)
+          .single();
+        if (tErr || !token) return res.status(404).json({ error: "Token not found" });
+        if (token.graduated) return res.status(400).json({ error: "Token graduated — trade on DEX" });
 
-      if (tokensOut <= 0) return res.status(400).json({ error: "Amount too small" });
+        const supply = Number(token.circulating_supply ?? 0);
+        const { tokensOut, fee, netWld, newSupply, newPrice } = solveBuy(amountWld, supply);
 
-      if (userId === token.creator_id) {
-        const { data: existing } = await supabase
+        if (tokensOut <= 0) return res.status(400).json({ error: "Amount too small" });
+
+        if (userId === token.creator_id) {
+          const { data: existing } = await supabase
+            .from("holdings")
+            .select("amount")
+            .eq("user_id", userId)
+            .eq("token_id", tokenId)
+            .maybeSingle();
+          const current = Number(existing?.amount ?? 0);
+          if (current + tokensOut > TOTAL_SUPPLY * MAX_CREATOR_HOLD) {
+            return res.status(400).json({ error: "Creator max hold: " + (MAX_CREATOR_HOLD * 100) + "%" });
+          }
+        }
+
+        const newPriceUsd = newPrice * WLD_USD;
+        const totalWldInCurve = Number(token.total_wld_in_curve ?? 0) + netWld;
+        const treasuryBalance = Number(token.treasury_balance ?? 0) + fee;
+        const cp = curvePercent(totalWldInCurve);
+
+        const { data: updated, error: updateErr } = await supabase
+          .from("tokens")
+          .update({
+            circulating_supply: newSupply,
+            price_wld: newPrice,
+            price_usdc: newPriceUsd,
+            total_wld_in_curve: totalWldInCurve,
+            treasury_balance: treasuryBalance,
+            curve_percent: cp,
+            market_cap: newSupply * newPriceUsd,
+            volume_24h: Number(token.volume_24h ?? 0) + amountWld * WLD_USD,
+          })
+          .eq("id", tokenId)
+          .eq("circulating_supply", supply)
+          .select("id")
+          .maybeSingle();
+
+        if (updateErr) throw updateErr;
+        if (!updated) {
+          if (attempt < MAX_RETRIES - 1) continue;
+          return res.status(409).json({ error: "Concurrent trade detected, please retry" });
+        }
+
+        const { data: holdingRow } = await supabase
           .from("holdings")
-          .select("amount")
+          .select("amount, avg_buy_price")
           .eq("user_id", userId)
           .eq("token_id", tokenId)
           .maybeSingle();
-        const current = Number(existing?.amount ?? 0);
-        if (current + tokensOut > TOTAL_SUPPLY * MAX_CREATOR_HOLD) {
-          return res.status(400).json({ error: `Creator max hold: ${MAX_CREATOR_HOLD * 100}%` });
+
+        const prevAmount = Number(holdingRow?.amount ?? 0);
+        const prevAvg = Number(holdingRow?.avg_buy_price ?? 0);
+        const newAmount = prevAmount + tokensOut;
+        const unitPrice = netWld / tokensOut;
+        const avgPrice = prevAmount > 0
+          ? (prevAvg * prevAmount + unitPrice * tokensOut) / newAmount
+          : unitPrice;
+
+        await supabase.from("holdings").upsert({
+          user_id: userId, token_id: tokenId,
+          token_name: token.name, token_symbol: token.symbol,
+          token_emoji: token.emoji ?? "🌟",
+          amount: newAmount, avg_buy_price: avgPrice,
+          current_price: newPrice, value: newAmount * newPrice,
+          pnl: (newPrice - avgPrice) * newAmount,
+          pnl_percent: avgPrice > 0 ? ((newPrice - avgPrice) / avgPrice) * 100 : 0,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id,token_id" });
+
+        if (prevAmount === 0) {
+          await supabase.rpc("increment_holders", { tid: tokenId });
         }
-      }
 
-      const newPriceUsd = newPrice * WLD_USD;
-      const totalWldInCurve = Number(token.total_wld_in_curve ?? 0) + netWld;
-      const treasuryBalance = Number(token.treasury_balance ?? 0) + fee;
-      const cp = curvePercent(totalWldInCurve);
+        await supabase.from("token_activity").insert({
+          type: "buy", user_id: userId, username,
+          token_id: tokenId, token_symbol: token.symbol,
+          amount: tokensOut, price: newPrice, total: amountWld,
+          timestamp: new Date().toISOString(),
+        });
 
-      const { data: updated, error: updateErr } = await supabase
-        .from("tokens")
-        .update({
-          circulating_supply: newSupply,
-          price_wld: newPrice,
-          price_usdc: newPriceUsd,
-          total_wld_in_curve: totalWldInCurve,
-          treasury_balance: treasuryBalance,
-          curve_percent: cp,
-          market_cap: newSupply * newPriceUsd,
-          volume_24h: Number(token.volume_24h ?? 0) + amountWld * WLD_USD,
-        })
-        .eq("id", tokenId)
-        .eq("circulating_supply", supply)
-        .select("id")
-        .maybeSingle();
+        await recordPriceSnapshot(tokenId, newPrice, newPriceUsd, newSupply, amountWld * WLD_USD, "buy");
 
-      if (updateErr) throw updateErr;
-      if (!updated) {
-        if (attempt < MAX_RETRIES - 1) continue;
-        return res.status(409).json({ error: "Concurrent trade detected, please retry" });
-      }
+        if (orderId) {
+          await supabase.from("payment_orders").update({
+            status: "completed", completed_at: new Date().toISOString(),
+            token_symbol: token.symbol, estimated_tokens: tokensOut, spot_price: spotPrice(supply),
+          }).eq("id", orderId);
+        }
 
-      const { data: holdingRow } = await supabase
-        .from("holdings")
-        .select("amount, avg_buy_price")
-        .eq("user_id", userId)
-        .eq("token_id", tokenId)
-        .maybeSingle();
+        try {
+          await createBuyTickets({
+            orderId, userId, username,
+            tokenId, tokenSymbol: token.symbol,
+            amountWld, fee, netWld, tokensOut, newPrice,
+          });
+        } catch (le) {
+          console.error("[BUY] ledger error (non-fatal):", le.message);
+        }
 
-      const prevAmount = Number(holdingRow?.amount ?? 0);
-      const prevAvg = Number(holdingRow?.avg_buy_price ?? 0);
-      const newAmount = prevAmount + tokensOut;
-      const unitPrice = netWld / tokensOut;
-      const avgPrice = prevAmount > 0
-        ? (prevAvg * prevAmount + unitPrice * tokensOut) / newAmount
-        : unitPrice;
+        const currentHolders = Number(token.holders ?? 0) + (prevAmount === 0 ? 1 : 0);
+        if (checkGraduation(totalWldInCurve, currentHolders)) {
+          await triggerGraduation(tokenId, token.symbol, totalWldInCurve, newPrice);
+        }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("id", userId)
-        .maybeSingle();
-      const username = profile?.username ?? "anon";
-
-      await supabase.from("holdings").upsert({
-        user_id: userId,
-        token_id: tokenId,
-        token_name: token.name,
-        token_symbol: token.symbol,
-        token_emoji: token.emoji ?? "🌟",
-        amount: newAmount,
-        avg_buy_price: avgPrice,
-        current_price: newPrice,
-        value: newAmount * newPrice,
-        pnl: (newPrice - avgPrice) * newAmount,
-        pnl_percent: avgPrice > 0 ? ((newPrice - avgPrice) / avgPrice) * 100 : 0,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,token_id" });
-
-      if (prevAmount === 0) {
-        await supabase.rpc("increment_holders", { tid: tokenId });
-      }
-
-      await supabase.from("token_activity").insert({
-        type: "buy",
-        user_id: userId,
-        username,
-        token_id: tokenId,
-        token_symbol: token.symbol,
-        amount: tokensOut,
-        price: newPrice,
-        total: amountWld,
-        timestamp: new Date().toISOString(),
-      });
-
-      await recordPriceSnapshot(tokenId, newPrice, newPriceUsd, newSupply, amountWld * WLD_USD, "buy");
-
-      if (checkGraduation(totalWldInCurve, Number(token.holders ?? 0) + (prevAmount === 0 ? 1 : 0))) {
-        await triggerGraduation(tokenId, token.symbol, totalWldInCurve, newPrice);
-      }
-
-      return res.status(200).json({
-        success: true,
-        tokensReceived: tokensOut,
-        fee,
-        avgPrice: unitPrice,
-        newPrice,
-        newPriceUsd,
-        newSupply,
-        curvePercent: cp,
-        message: `Bought ${tokensOut.toLocaleString()} ${token.symbol}`,
-      });
-    } catch (err) {
-      console.error(`[BUY attempt=${attempt}]`, err.message);
-      if (attempt >= MAX_RETRIES - 1) {
-        return res.status(500).json({ error: err.message });
+        return res.status(200).json({
+          success: true,
+          tokensReceived: tokensOut, fee,
+          avgPrice: unitPrice, newPrice, newPriceUsd,
+          newSupply, curvePercent: cp,
+          message: "Bought " + tokensOut.toLocaleString() + " " + token.symbol,
+        });
+      } catch (err) {
+        console.error("[BUY attempt=" + attempt + "]", err.message);
+        if (attempt >= MAX_RETRIES - 1) {
+          if (orderId) {
+            await supabase.from("payment_orders").update({
+              status: "failed", error_message: err.message,
+            }).eq("id", orderId).catch(() => {});
+          }
+          return res.status(500).json({ error: err.message });
+        }
       }
     }
   }
-}
 
-async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
-  try {
-    const toPool     = totalWld * 0.70;
-    const toTreasury = totalWld * 0.30;
+  async function triggerGraduation(tokenId, symbol, totalWld, finalPrice) {
+    try {
+      const toPool = totalWld * 0.70;
+      const toTreasury = totalWld * 0.30;
 
-    await supabase
-      .from("tokens")
-      .update({
-        graduated: true,
-        graduated_at: new Date().toISOString(),
-        graduation_pool_wld: toPool,
-        graduation_treasury_wld: toTreasury,
+      await supabase.from("tokens").update({
+        graduated: true, graduated_at: new Date().toISOString(),
+        graduation_pool_wld: toPool, graduation_treasury_wld: toTreasury,
         curve_percent: 100,
-      })
-      .eq("id", tokenId)
-      .eq("graduated", false);
+      }).eq("id", tokenId).eq("graduated", false);
 
-    await supabase.from("token_activity").insert({
-      type: "graduate",
-      user_id: "system",
-      username: "system",
-      token_id: tokenId,
-      token_symbol: symbol,
-      amount: totalWld,
-      price: finalPrice,
-      total: totalWld,
-      timestamp: new Date().toISOString(),
-    });
+      await supabase.from("token_activity").insert({
+        type: "graduate", user_id: "system", username: "system",
+        token_id: tokenId, token_symbol: symbol,
+        amount: totalWld, price: finalPrice, total: totalWld,
+        timestamp: new Date().toISOString(),
+      });
 
-    console.log(`[GRADUATION] ${symbol} graduated! Pool: ${toPool.toFixed(2)}, Treasury: ${toTreasury.toFixed(2)}`);
-  } catch (err) {
-    console.error("[GRADUATION_TRIGGER]", err.message);
+      try {
+        await createGraduationTickets({ tokenId, tokenSymbol: symbol, totalWld, toPool, toTreasury, finalPrice });
+      } catch (le) {
+        console.error("[GRADUATION] ledger error:", le.message);
+      }
+
+      console.log("[GRADUATION] " + symbol + " graduated!");
+    } catch (err) {
+      console.error("[GRADUATION_TRIGGER]", err.message);
+    }
   }
-}
+  
