@@ -24,8 +24,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const isOrbVerified =
-      profile.verification_level === "orb" && profile.orb_verified_at != null;
+    const isOrbVerified = profile.verification_level === "orb";
 
     return res.status(200).json({
       orbVerified: isOrbVerified,

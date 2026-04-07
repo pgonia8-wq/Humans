@@ -37,6 +37,7 @@ interface AppContextValue extends AppState {
   toggleCurrency: () => void;
   setCurrency: (c: DisplayCurrency) => void;
   emitToBridge: (event: string, payload?: unknown) => void;
+  requestOrbVerification: () => Promise<boolean>;
   updateBalance: (wld: number, usdc: number) => void;
   updateUser: (updates: Partial<WorldAppUser>) => void;
   formatPrice: (wldPrice: number) => string;
@@ -171,6 +172,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.parent?.postMessage({ type: event, payload }, PARENT_ORIGIN);
   }, []);
 
+  const requestOrbVerification = useCallback((): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const handler = (e: MessageEvent) => {
+        if (!e.data || e.data.type !== "ORB_VERIFY_RESULT") return;
+        window.removeEventListener("message", handler);
+        clearTimeout(timeout);
+        const p = e.data.payload;
+        if (p?.success && p?.orbVerified) {
+          setState((s) => ({
+            ...s,
+            user: s.user ? { ...s.user, verificationLevel: "orb" } : null,
+          }));
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      };
+      const timeout = setTimeout(() => {
+        window.removeEventListener("message", handler);
+        resolve(false);
+      }, 60000);
+      window.addEventListener("message", handler);
+      window.parent?.postMessage({ type: "REQUEST_ORB_VERIFY" }, PARENT_ORIGIN);
+    });
+  }, []);
+
   const navigate = useCallback((screen: Screen, params?: { tokenId?: string; airdropId?: string }) => {
     setState((s) => ({
       ...s,
@@ -252,6 +279,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toggleCurrency,
         setCurrency,
         emitToBridge,
+        requestOrbVerification,
         updateBalance,
         updateUser,
         formatPrice,

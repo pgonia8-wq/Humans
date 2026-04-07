@@ -553,7 +553,7 @@ function TokenManageCard({ token, onSelect }: { token: Token; onSelect: (t: Toke
 }
 
 export default function CreatorDashboard() {
-  const { closeCreatorDashboard, user, navigate } = useApp();
+  const { closeCreatorDashboard, user, navigate, requestOrbVerification } = useApp();
   const [view, setView] = useState<MainView>("hub");
   const [createStep, setCreateStep] = useState<CreateStep>("form");
   const [form, setForm] = useState<TokenForm>({ name: "", symbol: "", emoji: "🌟", description: "", twitter: "", telegram: "", website: "" });
@@ -811,8 +811,17 @@ export default function CreatorDashboard() {
                 <ShieldAlert className="w-7 h-7 text-yellow-400" />
               </div>
               <div className="text-sm font-bold text-foreground">ORB Verification Required</div>
-              <p className="text-[11px] text-muted-foreground px-6">Verify with World ID ORB in the main H app before creating tokens.</p>
-              <button onClick={() => setCreateStep("form")} data-testid="button-back-form" className="text-xs text-green-400 font-bold">Go Back</button>
+              <p className="text-[11px] text-muted-foreground px-6">Verify with your World ID ORB to create tokens.</p>
+              <button
+                onClick={async () => {
+                  const ok = await requestOrbVerification();
+                  if (ok) setCreateStep("form");
+                }}
+                className="px-6 py-2 rounded-xl bg-green-500 text-white text-xs font-bold active:scale-95 transition-transform"
+              >
+                Verify with ORB
+              </button>
+              <button onClick={() => setCreateStep("form")} data-testid="button-back-form" className="text-xs text-muted-foreground font-bold block mx-auto">Go Back</button>
             </motion.div>
           )}
 

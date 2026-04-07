@@ -313,6 +313,36 @@ const HomePage: React.FC<HomePageProps> = ({
         return;
       }
 
+      if (type === "REQUEST_ORB_VERIFY") {
+        const win = tokenIframeRef.current?.contentWindow;
+        if (!win) return;
+        try {
+          const verifyRes = await MiniKit.commandsAsync.verify({
+            action: "verify-user",
+            signal: wallet ?? "",
+            verification_level: VerificationLevel.Orb,
+          });
+          const proof = verifyRes?.finalPayload;
+          if (proof && proof.verification_level === "orb") {
+            const orbRes = await fetch(
+              (TOKEN_APP_URL || "") + "/api/verifyOrb",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ payload: proof, userId: userId ?? "" }),
+              }
+            );
+            const orbData = await orbRes.json();
+            win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: !!orbData.success, orbVerified: !!orbData.orbVerified } }, TOKEN_APP_URL || "*");
+          } else {
+            win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: false, error: "ORB verification not completed" } }, TOKEN_APP_URL || "*");
+          }
+        } catch (err: any) {
+          win.postMessage({ type: "ORB_VERIFY_RESULT", payload: { success: false, error: err.message } }, TOKEN_APP_URL || "*");
+        }
+        return;
+      }
+
       if (type === "REQUEST_PAYMENT") {
         const win = tokenIframeRef.current?.contentWindow;
         if (!win) return;

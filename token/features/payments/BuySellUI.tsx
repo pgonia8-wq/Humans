@@ -29,7 +29,7 @@ interface Props {
 }
 
 export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Props) {
-  const { balanceWld, balanceUsdc, updateBalance, emitToBridge, user, displayCurrency, wldUsdRate, fmtWld } = useApp();
+  const { balanceWld, balanceUsdc, updateBalance, emitToBridge, requestOrbVerification, user, displayCurrency, wldUsdRate, fmtWld } = useApp();
   const { balance: realWldBalance, refetch: refetchBalance } = useWldBalance();
   const [tab, setTab] = useState<Tab>(defaultTab ?? "buy");
   const [amount, setAmount] = useState("");
@@ -207,8 +207,17 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
           <ShieldAlert className="w-7 h-7 text-yellow-400" />
         </div>
         <div className="text-sm font-bold text-foreground">ORB Verification Required</div>
-        <p className="text-[11px] text-muted-foreground px-4">Complete your ORB verification in the main H app to start trading.</p>
-        <button onClick={() => setBuyStep("idle")} data-testid="button-back" className="text-xs text-green-400 font-bold">Go Back</button>
+        <p className="text-[11px] text-muted-foreground px-4">Verify with your World ID ORB to start trading.</p>
+        <button
+          onClick={async () => {
+            const ok = await requestOrbVerification();
+            if (ok) setBuyStep("idle");
+          }}
+          className="px-6 py-2 rounded-xl bg-green-500 text-white text-xs font-bold active:scale-95 transition-transform"
+        >
+          Verify with ORB
+        </button>
+        <button onClick={() => setBuyStep("idle")} data-testid="button-back" className="text-xs text-muted-foreground font-bold block mx-auto">Go Back</button>
       </div>
     );
   }

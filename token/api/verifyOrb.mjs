@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       .eq("id", userId)
       .maybeSingle();
 
-    if (existing?.verification_level === "orb" && existing?.orb_verified_at != null) {
+    if (existing?.verification_level === "orb") {
       return res.status(200).json({
         success: true,
         nullifier_hash: nullifierHash,
