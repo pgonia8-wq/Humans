@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { api } from "@/services/api";
+import { api, setApiUserId } from "@/services/api";
 
 export type Screen = "discovery" | "token" | "profile" | "creator" | "settings";
 export type DisplayCurrency = "USD" | "WLD";
@@ -126,6 +126,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (type === "WORLD_APP_CONTEXT") {
         contextReceived = true;
+        const uid = payload?.userId ?? null;
+        if (uid) setApiUserId(uid);
         setState((s) => ({
           ...s,
           user: {

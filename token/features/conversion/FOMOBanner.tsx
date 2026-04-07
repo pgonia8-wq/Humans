@@ -9,7 +9,9 @@ interface Props {
 
 interface Message {
   text: string;
-  color: string;
+  colorClass: string;
+  bgClass: string;
+  borderClass: string;
   icon: string;
 }
 
@@ -17,26 +19,24 @@ function buildMessages(curvePercent: number, change24h: number, volume24h: numbe
   const msgs: Message[] = [];
 
   if (curvePercent < 20) {
-    msgs.push({ text: `Only ${curvePercent}% of the curve filled — early mover advantage`, color: "#10f090", icon: "🚀" });
+    msgs.push({ text: `Only ${curvePercent.toFixed(0)}% of the curve filled — early mover advantage`, colorClass: "text-green-400", bgClass: "bg-green-500/8", borderClass: "border-green-500/20", icon: "🚀" });
   } else if (curvePercent < 50) {
-    msgs.push({ text: `${curvePercent}% through the curve — momentum building`, color: "#06d6f7", icon: "📈" });
+    msgs.push({ text: `${curvePercent.toFixed(0)}% through the curve — momentum building`, colorClass: "text-cyan-400", bgClass: "bg-cyan-500/8", borderClass: "border-cyan-500/20", icon: "📈" });
   } else if (curvePercent < 80) {
-    msgs.push({ text: `${curvePercent}% filled — high conviction buyers accumulating`, color: "#f7a606", icon: "🔥" });
+    msgs.push({ text: `${curvePercent.toFixed(0)}% filled — high conviction buyers accumulating`, colorClass: "text-yellow-400", bgClass: "bg-yellow-500/8", borderClass: "border-yellow-500/20", icon: "🔥" });
   } else {
-    msgs.push({ text: `${curvePercent}% complete — last chance to enter early`, color: "#f05050", icon: "⚠️" });
+    msgs.push({ text: `${curvePercent.toFixed(0)}% complete — last chance before graduation`, colorClass: "text-red-400", bgClass: "bg-red-500/8", borderClass: "border-red-500/20", icon: "⚠️" });
   }
 
   if (change24h > 50) {
-    msgs.push({ text: `+${change24h.toFixed(1)}% in 24h — one of today's top performers`, color: "#10f090", icon: "💹" });
+    msgs.push({ text: `+${change24h.toFixed(1)}% in 24h — one of today's top performers`, colorClass: "text-green-400", bgClass: "bg-green-500/8", borderClass: "border-green-500/20", icon: "💹" });
   } else if (change24h > 10) {
-    msgs.push({ text: `Up ${change24h.toFixed(1)}% in the last 24 hours`, color: "#06d6f7", icon: "📊" });
+    msgs.push({ text: `Up ${change24h.toFixed(1)}% in the last 24 hours`, colorClass: "text-cyan-400", bgClass: "bg-cyan-500/8", borderClass: "border-cyan-500/20", icon: "📊" });
   }
 
   if (volume24h > 50000) {
-    msgs.push({ text: `$${(volume24h / 1000).toFixed(0)}K volume in 24h — strong liquidity`, color: "#8b5cf6", icon: "💧" });
+    msgs.push({ text: `$${(volume24h / 1000).toFixed(0)}K volume in 24h — strong liquidity`, colorClass: "text-violet-400", bgClass: "bg-violet-500/8", borderClass: "border-violet-500/20", icon: "💧" });
   }
-
-  msgs.push({ text: `Join the ${symbol} community — governance rights included`, color: "#8b5cf6", icon: "🏛️" });
 
   return msgs;
 }
@@ -47,6 +47,7 @@ export default function FOMOBanner({ curvePercent, change24h, volume24h, symbol 
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
+    if (messages.length <= 1) return;
     const interval = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
@@ -57,28 +58,13 @@ export default function FOMOBanner({ curvePercent, change24h, volume24h, symbol 
     return () => clearInterval(interval);
   }, [messages.length]);
 
-  const msg = messages[idx];
+  if (messages.length === 0) return null;
+  const msg = messages[idx % messages.length];
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "10px 14px",
-        borderRadius: 10,
-        background: `${msg.color}12`,
-        border: `1px solid ${msg.color}30`,
-        marginBottom: 14,
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(-4px)",
-        transition: "opacity 0.3s, transform 0.3s",
-      }}
-    >
-      <span style={{ fontSize: 16 }}>{msg.icon}</span>
-      <span style={{ fontSize: 12, color: msg.color, fontWeight: 600, lineHeight: 1.4 }}>
-        {msg.text}
-      </span>
+    <div className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl ${msg.bgClass} border ${msg.borderClass} transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"}`}>
+      <span className="text-base shrink-0">{msg.icon}</span>
+      <span className={`text-[11px] ${msg.colorClass} font-semibold leading-snug`}>{msg.text}</span>
     </div>
   );
 }

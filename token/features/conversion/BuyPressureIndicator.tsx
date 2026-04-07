@@ -7,42 +7,20 @@ export default function BuyPressureIndicator({ buyPressure }: Props) {
   const isBullish = buyPressure > 50;
 
   return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.04)",
-        borderRadius: 10,
-        padding: "10px 14px",
-        marginBottom: 10,
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 11, color: "#888", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-          Buy / Sell Pressure
-        </span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: isBullish ? "#10f090" : "#f05050" }}>
+    <div className="rounded-xl bg-card/30 border border-border/20 p-3">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Buy / Sell Pressure</span>
+        <span className={`text-[10px] font-bold ${isBullish ? "text-green-400" : "text-red-400"}`}>
           {isBullish ? "🟢 BULLISH" : "🔴 BEARISH"}
         </span>
       </div>
-
-      <div style={{ height: 8, borderRadius: 4, background: "rgba(240,80,80,0.3)", overflow: "hidden" }}>
-        <div
-          style={{
-            height: "100%",
-            width: `${buyPressure}%`,
-            background: "linear-gradient(90deg,#10f090,#06d6f7)",
-            borderRadius: 4,
-            transition: "width 1s cubic-bezier(0.34,1.56,0.64,1)",
-          }}
-        />
+      <div className="h-2 rounded-full bg-red-500/30 overflow-hidden">
+        <div className="h-full rounded-full bg-gradient-to-r from-green-400 to-cyan-400 transition-all duration-1000"
+          style={{ width: `${buyPressure}%` }} />
       </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#10f090", fontFamily: "monospace" }}>
-          {buyPressure}% BUY
-        </span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#f05050", fontFamily: "monospace" }}>
-          {sellPressure}% SELL
-        </span>
+      <div className="flex justify-between mt-1.5">
+        <span className="text-[10px] font-bold text-green-400 font-mono">{buyPressure}% BUY</span>
+        <span className="text-[10px] font-bold text-red-400 font-mono">{sellPressure}% SELL</span>
       </div>
     </div>
   );

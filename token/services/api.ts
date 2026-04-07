@@ -11,10 +11,22 @@ import type {
 
 const BASE = import.meta.env.VITE_API_BASE || "/api";
 
+let _currentUserId: string | null = null;
+export function setApiUserId(userId: string | null) {
+  _currentUserId = userId;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string> ?? {}),
+  };
+  if (_currentUserId) {
+    headers["x-user-id"] = _currentUserId;
+  }
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

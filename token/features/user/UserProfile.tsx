@@ -72,7 +72,8 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     if (tab === "activity" && user?.id) {
-      api.getUserActivity(user.id).then((r) => setActivities(r.activities)).catch(() => {});
+      api.getUserActivity(user.id).then((r) => setActivities(r.activities))
+        .catch((err) => console.warn("[UserProfile] activity error:", err.message));
     }
   }, [tab, user?.id]);
 

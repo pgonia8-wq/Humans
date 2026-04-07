@@ -4,6 +4,9 @@ import { api } from "@/services/api";
 import { useApp } from "@/context/AppContext";
 import CurrencyToggle from "@/components/CurrencyToggle";
 import BuySellUI from "@/features/payments/BuySellUI";
+import FOMOBanner from "@/features/conversion/FOMOBanner";
+import BuyPressureIndicator from "@/features/conversion/BuyPressureIndicator";
+import LiveActivityFeed from "@/features/conversion/LiveActivityFeed";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, TrendingUp, Users, Activity, Lock, Flame,
@@ -14,10 +17,21 @@ import {
 type TabName = "overview" | "holders" | "activity";
 type ChartPeriod = "1h" | "6h" | "24h" | "7d" | "30d" | "all";
 
+function usePageVisible() {
+  const [visible, setVisible] = useState(!document.hidden);
+  useEffect(() => {
+    const handler = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, []);
+  return visible;
+}
+
 function CandlestickChart({ tokenId }: { tokenId: string }) {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [period, setPeriod] = useState<ChartPeriod>("24h");
   const [loading, setLoading] = useState(true);
+  const pageVisible = usePageVisible();
 
   useEffect(() => {
     let cancelled = false;
@@ -29,11 +43,14 @@ function CandlestickChart({ tokenId }: { tokenId: string }) {
   }, [tokenId, period]);
 
   useEffect(() => {
+    if (!pageVisible) return;
     const iv = setInterval(() => {
-      api.getPriceHistory(tokenId, period).then((res) => setCandles(res.candles ?? [])).catch(() => {});
+      api.getPriceHistory(tokenId, period)
+        .then((res) => setCandles(res.candles ?? []))
+        .catch((err) => console.warn("[CandlestickChart] poll error:", err.message));
     }, 8000);
     return () => clearInterval(iv);
-  }, [tokenId, period]);
+  }, [tokenId, period, pageVisible]);
 
   const periods: ChartPeriod[] = ["1h", "6h", "24h", "7d", "30d", "all"];
 
@@ -166,6 +183,7 @@ export default function TokenPage() {
   const [tab, setTab] = useState<TabName>("overview");
   const [showTrade, setShowTrade] = useState<"buy" | "sell" | null>(null);
   const [copied, setCopied] = useState(false);
+  const pageVisible = usePageVisible();
 
   const loadToken = useCallback(async () => {
     if (!selectedTokenId) return;
@@ -181,14 +199,24 @@ export default function TokenPage() {
 
   useEffect(() => {
     loadToken();
-    const iv = setInterval(loadToken, 8000);
-    return () => clearInterval(iv);
   }, [loadToken]);
 
   useEffect(() => {
+    if (!pageVisible) return;
+    const iv = setInterval(loadToken, 8000);
+    return () => clearInterval(iv);
+  }, [loadToken, pageVisible]);
+
+  useEffect(() => {
     if (!selectedTokenId) return;
-    if (tab === "holders") api.getTokenHolders(selectedTokenId).then(setHolders).catch(() => {});
-    if (tab === "activity") api.getTokenActivity(selectedTokenId).then((r) => setActivities(r.activities)).catch(() => {});
+    if (tab === "holders") {
+      api.getTokenHolders(selectedTokenId).then(setHolders)
+        .catch((err) => console.warn("[TokenPage] holders error:", err.message));
+    }
+    if (tab === "activity") {
+      api.getTokenActivity(selectedTokenId).then((r) => setActivities(r.activities))
+        .catch((err) => console.warn("[TokenPage] activity error:", err.message));
+    }
   }, [selectedTokenId, tab]);
 
   const copyAddress = () => {
@@ -217,7 +245,10 @@ export default function TokenPage() {
   const lockPct = token.totalSupply > 0 ? (token.lockedSupply / token.totalSupply * 100) : 0;
   const burnPct = token.totalSupply > 0 ? (token.burnedSupply / token.totalSupply * 100) : 0;
   const isCreator = user?.id === token.creatorId;
-  const curLabel = displayCurrency === "WLD" ? "WLD" : "USD";
+
+  const buyPressure = stats && (stats.buys + stats.sells) > 0
+    ? Math.round((stats.buys / (stats.buys + stats.sells)) * 100)
+    : 50;
 
   return (
     <div className="min-h-full pb-24" data-testid="token-page">
@@ -249,6 +280,15 @@ export default function TokenPage() {
       </div>
 
       <div className="px-4 pt-3 space-y-3">
+        {!token.graduated && (
+          <FOMOBanner
+            curvePercent={curvePercent}
+            change24h={token.change24h}
+            volume24h={token.volume24h}
+            symbol={token.symbol}
+          />
+        )}
+
         <CandlestickChart tokenId={token.id} />
 
         <div className="p-3 rounded-xl bg-card/30 border border-border/20">
@@ -270,6 +310,10 @@ export default function TokenPage() {
             <span>{token.holders} / 300 holders</span>
           </div>
         </div>
+
+        {stats && (stats.buys + stats.sells) > 0 && (
+          <BuyPressureIndicator buyPressure={buyPressure} />
+        )}
 
         <div className="grid grid-cols-4 gap-1.5">
           <Stat label="MCap" value={fmtUsd(token.marketCap, { compact: true })} />
@@ -319,6 +363,8 @@ export default function TokenPage() {
             {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
           </button>
         )}
+
+        <LiveActivityFeed tokenId={token.id} symbol={token.symbol} limit={5} />
 
         <div className="flex rounded-lg bg-secondary/30 p-0.5 gap-0.5">
           {(["overview", "holders", "activity"] as TabName[]).map((t) => (

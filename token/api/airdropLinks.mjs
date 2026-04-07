@@ -6,11 +6,19 @@ const AIRDROP_POOL = 2500000;
 const MAX_LINKS = 5;
 const APP_URL = "https://h-token.vercel.app";
 
-  function generateCode() {
+  async function generateUniqueCode() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let code = "";
-    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
-    return code;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      let code = "";
+      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      const { data } = await supabase
+        .from("airdrop_links")
+        .select("id")
+        .eq("code", code)
+        .maybeSingle();
+      if (!data) return code;
+    }
+    throw new Error("Failed to generate unique airdrop code after 5 attempts");
   }
 
 export default async function handler(req, res) {
@@ -177,7 +185,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Max " + MAX_LINKS + " links per pool. Delete one to create a new one." });
           }
 
-          const code = generateCode();
+          const code = await generateUniqueCode();
           const newLink = {
             id: "adl_" + Math.random().toString(36).slice(2, 10),
             pool_id: poolId,
