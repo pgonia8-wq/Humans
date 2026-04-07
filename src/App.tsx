@@ -11,7 +11,6 @@ const App = () => {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [verificationLevel, setVerificationLevel] = useState<string>("device");
   const [miniKitReady, setMiniKitReady] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -25,8 +24,6 @@ const App = () => {
       if (storedId) {
         setUserId(storedId);
         setVerified(true);
-        const storedLevel = localStorage.getItem("verificationLevel");
-        if (storedLevel) setVerificationLevel(storedLevel);
       }
 
       try {
@@ -134,12 +131,9 @@ const App = () => {
         const text = await res.text();
         if (text.includes("already verified") && proof.nullifier_hash) {
           const id = proof.nullifier_hash;
-          const level = proof.verification_level ?? "device";
           localStorage.setItem("userId", id);
-          localStorage.setItem("verificationLevel", level);
           setUserId(id);
           setVerified(true);
-          setVerificationLevel(level);
           return;
         } else {
           throw new Error(`Backend error: ${text}`);
@@ -150,12 +144,9 @@ const App = () => {
 
       if (backend.success && proof.nullifier_hash) {
         const id = proof.nullifier_hash;
-        const level = backend.verification_level ?? proof.verification_level ?? "device";
         localStorage.setItem("userId", id);
-        localStorage.setItem("verificationLevel", level);
         setUserId(id);
         setVerified(true);
-        setVerificationLevel(level);
       } else {
         throw new Error(backend.error || "Backend rechazó la prueba");
       }
@@ -177,7 +168,6 @@ const App = () => {
       userId={userId}
       verifyUser={verifyUser}
       verified={verified}
-      verificationLevel={verificationLevel}
       wallet={wallet}
       username={username}
       avatar={avatar}
