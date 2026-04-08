@@ -12,6 +12,7 @@ const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [miniKitReady, setMiniKitReady] = useState(false);
+  const [orbVerifying, setOrbVerifying] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const walletLoading = useRef(false);
@@ -164,7 +165,8 @@ const App = () => {
     };
 
     const verifyOrb = async (): Promise<{ success: boolean; proof?: any }> => {
-      if (!miniKitReady) return { success: false };
+      if (!miniKitReady || orbVerifying) return { success: false };
+      setOrbVerifying(true);
       try {
         const verifyRes = await MiniKit.commandsAsync.verify({
           action: "user-orb",
@@ -183,6 +185,8 @@ const App = () => {
       } catch (err: any) {
         console.error("[APP] Orb verify failed:", err);
         return { success: false };
+      } finally {
+        setOrbVerifying(false);
       }
     };
 
