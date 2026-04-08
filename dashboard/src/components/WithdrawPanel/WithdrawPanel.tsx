@@ -222,7 +222,7 @@ export const WithdrawPanel = memo(function WithdrawPanel({ userId, totalEarnings
 };
   const isOpen = showModal || !!open;
   const handleSubmit = async (amount: number, wallet: string, token: "WLD" | "USDC") => {
-    await createWithdrawal({ amount, wallet, token });
+    await createWithdrawal({ amount, wallet_address: wallet, currency: token });
   };
 
   return (
@@ -314,8 +314,8 @@ export const WithdrawPanel = memo(function WithdrawPanel({ userId, totalEarnings
                     style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
                   >
                     <div>
-                      <p className="text-xs font-semibold text-white/80">{w.amount.toFixed(4)} {w.token}</p>
-                      <p className="text-[10px] text-white/25 font-mono mt-0.5">{w.wallet.slice(0, 10)}…</p>
+                      <p className="text-xs font-semibold text-white/80">{w.amount.toFixed(4)} {w.currency}</p>
+                      <p className="text-[10px] text-white/25 font-mono mt-0.5">{w.wallet_address.slice(0, 10)}…</p>
                     </div>
                     <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg" style={{ color: st.color, background: `${st.color}18` }}>
                       {st.label}

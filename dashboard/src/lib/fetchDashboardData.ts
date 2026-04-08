@@ -1,11 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../../../src/supabaseClient";
 import { getFlag } from "./utils";
 import type { AdMetric, AudienceGroup, ChartPoint, DashboardData, Post, PostStats } from "./types";
-
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL ?? "";
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ?? "";
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function emptyData(): DashboardData {
   return {
@@ -28,7 +23,7 @@ export async function fetchDashboardData(userId: string): Promise<DashboardData>
   const { data: posts, error: postsError } = await supabase
     .from("posts")
     .select("id, content")
-    .eq("user_id", userId);
+    .eq("author_id", userId);
 
   if (postsError) throw new Error(postsError.message);
   if (!posts?.length) return emptyData();

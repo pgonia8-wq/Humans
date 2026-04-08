@@ -1023,3 +1023,73 @@ END $$;
 -- DONE. 100% idempotente. Todas las tablas y columnas con IF NOT EXISTS.
 -- Seguro para correr multiples veces en cualquier estado de la DB.
 -- ============================================================================
+
+
+  -- ═══════════════════════════════════════════════════════════════
+  -- DASHBOARD: Ad Metrics, Campaigns, Profile monetization columns
+  -- ═══════════════════════════════════════════════════════════════
+
+  -- Ad Metrics table (core of dashboard analytics)
+  CREATE TABLE IF NOT EXISTS ad_metrics (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+    campaign_id UUID,
+    user_id TEXT,
+    type TEXT NOT NULL CHECK (type IN ('impression', 'click')),
+    value DOUBLE PRECISION DEFAULT 0,
+    creator_earning DOUBLE PRECISION DEFAULT 0,
+    platform_earning DOUBLE PRECISION DEFAULT 0,
+    country TEXT DEFAULT 'unknown',
+    language TEXT DEFAULT 'unknown',
+    interests TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_ad_metrics_post ON ad_metrics(post_id);
+  CREATE INDEX IF NOT EXISTS idx_ad_metrics_campaign ON ad_metrics(campaign_id);
+  CREATE INDEX IF NOT EXISTS idx_ad_metrics_created ON ad_metrics(created_at DESC);
+
+  ALTER TABLE ad_metrics ENABLE ROW LEVEL SECURITY;
+  DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'ad_metrics_read_all') THEN
+      CREATE POLICY ad_metrics_read_all ON ad_metrics FOR SELECT USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'ad_metrics_insert') THEN
+      CREATE POLICY ad_metrics_insert ON ad_metrics FOR INSERT WITH CHECK (true);
+    END IF;
+  END $$;
+
+  -- Campaigns table (advertiser mode)
+  CREATE TABLE IF NOT EXISTS campaigns (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    budget DOUBLE PRECISION DEFAULT 0,
+    spent DOUBLE PRECISION DEFAULT 0,
+    cpc DOUBLE PRECISION DEFAULT 0.01,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused')),
+    category TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_campaigns_user ON campaigns(user_id);
+
+  ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;
+  DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'campaigns_read_all') THEN
+      CREATE POLICY campaigns_read_all ON campaigns FOR SELECT USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'campaigns_insert') THEN
+      CREATE POLICY campaigns_insert ON campaigns FOR INSERT WITH CHECK (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'campaigns_update') THEN
+      CREATE POLICY campaigns_update ON campaigns FOR UPDATE USING (true);
+    END IF;
+  END $$;
+
+  -- Posts: add monetized column
+  ALTER TABLE posts ADD COLUMN IF NOT EXISTS monetized BOOLEAN DEFAULT FALSE;
+
+  -- Profiles: add monetization settings columns
+  ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ads_enabled BOOLEAN DEFAULT TRUE;
+  ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sponsorships_enabled BOOLEAN DEFAULT FALSE;
+  ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ad_category TEXT DEFAULT 'Sin preferencia';
+  

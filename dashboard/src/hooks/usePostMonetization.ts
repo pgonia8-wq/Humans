@@ -18,7 +18,7 @@ export function usePostMonetization(userId: string | null | undefined) {
       const { data } = await supabase
         .from("posts")
         .select("id, content, monetized")
-        .eq("user_id", userId)
+        .eq("author_id", userId)
         .order("created_at", { ascending: false });
       setPosts(
         (data ?? []).map((p: Record<string, unknown>) => ({
