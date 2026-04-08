@@ -85,7 +85,7 @@ import { supabase, cors } from "./_supabase.mjs";
       });
     } catch (err) {
       console.error("[initiateBuy]", err.message);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
   
