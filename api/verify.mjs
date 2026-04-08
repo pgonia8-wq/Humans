@@ -61,6 +61,10 @@ export default async function handler(req, res) {
 
   const nullifierHash = payload.nullifier_hash;
 
+    if (payload.verification_level !== "device") {
+      return res.status(400).json({ success: false, error: "Only device-level verification accepted on this endpoint" });
+    }
+
   // Anti-replay: verificar si este nullifier_hash ya fue verificado
   try {
     const { data: existing } = await supabase
@@ -99,12 +103,15 @@ export default async function handler(req, res) {
     const isSuccess = verifyResponse.ok && (verifyData.success === true || verifyData.success === "true");
 
     if (!isSuccess) {
-      return res.status(verifyResponse.status || 400).json({
-        success: false,
-        error: verifyData.detail ?? verifyData.error ?? "Verificación fallida en Worldcoin",
-        worldcoin_response: verifyData,
-      });
-    }
+        const errMsg = verifyData.detail ?? verifyData.error ?? "";
+        if (errMsg.includes("already") || verifyData.code === "already_verified") {
+          return res.status(200).json({ success: true, nullifier_hash: nullifierHash, reused: true });
+        }
+        return res.status(verifyResponse.status || 400).json({
+          success: false,
+          error: errMsg || "Verificación fallida en Worldcoin",
+        });
+      }
   } catch (err) {
     console.error("[VERIFY] Error de red al contactar Worldcoin:", err.message);
     return res.status(500).json({ success: false, error: "Error al contactar Worldcoin" });
