@@ -78,9 +78,9 @@
   }) {
     return (
       <div>
-        <label className="mb-2 block text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">{label}</label>
+        <label className="mb-2 block text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">{label}</label>
         <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength} data-testid={testId}
-          className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-white/15 outline-none focus:border-violet-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-violet-500/10 transition-all duration-300" />
+          className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-white/30 outline-none focus:border-violet-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-violet-500/10 transition-all duration-300" />
       </div>
     );
   }
@@ -169,7 +169,7 @@
             />
           ))}
         </div>
-        <span className="text-[11px] text-white/25 font-medium italic">{label}</span>
+        <span className="text-[11px] text-white/40 font-medium italic">{label}</span>
       </motion.div>
     );
   }
@@ -180,7 +180,7 @@
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent" />
         <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06]">
           <Sparkles className="h-2.5 w-2.5 text-violet-400/40" />
-          <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{label}</span>
+          <span className="text-[10px] font-black text-white/35 uppercase tracking-[0.2em]">{label}</span>
         </div>
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent" />
       </div>
@@ -200,7 +200,7 @@
           <div className={cx("p-1.5 rounded-xl", isGold ? "bg-amber-500/10" : "bg-violet-500/10")}>
             <Pin className={cx("h-3 w-3", isGold ? "text-amber-400" : "text-violet-400")} />
           </div>
-          <span className="text-[11px] font-bold text-white/40 flex-1">
+          <span className="text-[11px] font-bold text-white/75 flex-1">
             {messages.length} fijado{messages.length > 1 ? "s" : ""}
           </span>
           <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -213,8 +213,8 @@
               <div className="px-5 pb-3 space-y-2 max-h-36 overflow-y-auto">
                 {messages.map((m) => (
                   <div key={m.id} className="flex items-start gap-2.5 group p-2 rounded-xl hover:bg-white/[0.02] transition-colors">
-                    <p className="text-[11px] text-white/35 flex-1 line-clamp-2 leading-relaxed">
-                      <span className="font-bold text-white/50">{m.username}:</span> {m.content}
+                    <p className="text-[11px] text-white/50 flex-1 line-clamp-2 leading-relaxed">
+                      <span className="font-bold text-white/70">{m.username}:</span> {m.content}
                     </p>
                     <button onClick={() => onUnpin(m.id)}
                       className="opacity-0 group-hover:opacity-100 text-white/15 hover:text-red-400 transition-all cursor-pointer p-1 rounded-lg hover:bg-red-500/10">
@@ -245,7 +245,7 @@
               className={cx("flex items-center gap-1.5 px-2 py-1 rounded-xl text-[11px] border transition-all duration-200 cursor-pointer",
                 isMine
                   ? "bg-violet-500/15 border-violet-400/25 text-violet-200 shadow-[0_0_12px_rgba(139,92,246,0.15)]"
-                  : "bg-white/[0.03] border-white/8 text-white/35 hover:bg-white/[0.06] hover:border-white/12")}>
+                  : "bg-white/[0.03] border-white/8 text-white/50 hover:bg-white/[0.08] hover:border-white/12")}>
               <span className="text-sm">{emoji}</span>
               <span className="font-black text-[10px]">{users.length}</span>
             </motion.button>
@@ -291,7 +291,7 @@
       return (
         <div className={cx("flex px-2", isOwn ? "justify-end" : "justify-start")}>
           <div className="px-4 py-2.5 rounded-2xl bg-white/[0.02] border border-white/[0.04]">
-            <span className="text-[11px] text-white/15 italic flex items-center gap-1.5">
+            <span className="text-[11px] text-white/30 italic flex items-center gap-1.5">
               <Trash2 className="h-3 w-3" /> Mensaje eliminado
             </span>
           </div>
@@ -306,8 +306,7 @@
         animate={{ opacity: isTemp ? 0.5 : 1, y: 0, scale: 1 }}
         transition={{ ...SPRING, duration: 0.3 }}
         className={cx("flex gap-3 px-2 group", isOwn ? "flex-row-reverse" : "flex-row", !isGrouped ? "mt-4" : "mt-0.5")}
-        onPointerEnter={() => setShowActions(true)}
-        onPointerLeave={() => { setShowActions(false); setShowEmojis(false); }}
+        onClick={() => { if (!isEditing) setShowActions(prev => !prev); }}
       >
         {!isGrouped ? (
           <Avatar src={message.avatarUrl} name={message.username} size="sm" gold={isGold && !isOwn} online={!isOwn} />
@@ -319,15 +318,15 @@
           {!isGrouped && (
             <div className={cx("flex items-center gap-2.5 mb-1 px-1", isOwn && "flex-row-reverse")}>
               <span className={cx("text-[11px] font-black tracking-wide",
-                isOwn ? (isGold ? "text-amber-300/70" : "text-violet-300/70") : "text-white/45")}>{message.username}</span>
-              <span className="text-[9px] text-white/15 font-medium">{timeAgo(message.createdAt)}</span>
+                isOwn ? (isGold ? "text-amber-300/70" : "undefined") : "text-white/70")}>{message.username}</span>
+              <span className="text-[9px] text-white/30 font-medium">{timeAgo(message.createdAt)}</span>
               {message.ephemeral && <span className="text-[9px] text-violet-400/40" title="Efímero 24h">👻</span>}
             </div>
           )}
 
           {message.replyToContent && (
             <div className={cx("flex items-center gap-2 mb-1.5 px-3.5 py-2 rounded-2xl text-[10px] border-l-[3px]",
-              isGold ? "bg-amber-900/15 border-amber-400/30 text-amber-300/50" : "bg-violet-900/15 border-violet-400/30 text-violet-300/50")}>
+              isGold ? "bg-amber-900/15 border-amber-400/30 text-amber-300/70" : "bg-violet-900/15 border-violet-400/30 text-violet-300/70")}>
               <CornerUpLeft className="h-3 w-3 flex-shrink-0 opacity-60" />
               <span className="font-black">{message.replyToUsername}</span>
               <span className="truncate opacity-60">{message.replyToContent}</span>
@@ -337,9 +336,9 @@
           <div className={cx("relative rounded-[20px] px-4 py-2.5 text-[13.5px] leading-[1.6] break-words transition-all duration-200",
             isOwn
               ? isGold
-                ? "bg-gradient-to-br from-amber-500/25 via-yellow-600/15 to-orange-700/20 text-amber-50/90 border border-amber-400/12 shadow-[0_2px_20px_rgba(245,158,11,0.08)]"
-                : "bg-gradient-to-br from-violet-500/25 via-fuchsia-600/15 to-purple-700/20 text-violet-50/90 border border-violet-400/12 shadow-[0_2px_20px_rgba(139,92,246,0.08)]"
-              : "bg-white/[0.04] text-white/80 border border-white/[0.06] shadow-[0_2px_10px_rgba(0,0,0,0.1)]",
+                ? "bg-gradient-to-br from-amber-500/35 via-yellow-600/25 to-orange-700/25 text-amber-50 border border-amber-400/18 shadow-[0_2px_20px_rgba(245,158,11,0.08)]"
+                : "bg-gradient-to-br from-violet-500/35 via-fuchsia-600/25 to-purple-700/25 text-violet-50 border border-violet-400/18 shadow-[0_2px_20px_rgba(139,92,246,0.08)]"
+              : "bg-white/[0.04] text-white/90 border border-white/[0.06] shadow-[0_2px_10px_rgba(0,0,0,0.1)]",
             isGrouped && isOwn && "rounded-tr-lg",
             isGrouped && !isOwn && "rounded-tl-lg",
             "hover:shadow-[0_4px_25px_rgba(0,0,0,0.15)]"
@@ -375,14 +374,14 @@
                   </a>
                 )}
                 {message.audioUrl && <AudioPlayer src={message.audioUrl} isGold={isGold} />}
-                {message.editedAt && <span className="text-[9px] text-white/15 ml-1.5 font-medium">(editado)</span>}
+                {message.editedAt && <span className="text-[9px] text-white/30 ml-1.5 font-medium">(editado)</span>}
               </>
             )}
 
             {isOwn && message.status === "sent" && (
               <div className="flex justify-end mt-1">
                 <div className={cx("flex items-center gap-0.5",
-                  seenByOthers ? "text-violet-400" : "text-white/15")}>
+                  seenByOthers ? "text-violet-400" : "text-white/30")}>
                   <Check className="h-3 w-3" />
                   {seenByOthers && <Check className="h-3 w-3 -ml-1.5" />}
                 </div>
@@ -395,12 +394,12 @@
           <AnimatePresence>
             {showActions && !isEditing && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.85, y: 4 }}
+                initial={{ opacity: 0, scale: 0.9, y: 6 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.85, y: 4 }}
-                transition={{ duration: 0.15 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2 }}
                 className={cx("flex items-center gap-0.5 mt-1.5 px-2 py-1.5 rounded-2xl border shadow-xl",
-                  "bg-gray-950/95 border-white/8 backdrop-blur-xl shadow-black/30",
+                  "bg-gray-900/95 border-white/12 backdrop-blur-xl shadow-black/40",
                   isOwn ? "self-end" : "self-start")}>
                 {showEmojis ? (
                   <motion.div initial={{ width: 0 }} animate={{ width: "auto" }} className="flex gap-0.5 items-center overflow-hidden">
@@ -409,7 +408,7 @@
                         onClick={() => { onReact(message.id, e); setShowEmojis(false); }}
                         className="text-sm cursor-pointer px-0.5 hover:drop-shadow-[0_0_4px_rgba(255,255,255,0.3)]">{e}</motion.button>
                     ))}
-                    <button onClick={() => setShowEmojis(false)} className="text-white/20 hover:text-white/50 cursor-pointer ml-1.5 p-1 rounded-lg hover:bg-white/5">
+                    <button onClick={() => setShowEmojis(false)} className="text-white/40 hover:text-white/70 cursor-pointer ml-1.5 p-1 rounded-lg hover:bg-white/5">
                       <X className="h-3 w-3" />
                     </button>
                   </motion.div>
@@ -423,7 +422,7 @@
                     ].map(({ icon: Icon, title, action, color }) => (
                       <motion.button key={title} whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }}
                         onClick={action} title={title}
-                        className={cx("text-white/25 cursor-pointer p-1.5 rounded-xl hover:bg-white/8 transition-all", color)}>
+                        className={cx("text-white/50 cursor-pointer p-1.5 rounded-xl hover:bg-white/8 transition-all", color)}>
                         <Icon className="h-3.5 w-3.5" />
                       </motion.button>
                     ))}
@@ -520,7 +519,7 @@
           transition={SPRING}
           className="w-[85%] max-w-xs bg-gray-950/95 border border-white/8 rounded-3xl p-7 shadow-2xl backdrop-blur-xl"
           onClick={(e) => e.stopPropagation()}>
-          <h3 className="text-sm font-black text-white/80 mb-6 text-center tracking-wide">Compartir</h3>
+          <h3 className="text-sm font-black text-white/90 mb-6 text-center tracking-wide">Compartir</h3>
           <div className="flex gap-5 justify-center">
             {platforms.map((p) => (
               <a key={p.name} href={p.href} target={p.href !== "#" ? "_blank" : undefined} rel="noreferrer"
@@ -533,7 +532,7 @@
               </a>
             ))}
           </div>
-          <button onClick={onClose} className="mt-6 w-full text-[11px] text-white/15 hover:text-white/40 cursor-pointer transition-colors font-bold">Cerrar</button>
+          <button onClick={onClose} className="mt-6 w-full text-[11px] text-white/30 hover:text-white/60 cursor-pointer transition-colors font-bold">Cerrar</button>
         </motion.div>
       </Overlay>
     );
@@ -564,10 +563,10 @@
                 <Crown className="h-10 w-10 text-amber-400" />
               </motion.div>
               <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 tracking-tight">Chat Gold</h2>
-              <p className="text-[13px] text-amber-200/35 text-center leading-relaxed max-w-[240px]">Salas exclusivas, funciones premium y comunidad selecta.</p>
+              <p className="text-[13px] text-amber-200/55 text-center leading-relaxed max-w-[240px]">Salas exclusivas, funciones premium y comunidad selecta.</p>
               <div className="flex items-baseline gap-1.5 mt-2">
                 <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-200 to-yellow-500">9.99</span>
-                <span className="text-sm text-amber-400/40 font-bold">WLD/mes</span>
+                <span className="text-sm text-amber-400/60 font-bold">WLD/mes</span>
               </div>
             </div>
             <div className="space-y-3 mb-7 px-2">
@@ -577,7 +576,7 @@
                 { icon: Crown, text: "Badge Gold exclusivo" },
                 { icon: Shield, text: "Prioridad en soporte" },
               ].map((f) => (
-                <div key={f.text} className="flex items-center gap-3 text-[12px] text-amber-200/45 font-medium">
+                <div key={f.text} className="flex items-center gap-3 text-[12px] text-amber-200/65 font-medium">
                   <div className="p-1.5 rounded-xl bg-amber-400/8">
                     <f.icon className="h-3.5 w-3.5 text-amber-400/60" />
                   </div>
@@ -595,7 +594,7 @@
               ) : "Suscribirse con WLD"}
             </Btn>
             <button onClick={onClose} data-testid="button-cancel-gold"
-              className="mt-4 w-full text-[11px] text-amber-200/15 hover:text-amber-200/40 cursor-pointer transition-colors font-bold tracking-wide">
+              className="mt-4 w-full text-[11px] text-amber-200/30 hover:text-amber-200/60 cursor-pointer transition-colors font-bold tracking-wide">
               Ahora no
             </button>
           </div>
@@ -619,18 +618,18 @@
               <Plus className={cx("h-6 w-6", isGoldPrice ? "text-amber-400" : "text-violet-400")} />
             </div>
             <div>
-              <h2 className="text-base font-black text-white/80">Sala adicional</h2>
-              <p className="text-[11px] text-white/25 font-medium mt-0.5">Has alcanzado el límite</p>
+              <h2 className="text-base font-black text-white/90">Sala adicional</h2>
+              <p className="text-[11px] text-white/40 font-medium mt-0.5">Has alcanzado el límite</p>
             </div>
           </div>
-          <p className="text-[13px] text-white/40 mb-6 leading-relaxed">
+          <p className="text-[13px] text-white/55 mb-6 leading-relaxed">
             Crea una sala extra por{" "}
             <span className={cx("font-black", isGoldPrice ? "text-amber-400" : "text-violet-400")}>{amount} WLD</span>
           </p>
           <Btn variant="primary" onClick={onPay} disabled={loading} className="w-full" testId="button-pay-extra-room">
             {loading ? "Procesando…" : `Pagar ${amount} WLD`}
           </Btn>
-          <button onClick={onClose} className="mt-4 w-full text-[11px] text-white/15 hover:text-white/40 cursor-pointer transition-colors font-bold">Cancelar</button>
+          <button onClick={onClose} className="mt-4 w-full text-[11px] text-white/30 hover:text-white/60 cursor-pointer transition-colors font-bold">Cancelar</button>
         </motion.div>
       </Overlay>
     );
@@ -654,7 +653,7 @@
           className="w-[92%] max-w-sm bg-gray-950/95 border border-white/8 rounded-3xl p-6 shadow-2xl backdrop-blur-xl relative"
           onClick={(e) => e.stopPropagation()}>
           <CloseBtn onClick={onClose} />
-          <h2 className="text-base font-black text-white/80 mb-5 tracking-wide">Crear sala</h2>
+          <h2 className="text-base font-black text-white/90 mb-5 tracking-wide">Crear sala</h2>
 
           <div className={cx("flex items-center gap-2.5 px-4 py-2.5 rounded-2xl mb-5 border",
             isGoldRoom
@@ -755,7 +754,7 @@
             <motion.div {...FADE_UP} transition={{ duration: 0.2 }}
               className="flex items-center gap-2.5 mb-2.5 px-4 py-2 rounded-2xl bg-white/[0.04] border border-white/[0.06] overflow-hidden">
               <CornerUpLeft className="h-3.5 w-3.5 text-violet-400/60 flex-shrink-0" />
-              <span className="text-[11px] text-white/35 truncate flex-1 font-medium">
+              <span className="text-[11px] text-white/50 truncate flex-1 font-medium">
                 <b className="text-white/55">{replyTo.username}:</b> {replyTo.content}
               </span>
               <motion.button whileTap={{ scale: 0.8 }} onClick={onCancelReply}
@@ -771,7 +770,7 @@
             className={cx("flex items-center gap-2.5 mb-2.5 px-4 py-2.5 rounded-2xl border",
               isGold ? "bg-amber-500/8 border-amber-400/10" : "bg-violet-500/8 border-violet-400/10")}>
             {isImageFile(file.type) ? <Image className="h-4 w-4 text-violet-400" /> : <FileText className="h-4 w-4 text-violet-400" />}
-            <span className={cx("text-[11px] truncate flex-1 font-medium", isGold ? "text-amber-300/60" : "text-violet-300/60")}>{file.name}</span>
+            <span className={cx("text-[11px] truncate flex-1 font-medium", isGold ? "text-amber-300/80" : "text-violet-300/80")}>{file.name}</span>
             <motion.button whileTap={{ scale: 0.8 }} onClick={() => setFile(null)}
               className="text-white/20 hover:text-white/50 cursor-pointer p-1 rounded-lg hover:bg-white/5">
               <X className="h-3 w-3" />
@@ -795,10 +794,10 @@
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
               placeholder={recording ? "🔴 Grabando audio…" : "Escribe un mensaje…"}
               disabled={disabled || recording}
-              className={cx("w-full rounded-2xl border px-5 py-3 text-[14px] text-white placeholder-white/15 outline-none transition-all duration-300 font-medium",
+              className={cx("w-full rounded-2xl border px-5 py-3 text-[14px] text-white placeholder-white/35 outline-none transition-all duration-300 font-medium",
                 isGold
-                  ? "bg-amber-900/15 border-amber-500/10 focus:border-amber-400/30 focus:bg-amber-900/25 focus:shadow-[0_0_20px_rgba(245,158,11,0.08)]"
-                  : "bg-white/[0.03] border-white/[0.06] focus:border-violet-400/30 focus:bg-white/[0.05] focus:shadow-[0_0_20px_rgba(139,92,246,0.08)]")} />
+                  ? "bg-amber-900/25 border-amber-500/15 focus:border-amber-400/40 focus:bg-amber-900/25 focus:shadow-[0_0_20px_rgba(245,158,11,0.08)]"
+                  : "bg-white/[0.06] border-white/[0.08] focus:border-violet-400/40 focus:bg-white/[0.05] focus:shadow-[0_0_20px_rgba(139,92,246,0.08)]")} />
           </div>
 
           <motion.button whileTap={{ scale: 0.85 }} onClick={() => setEphemeral(e => !e)} title="Mensaje efímero (24h)"

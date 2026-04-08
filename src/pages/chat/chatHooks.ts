@@ -138,19 +138,34 @@
     const fetchMessages = useCallback(async (roomId: string, before?: string) => {
       if (!roomId) return;
       try {
-        let query = supabase
-          .from("global_chat_messages")
-          .select("*, profiles:sender_id(username, avatar_url)")
-          .eq("room_id", roomId)
-          .order("created_at", { ascending: false })
-          .limit(MESSAGES_PER_PAGE);
+        let data: Record<string, unknown>[] | null = null;
+        let error: { message: string } | null = null;
 
-        if (before) {
-          query = query.lt("created_at", before);
+        try {
+          let q = supabase
+            .from("global_chat_messages")
+            .select("*, profiles:sender_id(username, avatar_url)")
+            .eq("room_id", roomId)
+            .order("created_at", { ascending: false })
+            .limit(MESSAGES_PER_PAGE);
+          if (before) q = q.lt("created_at", before);
+          const res = await q;
+          data = res.data as Record<string, unknown>[] | null;
+          error = res.error;
+        } catch {}
+
+        if (error) {
+          let q2 = supabase
+            .from("global_chat_messages")
+            .select("*")
+            .eq("room_id", roomId)
+            .order("created_at", { ascending: false })
+            .limit(MESSAGES_PER_PAGE);
+          if (before) q2 = q2.lt("created_at", before);
+          const res2 = await q2;
+          data = res2.data as Record<string, unknown>[] | null;
+          if (res2.error) { console.error("[Chat] Error messages:", res2.error.message); return; }
         }
-
-        const { data, error } = await query;
-        if (error) { console.error("[Chat] Error messages:", error.message); return; }
 
         const parsed = (data ?? []).map((r) => rowToMessage(r as Record<string, unknown>)).reverse();
         setHasMore(prev => ({ ...prev, [roomId]: (data?.length ?? 0) >= MESSAGES_PER_PAGE }));
@@ -204,13 +219,25 @@
     const refetchAndMerge = useCallback(async (roomId: string) => {
       if (!roomId) return;
       try {
-        const { data, error } = await supabase
+        let data: Record<string, unknown>[] | null = null;
+        const res1 = await supabase
           .from("global_chat_messages")
           .select("*, profiles:sender_id(username, avatar_url)")
           .eq("room_id", roomId)
           .order("created_at", { ascending: false })
           .limit(MESSAGES_PER_PAGE);
-        if (error) return;
+        if (res1.error) {
+          const res2 = await supabase
+            .from("global_chat_messages")
+            .select("*")
+            .eq("room_id", roomId)
+            .order("created_at", { ascending: false })
+            .limit(MESSAGES_PER_PAGE);
+          if (res2.error) return;
+          data = res2.data as Record<string, unknown>[] | null;
+        } else {
+          data = res1.data as Record<string, unknown>[] | null;
+        }
         const fresh = (data ?? []).map(r => rowToMessage(r as Record<string, unknown>)).reverse();
         const freshIds = new Set(fresh.map(m => m.id));
         setMessages(prev => {

@@ -389,9 +389,9 @@
                           className={cx("flex items-center gap-1.5 px-4 py-2 rounded-2xl text-[11px] font-black tracking-wide transition-all duration-300 cursor-pointer",
                             active
                               ? t === "gold"
-                                ? "bg-gradient-to-r from-amber-500/20 to-yellow-600/10 text-amber-300 border border-amber-400/15 shadow-[0_0_20px_rgba(245,158,11,0.12)]"
-                                : "bg-gradient-to-r from-violet-500/20 to-fuchsia-500/10 text-violet-300 border border-violet-400/15 shadow-[0_0_20px_rgba(139,92,246,0.12)]"
-                              : "text-white/20 hover:text-white/45 hover:bg-white/[0.04] border border-transparent")}>
+                                ? "bg-gradient-to-r from-amber-500/30 to-yellow-600/15 text-amber-200 border border-amber-400/20 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                                : "bg-gradient-to-r from-violet-500/30 to-fuchsia-500/15 text-violet-200 border border-violet-400/20 shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+                              : "text-white/35 hover:text-white/60 hover:bg-white/[0.06] border border-transparent")}>
                           {t === "gold" ? <Crown className="h-3 w-3" /> : <Hash className="h-3 w-3" />}
                           {t === "classic" ? "Clásico" : "Gold"}
                         </button>
@@ -405,9 +405,9 @@
                         className={cx("flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all duration-200 cursor-pointer whitespace-nowrap",
                           r.id === selectedRoomId
                             ? isGold
-                              ? "bg-amber-400/10 text-amber-300 border border-amber-400/10 shadow-[0_0_10px_rgba(245,158,11,0.08)]"
-                              : "bg-violet-400/10 text-violet-300 border border-violet-400/10 shadow-[0_0_10px_rgba(139,92,246,0.08)]"
-                            : "text-white/15 hover:text-white/40 hover:bg-white/[0.03] border border-transparent")}>
+                              ? "bg-amber-400/15 text-amber-200 border border-amber-400/15 shadow-[0_0_12px_rgba(245,158,11,0.12)]"
+                              : "bg-violet-400/15 text-violet-200 border border-violet-400/15 shadow-[0_0_12px_rgba(139,92,246,0.12)]"
+                            : "text-white/30 hover:text-white/55 hover:bg-white/[0.05] border border-transparent")}>
                         {r.isPrivate && <Lock className="h-2.5 w-2.5 flex-shrink-0" />}
                         {r.name.length > 12 ? r.name.slice(0, 12) + "…" : r.name}
                       </button>
@@ -417,16 +417,16 @@
                   <div className="flex items-center gap-0.5 flex-shrink-0">
                     <button onClick={() => setShowSearch(s => !s)}
                       className={cx("p-1.5 rounded-xl transition-all cursor-pointer",
-                        showSearch ? "text-violet-300 bg-violet-400/15" : "text-white/20 hover:text-white/50 hover:bg-white/5")}>
+                        showSearch ? "text-violet-300 bg-violet-400/15" : "text-white/40 hover:text-white/70 hover:bg-white/8")}>
                       <Search className="h-3.5 w-3.5" />
                     </button>
                     <button onClick={() => { if (!hasClassicAccess && !hasGoldAccess) { showError("Necesitas suscripción"); return; } setShowCreateRoom(true); }}
                       className={cx("p-1.5 rounded-xl transition-all cursor-pointer",
-                        isGold ? "text-amber-400/40 hover:text-amber-300 hover:bg-amber-400/10" : "text-white/20 hover:text-white/50 hover:bg-white/5")}>
+                        isGold ? "text-amber-400/40 hover:text-amber-300 hover:bg-amber-400/10" : "text-white/40 hover:text-white/70 hover:bg-white/8")}>
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                     <button onClick={() => setShowConnectedPanel(p => !p)}
-                      className="relative p-1.5 rounded-xl text-white/20 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer">
+                      className="relative p-1.5 rounded-xl text-white/40 hover:text-white/70 hover:bg-white/8 transition-all cursor-pointer">
                       <Users className="h-3.5 w-3.5" />
                       {connected.length > 0 && (
                         <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-emerald-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center font-black shadow-lg shadow-emerald-500/50">
@@ -435,10 +435,10 @@
                       )}
                     </button>
                     <button onClick={() => setShowTokenApp(true)}
-                      className="p-1.5 rounded-xl text-white/20 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer text-sm leading-none"
+                      className="p-1.5 rounded-xl text-white/40 hover:text-white/70 hover:bg-white/8 transition-all cursor-pointer text-sm leading-none"
                       title="Token Market">🪙</button>
                     <button onClick={onClose}
-                      className="p-1.5 rounded-xl text-white/20 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer">
+                      className="p-1.5 rounded-xl text-white/40 hover:text-white/70 hover:bg-white/8 transition-all cursor-pointer">
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -449,19 +449,19 @@
                   {showConnectedPanel && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                       className={cx("relative z-10 px-5 py-3 border-b flex-shrink-0 overflow-hidden",
-                        isGold ? "border-amber-500/5 bg-amber-950/20" : "border-white/5 bg-white/[0.02]")}>
+                        isGold ? "border-amber-400/10 bg-amber-950/30" : "border-white/[0.06] bg-white/[0.04]")}>
                       <div className="flex items-center gap-2 mb-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-lg shadow-emerald-400/50" />
-                        <span className="text-[11px] font-bold text-white/40">{connected.length + 1} en esta sala</span>
+                        <span className="text-[11px] font-bold text-white/60">{connected.length + 1} en esta sala</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         <span className="px-2.5 py-1 rounded-xl bg-violet-500/15 text-violet-300 text-[10px] font-bold border border-violet-500/10">Tú</span>
                         {connected.map((u) => (
-                          <span key={u.userId} className="px-2.5 py-1 rounded-xl bg-white/5 text-white/40 text-[10px] font-medium border border-white/5">
+                          <span key={u.userId} className="px-2.5 py-1 rounded-xl bg-white/5 text-white/55 text-[10px] font-medium border border-white/5">
                             {u.username || `@${u.userId.slice(0, 6)}`}
                           </span>
                         ))}
-                        {connected.length === 0 && <span className="text-[10px] text-white/15 italic">Solo tú en esta sala</span>}
+                        {connected.length === 0 && <span className="text-[10px] text-white/30 italic">Solo tú en esta sala</span>}
                       </div>
                     </motion.div>
                   )}
@@ -473,7 +473,7 @@
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                       className="relative z-10 px-4 py-2.5 border-b border-white/[0.04] flex-shrink-0">
                       <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar mensajes…"
-                        className="w-full bg-white/[0.03] border border-white/[0.06] rounded-2xl px-5 py-3 text-sm text-white placeholder-white/15 outline-none focus:border-violet-400/25 focus:bg-white/[0.05] focus:shadow-[0_0_20px_rgba(139,92,246,0.06)] transition-all duration-300 font-medium" autoFocus />
+                        className="w-full bg-white/[0.06] border border-white/[0.08] rounded-2xl px-5 py-3 text-sm text-white placeholder-white/15 outline-none focus:border-violet-400/25 focus:bg-white/[0.05] focus:shadow-[0_0_20px_rgba(139,92,246,0.06)] transition-all duration-300 font-medium" autoFocus />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -489,7 +489,7 @@
 
                   {hasMore[selectedRoomId] && (
                     <button onClick={loadMore}
-                      className="w-full text-center py-2 text-[10px] text-white/20 hover:text-white/40 cursor-pointer transition-colors mb-2">
+                      className="w-full text-center py-2 text-[10px] text-white/35 hover:text-white/60 cursor-pointer transition-colors mb-2">
                       <ChevronUp className="h-3 w-3 mx-auto mb-0.5" />
                       Cargar más
                     </button>
@@ -506,7 +506,7 @@
                         <Sparkles className={cx("h-5 w-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse",
                           isGold ? "text-amber-400" : "text-violet-400")} />
                       </div>
-                      <p className={cx("text-sm font-bold tracking-wide", isGold ? "text-amber-300/25" : "text-violet-300/25")}>Cargando chat…</p>
+                      <p className={cx("text-sm font-bold tracking-wide", isGold ? "text-amber-300/50" : "text-violet-300/50")}>Cargando chat…</p>
                     </div>
                   )}
 
@@ -515,11 +515,11 @@
                       {roomType === "gold" ? (
                         <>
                           <div className="p-5 rounded-3xl bg-gradient-to-br from-amber-400/8 to-yellow-500/[0.03] border border-amber-400/8 shadow-[0_0_40px_rgba(245,158,11,0.08)]">
-                            <Crown className="h-12 w-12 text-amber-400/50" />
+                            <Crown className="h-12 w-12 text-amber-400/70" />
                           </div>
                           <div className="text-center">
                             <p className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-yellow-400 mb-1.5">Chat Gold</p>
-                            <p className="text-[13px] text-amber-200/25 leading-relaxed max-w-[220px]">Salas exclusivas y funciones premium para la comunidad selecta</p>
+                            <p className="text-[13px] text-amber-200/50 leading-relaxed max-w-[220px]">Salas exclusivas y funciones premium para la comunidad selecta</p>
                           </div>
                           <Btn variant="gold" onClick={() => setShowGoldModal(true)} className="mt-2">
                             <Zap className="h-4 w-4" /> Obtener Gold
@@ -528,9 +528,9 @@
                       ) : (
                         <>
                           <div className="p-4 rounded-3xl bg-violet-500/5 border border-violet-500/10">
-                            <MessageSquare className="h-10 w-10 text-violet-400/40" />
+                            <MessageSquare className="h-10 w-10 text-violet-400/60" />
                           </div>
-                          <p className="text-sm text-violet-200/30">Necesitas suscripción para acceder al chat</p>
+                          <p className="text-sm text-violet-200/50">Necesitas suscripción para acceder al chat</p>
                         </>
                       )}
                     </div>
@@ -543,8 +543,8 @@
                         <MessageSquare className={cx("h-10 w-10", isGold ? "text-amber-400/20" : "text-violet-400/20")} />
                       </div>
                       <div>
-                        <p className={cx("text-sm font-black tracking-wide mb-1", isGold ? "text-amber-200/25" : "text-white/20")}>¡Sé el primero en escribir!</p>
-                        <p className="text-[11px] text-white/10 font-medium">Los mensajes aparecerán aquí</p>
+                        <p className={cx("text-sm font-black tracking-wide mb-1", isGold ? "text-amber-200/45" : "text-white/40")}>¡Sé el primero en escribir!</p>
+                        <p className="text-[11px] text-white/25 font-medium">Los mensajes aparecerán aquí</p>
                       </div>
                     </div>
                   )}
@@ -583,7 +583,7 @@
                 <AnimatePresence>
                   {errorToast && (
                     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-                      className="absolute bottom-20 left-4 right-4 z-40 px-5 py-3.5 rounded-2xl bg-red-950/90 border border-red-500/15 text-[12px] text-red-200 shadow-[0_4px_30px_rgba(239,68,68,0.15)] backdrop-blur-xl flex items-center justify-between gap-3 font-medium">
+                      className="absolute bottom-20 left-4 right-4 z-40 px-5 py-3.5 rounded-2xl bg-red-950/95 border border-red-500/25 text-[12px] text-red-200 shadow-[0_4px_30px_rgba(239,68,68,0.15)] backdrop-blur-xl flex items-center justify-between gap-3 font-medium">
                       <span>⚠ {errorToast}</span>
                       <button onClick={() => setErrorToast(null)} className="text-red-400/60 hover:text-red-300 flex-shrink-0 cursor-pointer"><X className="h-3 w-3" /></button>
                     </motion.div>
@@ -624,7 +624,7 @@
               <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 28, stiffness: 300 }} className="w-full h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 pt-[env(safe-area-inset-top,12px)] pb-2 bg-black border-b border-white/5">
-                  <span className="text-sm font-black text-white/60 tracking-wide">Token Market</span>
+                  <span className="text-sm font-black text-white/80 tracking-wide">Token Market</span>
                   <button onClick={() => setShowTokenApp(false)}
                     className="p-1.5 rounded-xl text-white/30 hover:text-white/60 hover:bg-white/8 cursor-pointer transition-all">
                     <X className="h-4 w-4" />
