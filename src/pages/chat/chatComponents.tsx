@@ -126,7 +126,7 @@
       src?: string; name: string; size?: "xs" | "sm" | "md" | "lg"; ring?: boolean; gold?: boolean;
     }) {
       const [imgFailed, setImgFailed] = useState(false);
-      const sz = { xs: "h-6 w-6 text-[9px]", sm: "h-8 w-8 text-[11px]", md: "h-10 w-10 text-sm", lg: "h-14 w-14 text-base" }[size];
+      const sz = { xs: "h-6 w-6 text-[9px]", sm: "h-9 w-9 text-xs", md: "h-10 w-10 text-sm", lg: "h-14 w-14 text-base" }[size];
       const ringStyle = ring
         ? gold ? "ring-2 ring-yellow-400" : "ring-2 ring-violet-400"
         : "";
@@ -308,9 +308,9 @@
 
         <div className={cx("flex flex-col max-w-[78%] min-w-0", isOwn ? "items-end" : "items-start")}>
             <div className={cx("flex items-center gap-2.5 mb-1 px-1", isOwn && "flex-row-reverse")}>
-              <span className={cx("text-[11px] font-black tracking-wide",
-                isOwn ? (isGold ? "text-amber-300/70" : "text-violet-300/70") : "text-white/70")}>{message.username}</span>
-              <span className="text-[9px] text-white/30 font-medium">{timeAgo(message.createdAt)}</span>
+              <span className={cx("text-[12px] font-extrabold",
+                isOwn ? (isGold ? "text-amber-300" : "text-violet-300") : "text-white/80")}>{message.username}</span>
+              <span className="text-[9px] text-white/40 font-medium">{timeAgo(message.createdAt)}</span>
               {message.ephemeral && <span className="text-[9px] text-violet-400/40" title="Efímero 24h">👻</span>}
             </div>
 
