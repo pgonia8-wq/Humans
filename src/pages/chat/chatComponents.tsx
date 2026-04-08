@@ -6,7 +6,7 @@
     Lock, Globe, Hash, ChevronDown,
     Star, Mic, MicOff, Search, Pin, Edit2, Trash2,
     CornerUpLeft, Check, Image, FileText, Play, Pause,
-    Sparkles, Users, MessageSquare, Zap, Shield, Flame, Smile, Volume2,
+    Sparkles, Users, MessageSquare, Zap, Shield, Flame,
   } from "lucide-react";
   import type { ChatMessage, ChatRoom, RoomType, TypingUser, UserRole } from "./chatTypes";
   import { cx, timeStr, timeAgo, initials, canEditMsg, isImageFile } from "./chatUtils";
@@ -307,14 +307,12 @@
           <Avatar src={message.avatarUrl} name={message.username} size="sm" ring gold={isGold} />
 
         <div className={cx("flex flex-col max-w-[78%] min-w-0", isOwn ? "items-end" : "items-start")}>
-          {!isGrouped && (
             <div className={cx("flex items-center gap-2.5 mb-1 px-1", isOwn && "flex-row-reverse")}>
               <span className={cx("text-[11px] font-black tracking-wide",
                 isOwn ? (isGold ? "text-amber-300/70" : "undefined") : "text-white/70")}>{message.username}</span>
               <span className="text-[9px] text-white/30 font-medium">{timeAgo(message.createdAt)}</span>
               {message.ephemeral && <span className="text-[9px] text-violet-400/40" title="Efímero 24h">👻</span>}
             </div>
-          )}
 
           {message.replyToContent && (
             <div className={cx("flex items-center gap-2 mb-1.5 px-3.5 py-2 rounded-2xl text-[10px] border-l-[3px]",
@@ -390,6 +388,7 @@
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.2 }}
+                onClick={(e) => e.stopPropagation()}
                 className={cx("flex items-center gap-0.5 mt-1.5 px-2 py-1.5 rounded-2xl border shadow-xl",
                   "bg-gray-900/95 border-white/12 backdrop-blur-xl shadow-black/40",
                   isOwn ? "self-end" : "self-start")}>
