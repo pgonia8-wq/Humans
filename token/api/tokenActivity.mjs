@@ -24,7 +24,7 @@ import { supabase, cors, mapActivityRow } from "./_supabase.mjs";
       });
     } catch (err) {
       console.error("[tokenActivity]", err.message);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
   
