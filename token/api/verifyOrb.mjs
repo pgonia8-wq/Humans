@@ -4,7 +4,7 @@ const APP_ID = process.env.APP_ID ?? "";
 const ACTION_ID = process.env.WORLDCOIN_ACTION_ID ?? "user-orb";
 
 export default async function handler(req, res) {
-  cors(res);
+  cors(res, req);
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
@@ -44,7 +44,6 @@ export default async function handler(req, res) {
     if (existing?.verification_level === "orb") {
       return res.status(200).json({
         success: true,
-        nullifier_hash: nullifierHash,
         orbVerified: true,
         reused: true,
       });
@@ -97,7 +96,6 @@ export default async function handler(req, res) {
     if (!isSuccess) {
       return res.status(verifyResponse.status || 400).json({
         error: verifyData.detail ?? verifyData.error ?? "Worldcoin verification failed",
-        worldcoin_response: verifyData,
       });
     }
   } catch (err) {
@@ -131,7 +129,6 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     success: true,
-    nullifier_hash: nullifierHash,
     orbVerified: true,
   });
 }
