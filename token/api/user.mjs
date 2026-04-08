@@ -54,6 +54,6 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error("[GET /api/user]", err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
