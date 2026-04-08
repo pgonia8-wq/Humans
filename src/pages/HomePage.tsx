@@ -10,7 +10,7 @@ import React, {
 } from "react";
 
 import { supabase } from "../supabaseClient";
-import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
+import { MiniKit, Tokens, tokenToDecimals, VerificationLevel } from "@worldcoin/minikit-js";
 import FeedPage from "./FeedPage";
 import { ThemeContext } from "../lib/ThemeContext";
 import { LanguageContext } from "../LanguageContext";
