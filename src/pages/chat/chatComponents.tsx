@@ -309,7 +309,7 @@
         <div className={cx("flex flex-col max-w-[78%] min-w-0", isOwn ? "items-end" : "items-start")}>
             <div className={cx("flex items-center gap-2.5 mb-1 px-1", isOwn && "flex-row-reverse")}>
               <span className={cx("text-[11px] font-black tracking-wide",
-                isOwn ? (isGold ? "text-amber-300/70" : "undefined") : "text-white/70")}>{message.username}</span>
+                isOwn ? (isGold ? "text-amber-300/70" : "text-violet-300/70") : "text-white/70")}>{message.username}</span>
               <span className="text-[9px] text-white/30 font-medium">{timeAgo(message.createdAt)}</span>
               {message.ephemeral && <span className="text-[9px] text-violet-400/40" title="Efímero 24h">👻</span>}
             </div>
