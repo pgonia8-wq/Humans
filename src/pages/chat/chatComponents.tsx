@@ -9,7 +9,8 @@
     Sparkles, Users, MessageSquare,
   } from "lucide-react";
   import type { ChatMessage, ChatRoom, RoomType, TypingUser, UserRole } from "./chatTypes";
-  import { cx, timeStr, timeAgo, initials, canEditMsg, isImageFile, EMOJI_LIST, FILE_ACCEPT, FILE_MAX_SIZE } from "./chatUtils";
+  import { cx, timeStr, timeAgo, initials, canEditMsg, isImageFile } from "./chatUtils";
+  import { EMOJI_LIST, FILE_ACCEPT, FILE_MAX_SIZE } from "./chatTypes";
 
   export function Overlay({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
     return (
