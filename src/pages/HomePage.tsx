@@ -305,7 +305,9 @@ const HomePage: React.FC<HomePageProps> = ({
 
   useEffect(() => {
     const handler = async (e: MessageEvent) => {
-      if (!e.data || typeof e.data !== "object") return;
+      
+        if (TOKEN_APP_URL && e.origin && e.origin !== TOKEN_APP_URL) return;
+  if (!e.data || typeof e.data !== "object") return;
       const { type, payload } = e.data as { type: string; payload?: any };
 
       if (type === "MINI_APP_READY") {
