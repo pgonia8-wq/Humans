@@ -162,7 +162,7 @@ const HomePage: React.FC<HomePageProps> = ({
     try {
       const { data: existing } = await supabase
         .from("profiles")
-        .select("id, username, avatar_url, verified, tier, wallet")
+        .select("id, username, avatar_url, verified, tier, wallet, verification_level")
         .eq("id", userId)
         .maybeSingle();
 
@@ -296,7 +296,7 @@ const HomePage: React.FC<HomePageProps> = ({
           walletAddress: wallet ?? "",
           balanceWld: 0,
           balanceUsdc: 0,
-          verificationLevel: verified ? "device" : "none",
+          verificationLevel: profile?.verification_level === "orb" ? "orb" : (verified ? "device" : "none"),
         },
       },
       TOKEN_APP_URL || "*"
