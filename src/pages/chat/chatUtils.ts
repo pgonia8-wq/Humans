@@ -63,7 +63,8 @@
   }
 
   export function rowToMessage(row: Record<string, unknown>): ChatMessage {
-    const profile = row.profiles as { username?: string; avatar_url?: string } | null | undefined;
+    const rawProfile = row.profiles;
+    const profile = (Array.isArray(rawProfile) ? rawProfile[0] : rawProfile) as { username?: string; avatar_url?: string } | null | undefined;
     const senderId = String(row.sender_id ?? row.user_id ?? "");
     const resolvedUsername = profile?.username
       ? String(profile.username)

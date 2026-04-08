@@ -242,9 +242,17 @@
         const freshIds = new Set(fresh.map(m => m.id));
         setMessages(prev => {
           const existing = prev[roomId] ?? [];
+          const existingMap = new Map(existing.map(m => [m.id, m]));
+          const enrichedFresh = fresh.map(m => {
+            const prev2 = existingMap.get(m.id) ?? existing.find(e => e.userId === m.userId && e.id.startsWith("temp-"));
+            if (prev2 && (!m.avatarUrl || !m.username || m.username.startsWith("@"))) {
+              return { ...m, avatarUrl: m.avatarUrl ?? prev2.avatarUrl, username: m.username.startsWith("@") ? prev2.username : m.username };
+            }
+            return m;
+          });
           const merged = [
             ...existing.filter(m => !m.id.startsWith("temp-") && !freshIds.has(m.id)),
-            ...fresh,
+            ...enrichedFresh,
           ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
           return { ...prev, [roomId]: merged };
         });
