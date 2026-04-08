@@ -101,7 +101,7 @@ export default async function handler(req, res) {
       });
     } catch (err) {
       console.error("[POST /api/tokens/:id/burn]", err.message);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
   
