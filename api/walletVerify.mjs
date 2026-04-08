@@ -41,7 +41,7 @@ function verifySignedNonce(message, signature) {
     return { success: true, address: recovered };
   } catch (err) {
     console.error("[WALLET_VERIFY] Error al recuperar firma:", err.message);
-    return { success: false, address: null, error: err.message };
+    return { success: false, address: null, error: "Internal server error" };
   }
 }
 
