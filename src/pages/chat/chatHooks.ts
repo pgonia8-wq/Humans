@@ -403,7 +403,7 @@
           const row = payload.new as Record<string, unknown>;
           if (String(row.sender_id) === currentUserId) return;
           const msg = rowToMessage(row);
-          if (!msg.username || msg.username.startsWith("@")) {
+          if (!msg.username || msg.username.startsWith("@") || !msg.avatarUrl) {
             refetchAndMerge(selectedRoomId);
           } else {
             addMessage(selectedRoomId, msg);

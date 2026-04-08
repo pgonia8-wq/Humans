@@ -225,6 +225,7 @@
         room_id: selectedRoomId, sender_id: currentUserId, content: content.trim() || null,
       };
       if (username) payload.username = username;
+      if (myAvatarUrl) payload.avatar_url = myAvatarUrl;
       if (fileUrl) payload.file_url = fileUrl;
       if (fileName) payload.file_name = fileName;
       if (fileType) payload.file_type = fileType;
