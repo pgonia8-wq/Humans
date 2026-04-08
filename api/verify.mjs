@@ -14,6 +14,7 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
+import { rateLimit } from "./_rateLimit.mjs";
 
 if (!process.env.SUPABASE_URL) {
   console.error("[VERIFY] ERROR: SUPABASE_URL no está configurada");
@@ -40,6 +41,10 @@ export default async function handler(req, res) {
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
+  }
+
+  if (rateLimit(req, { max: 10, windowMs: 60000 }).limited) {
+    return res.status(429).json({ success: false, error: "Demasiadas solicitudes. Intenta en un minuto." });
   }
 
   if (req.method !== "POST") {
