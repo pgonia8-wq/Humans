@@ -400,15 +400,22 @@
           table: "global_chat_messages",
           filter: `room_id=eq.${selectedRoomId}`,
         }, (payload) => {
-          const row = payload.new as Record<string, unknown>;
-          if (String(row.sender_id) === currentUserId) return;
-          const msg = rowToMessage(row);
-          if (!msg.username || msg.username.startsWith("@") || !msg.avatarUrl) {
-            refetchAndMerge(selectedRoomId);
-          } else {
-            addMessage(selectedRoomId, msg);
-          }
-        })
+            const row = payload.new as Record<string, unknown>;
+            const rawMsg = rowToMessage(row);
+            const isOwnMsg = rawMsg.userId === currentUserId;
+            const msg: ChatMessage = isOwnMsg
+              ? {
+                  ...rawMsg,
+                  username: rawMsg.username.startsWith("@") ? (myUsername || rawMsg.username) : rawMsg.username,
+                  avatarUrl: rawMsg.avatarUrl ?? myAvatarUrl,
+                }
+              : rawMsg;
+            if (!msg.avatarUrl || !msg.username || msg.username.startsWith("@")) {
+              refetchAndMerge(selectedRoomId);
+            } else {
+              addMessage(selectedRoomId, msg);
+            }
+          })
         .on("postgres_changes", {
           event: "UPDATE",
           schema: "public",
