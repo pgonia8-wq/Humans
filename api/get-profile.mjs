@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   try {
     const { data: profile, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, username, avatar_url, verified, tier, verification_level")
       .eq("id", userId)
       .maybeSingle();
 
