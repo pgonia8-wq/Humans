@@ -191,7 +191,7 @@ export default async function handler(req, res) {
             status: "failed", error_message: err.message,
           }).eq("id", orderId).catch(() => {});
         }
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: "Internal server error" });
       }
     }
   }
