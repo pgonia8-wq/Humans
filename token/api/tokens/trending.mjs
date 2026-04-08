@@ -23,6 +23,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ tokens, total: tokens.length, hasMore: false });
   } catch (err) {
     console.error("[GET /api/tokens/trending]", err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
