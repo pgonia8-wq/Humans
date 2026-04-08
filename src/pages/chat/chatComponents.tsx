@@ -717,7 +717,7 @@
     };
 
     const startRec = async () => {
-      if (!hasGoldAccess) {
+      if (!isGold) {
         onShowToast("¡Hazte Gold para enviar audios! 🎙️");
         return;
       }
@@ -744,7 +744,7 @@
       const f = e.target.files?.[0];
       if (!f) return;
       if (f.size > FILE_MAX_SIZE) { onShowToast("Archivo muy grande (máx 10 MB)"); return; }
-      if (!hasGoldAccess && !f.type.startsWith("image/")) {
+      if (!isGold && !f.type.startsWith("image/")) {
         onShowToast("📎 Enviar archivos es exclusivo de Gold. En Classic solo puedes enviar imágenes.");
         return;
       }
@@ -790,7 +790,7 @@
         </AnimatePresence>
 
         <div className="flex items-end gap-2">
-          <input ref={fileRef} type="file" accept={hasGoldAccess ? FILE_ACCEPT : "image/png,image/jpeg,image/jpg,image/gif,image/webp"} onChange={handleFile} className="hidden" />
+          <input ref={fileRef} type="file" accept={isGold ? FILE_ACCEPT : "image/png,image/jpeg,image/jpg,image/gif,image/webp"} onChange={handleFile} className="hidden" />
 
           <button onClick={() => fileRef.current?.click()} disabled={disabled}
             className="flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-30">
@@ -815,13 +815,13 @@
           </div>
 
           <button onClick={() => {
-              if (!hasGoldAccess) { onShowToast("¡Hazte Gold para usar mensajes efímeros! 👻"); return; }
+              if (!isGold) { onShowToast("¡Hazte Gold para usar mensajes efímeros! 👻"); return; }
               setEphemeral(e => !e);
             }} disabled={disabled} title="Mensaje efímero (24h)"
             className={cx("flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer disabled:opacity-30 text-lg relative",
               ephemeral ? "bg-purple-400/20" : "hover:bg-white/8")}>
             👻
-            {!hasGoldAccess && (
+            {!isGold && (
               <Lock className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5 text-yellow-400/70" />
             )}
           </button>
@@ -829,10 +829,10 @@
           <button onClick={recording ? stopRec : startRec}
             className={cx("flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer relative",
               recording ? "text-red-400 bg-red-400/20 animate-pulse"
-                : hasGoldAccess ? "text-yellow-400/80 hover:text-yellow-300 hover:bg-yellow-400/10"
+                : isGold ? "text-yellow-400/80 hover:text-yellow-300 hover:bg-yellow-400/10"
                 : "text-white/20 hover:text-white/40 hover:bg-white/5")}>
             {recording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            {!hasGoldAccess && !recording && (
+            {!isGold && !recording && (
               <Lock className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5 text-yellow-400/70" />
             )}
           </button>
@@ -847,7 +847,7 @@
           </button>
         </div>
 
-        {!hasGoldAccess && (
+        {!isGold && (
           <div className="overflow-hidden mt-1.5 rounded-lg bg-gradient-to-r from-yellow-500/10 via-amber-500/15 to-yellow-500/10 border border-yellow-500/20 py-1">
             <div className="flex whitespace-nowrap" style={{ animation: "marquee 12s linear infinite" }}>
               <span className="text-[10px] font-bold text-yellow-400/80 mx-3">⭐ HAZTE GOLD</span>
