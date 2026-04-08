@@ -22,6 +22,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ activities, total: count ?? activities.length });
   } catch (err) {
     console.error("[GET /api/user/activity]", err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
