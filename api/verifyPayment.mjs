@@ -52,7 +52,7 @@ async function verifyWorldcoinTransaction(transactionId) {
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
     console.error("[VERIFY_PAYMENT] Error de red al verificar transacción:", err.message);
-    return { ok: false, status: 0, data: { error: err.message } };
+    return { ok: false, status: 0, data: { error: "Internal server error" } };
   }
 }
 
