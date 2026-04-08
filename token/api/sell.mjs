@@ -6,7 +6,7 @@ import {
 } from "./_curve.mjs";
 
 export default async function handler(req, res) {
-  cors(res);
+  cors(res, req);
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
@@ -62,6 +62,10 @@ export default async function handler(req, res) {
         wldReceived, fee, slippageAmt, totalFees,
         curveReturn, newSupply, newPrice,
       } = solveSell(tokensToSell, supply, treasuryBal);
+
+      if (wldReceived <= 0) {
+        return res.status(400).json({ error: "Sell amount too small" });
+      }
 
       const totalWldInCurve = Number(token.total_wld_in_curve ?? 0);
       if (curveReturn > totalWldInCurve) {
