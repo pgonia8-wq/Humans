@@ -735,6 +735,26 @@ const HomePage: React.FC<HomePageProps> = ({
             {language.toUpperCase()}
           </motion.button>
         </div>
+
+          {/* Avatar */}
+          <motion.div
+            className={`w-9 h-9 rounded-full overflow-hidden cursor-pointer ring-2 transition-all ${isDark ? "ring-white/10 hover:ring-violet-500/60" : "ring-black/10 hover:ring-violet-400/60"}`}
+            onClick={() => setShowProfileModal(true)}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.94 }}
+            style={{ background: isDark ? "#27272a" : "#e4e4e7" }}
+          >
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
+            ) : (
+              <div
+                className="w-full h-full flex items-center justify-center text-sm font-bold"
+                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
+              >
+                {(username || "H")[0].toUpperCase()}
+              </div>
+            )}
+          </motion.div>
       </header>
 
       {/* ── FEED ── */}
