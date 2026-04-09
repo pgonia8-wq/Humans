@@ -1,5 +1,3 @@
-import { supabase } from "../../../src/supabaseClient";
-
 const impressionCache = new Set<string>();
 const clickCache = new Set<string>();
 
@@ -16,6 +14,8 @@ interface TrackParams {
   userData?: UserData | null;
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 export async function trackImpression({
   postId,
   campaignId,
@@ -23,21 +23,20 @@ export async function trackImpression({
 }: TrackParams) {
   try {
     if (!postId || !campaignId) return;
-
     if (impressionCache.has(postId)) return;
     impressionCache.add(postId);
 
-    await supabase.from("ad_metrics").insert({
-      post_id: postId,
-      campaign_id: campaignId,
-      type: "impression",
-      value: 0.001,
-      creator_earning: 0.001 * 0.7,
-      platform_earning: 0.001 * 0.3,
-      country: userData?.country || navigator.language || "unknown",
-      language: userData?.language || navigator.language || "unknown",
-      interests: userData?.interests || null,
-      created_at: new Date().toISOString(),
+    await fetch(`${API_BASE}/api/trackAd`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        postId,
+        campaignId,
+        type: "impression",
+        country: userData?.country || navigator.language || "unknown",
+        language: userData?.language || navigator.language || "unknown",
+        interests: userData?.interests || null,
+      }),
     });
   } catch (e) {
     console.error("[tracking] impression error", e);
@@ -52,37 +51,21 @@ export async function trackClick({
 }: TrackParams) {
   try {
     if (!postId || !campaignId) return;
-
     if (clickCache.has(postId)) return;
     clickCache.add(postId);
 
-    const { data: campaign, error } = await supabase
-      .from("campaigns")
-      .select("cpc")
-      .eq("id", campaignId)
-      .single();
-
-    if (error || !campaign) {
-      console.warn("[tracking] Campaign not found");
-      return;
-    }
-
-    const cpc = campaign.cpc || 0;
-    const creatorShare = cpc * 0.7;
-    const platformShare = cpc * 0.3;
-
-    await supabase.from("ad_metrics").insert({
-      post_id: postId,
-      campaign_id: campaignId,
-      user_id: userId,
-      type: "click",
-      value: cpc,
-      creator_earning: creatorShare,
-      platform_earning: platformShare,
-      country: userData?.country || navigator.language || "unknown",
-      language: userData?.language || navigator.language || "unknown",
-      interests: userData?.interests || null,
-      created_at: new Date().toISOString(),
+    await fetch(`${API_BASE}/api/trackAd`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        postId,
+        campaignId,
+        userId,
+        type: "click",
+        country: userData?.country || navigator.language || "unknown",
+        language: userData?.language || navigator.language || "unknown",
+        interests: userData?.interests || null,
+      }),
     });
   } catch (e) {
     console.error("[tracking] click error", e);

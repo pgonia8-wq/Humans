@@ -8,6 +8,7 @@ import { useState, useCallback, useEffect } from "react";
     wallet_address: string;
     currency: string;
     status: "pending" | "processing" | "completed" | "failed";
+    tx_hash?: string;
     created_at: string;
   }
 
@@ -42,30 +43,54 @@ import { useState, useCallback, useEffect } from "react";
 
     const createWithdrawal = useCallback(async (input: CreateWithdrawalInput): Promise<boolean> => {
       if (!userId) return false;
+
       const optimistic: Withdrawal = {
         id: `temp-${Date.now()}`,
         user_id: userId,
         amount: input.amount,
         wallet_address: input.wallet_address,
         currency: input.currency,
-        status: "pending",
+        status: "processing",
         created_at: new Date().toISOString(),
       };
       setWithdrawals((prev) => [optimistic, ...prev]);
+
       try {
-        const { data, error } = await supabase
-          .from("withdrawals")
-          .insert([{ user_id: userId, amount: input.amount, wallet_address: input.wallet_address, currency: input.currency, status: "pending" }])
-          .select()
-          .single();
-        if (error) throw error;
-        setWithdrawals((prev) => prev.map((w) => w.id === optimistic.id ? data : w));
+        const apiBase = import.meta.env.VITE_API_URL || "";
+        const res = await fetch(`${apiBase}/api/withdraw`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            amount: input.amount,
+            wallet: input.wallet_address,
+          }),
+        });
+
+        const result = await res.json();
+
+        if (!res.ok || !result.success) {
+          setWithdrawals((prev) => prev.map((w) =>
+            w.id === optimistic.id ? { ...w, status: "failed" as const } : w
+          ));
+          return false;
+        }
+
+        setWithdrawals((prev) => prev.map((w) =>
+          w.id === optimistic.id
+            ? { ...w, status: "completed" as const, tx_hash: result.txHash, id: `confirmed-${Date.now()}` }
+            : w
+        ));
+
+        await fetchWithdrawals();
         return true;
       } catch {
-        return true;
+        setWithdrawals((prev) => prev.map((w) =>
+          w.id === optimistic.id ? { ...w, status: "failed" as const } : w
+        ));
+        return false;
       }
-    }, [userId]);
+    }, [userId, fetchWithdrawals]);
 
     return { withdrawals, loading, createWithdrawal };
   }
-  

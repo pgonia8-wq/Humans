@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "../../../src/supabaseClient";
+import { MiniKit, tokenToDecimals, Tokens } from "@worldcoin/minikit-js";
 
 export interface Campaign {
   id: string;
@@ -11,6 +12,7 @@ export interface Campaign {
   created_at: string;
   clicks?: number;
   impressions?: number;
+  transaction_id?: string;
 }
 
 export interface CreateCampaignInput {
@@ -18,6 +20,9 @@ export interface CreateCampaignInput {
   budget: number;
   category?: string;
 }
+
+const PAYMENT_RECEIVER = import.meta.env.VITE_PAYMENT_RECEIVER || "";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export function useCampaigns(userId: string | null | undefined) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -44,19 +49,53 @@ export function useCampaigns(userId: string | null | undefined) {
 
   const createCampaign = useCallback(async (input: CreateCampaignInput): Promise<boolean> => {
     if (!userId) return false;
+
     try {
-      const { data, error } = await supabase
-        .from("campaigns")
-        .insert([{ user_id: userId, name: input.name, budget: input.budget, spent: 0, status: "active" }])
-        .select()
-        .single();
-      if (error) throw error;
-      setCampaigns((prev) => [data, ...prev]);
+      const reference = `campaign_${userId}_${Date.now()}`;
+
+      const payRes = await MiniKit.commandsAsync.pay({
+        reference,
+        to: PAYMENT_RECEIVER,
+        tokens: [
+          {
+            symbol: Tokens.WLD,
+            token_amount: tokenToDecimals(input.budget, Tokens.WLD).toString(),
+          },
+        ],
+        description: `Campaign budget: ${input.name}`,
+      });
+
+      if (!payRes?.finalPayload || payRes.finalPayload.status !== "success") {
+        console.error("[campaigns] Payment cancelled or failed");
+        return false;
+      }
+
+      const verifyRes = await fetch(`${API_BASE}/api/verifyPayment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          payload: payRes.finalPayload,
+          action: "campaign_budget",
+          userId,
+          reference,
+          campaignName: input.name,
+          budget: input.budget,
+        }),
+      });
+
+      const verifyResult = await verifyRes.json();
+      if (!verifyRes.ok || !verifyResult.success) {
+        console.error("[campaigns] Payment verification failed:", verifyResult);
+        return false;
+      }
+
+      await fetchCampaigns();
       return true;
-    } catch {
+    } catch (err) {
+      console.error("[campaigns] Campaign creation error:", err);
       return false;
     }
-  }, [userId]);
+  }, [userId, fetchCampaigns]);
 
   const updateStatus = useCallback(async (id: string, status: "active" | "paused"): Promise<void> => {
     setCampaigns((prev) => prev.map((c) => c.id === id ? { ...c, status } : c));
