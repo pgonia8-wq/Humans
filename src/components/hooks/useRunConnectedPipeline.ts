@@ -34,48 +34,25 @@ export function useRunConnectedPipeline(): UseRunConnectedPipelineReturn {
       setError(null);
 
       try {
-        // ── 1. Llamar Edge Function ─────────────────────────────
-        const { data: fnData, error: fnError } =
-          await supabase.functions.invoke<any>("generate-posts", {
-            body: { category, account, topic, count },
-          });
+        // ── 1. Intentar Edge Function para generar contenido AI ──
+        let aiPosts: any[] | null = null;
+        try {
+          const { data: fnData, error: fnError } =
+            await supabase.functions.invoke<any>("generate-posts", {
+              body: { category, account, topic, count },
+            });
 
-        // ── 2. SI responde bien → insertar en DB SIEMPRE ────────
-        if (!fnError && fnData && fnData.posts) {
-          const rows = fnData.posts.map((p: any, i: number) => ({
-            category,
-            account,
-            topic: i === 0 ? topic : `${topic} — angle ${i + 1}`,
-            content: p.content,
-            status: "queued" as const,
-            published_at: null,
-            scheduled_at: null,
-          }));
-
-          const { error: insertErr } = await supabase
-            .from("content_queue")
-            .insert(rows);
-
-          if (insertErr) {
-            console.error("❌ Insert failed after AI:", insertErr.message);
-            throw insertErr;
+          if (!fnError && fnData && fnData.posts) {
+            aiPosts = fnData.posts;
+          } else if (fnError) {
+            console.warn(`⚠️ [Pipeline] Edge Function unavailable (${fnError.message}). Using fallback content.`);
           }
-
-          return {
-            queued: rows.length,
-            topics: rows.map((r) => r.topic),
-          };
+        } catch (fnErr: any) {
+          console.warn(`⚠️ [Pipeline] Edge Function error (${fnErr?.message}). Using fallback content.`);
         }
 
-        // ── 3. Fallback si falla Edge Function ──────────────────
-        if (fnError) {
-          console.warn(
-            `⚠️ [Pipeline] Edge Function failed (${fnError.message}). Using fallback.`
-          );
-        }
-
+        // ── 2. Construir filas (AI o fallback) ──────────────────
         const topics: string[] = [];
-
         const rows = Array.from({ length: count }, (_, i) => {
           const postTopic = i === 0 ? topic : `${topic} — angle ${i + 1}`;
           topics.push(postTopic);
@@ -84,22 +61,22 @@ export function useRunConnectedPipeline(): UseRunConnectedPipelineReturn {
             category,
             account,
             topic: postTopic,
-            content: `[Fallback] ${postTopic} — ${category} insight.`,
-            status: "queued" as const,
-            published_at: null,
-            scheduled_at: null,
+            content: aiPosts?.[i]?.content ?? `📊 ${postTopic} — ${category} insight.`,
           };
         });
 
-        const { data: inserted, error: insertErr } = await supabase
-          .from("content_queue")
-          .insert(rows)
-          .select("id");
+        // ── 3. Insertar via API (usa service_role, evita RLS) ───
+        const res = await fetch("/api/queueContent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows }),
+        });
+        const data = await res.json();
 
-        if (insertErr) throw new Error(insertErr.message);
+        if (!res.ok) throw new Error(data.error || "Queue API failed");
 
         return {
-          queued: inserted?.length ?? 0,
+          queued: data.queued ?? 0,
           topics,
         };
       } catch (err) {

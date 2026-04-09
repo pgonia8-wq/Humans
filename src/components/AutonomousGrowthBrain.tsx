@@ -616,6 +616,11 @@ export default function AutonomousGrowthBrain(): null {
   useEffect(() => {
 
     const boot = setTimeout(async () => {
+      try {
+        await fetch("/api/seedOfficialProfiles", { method: "POST" });
+      } catch (e) {
+        console.warn("[SEEDS] Could not seed official profiles:", e);
+      }
       await runCycle();
       scheduleNext();
     }, BOOT_DELAY_MS);
