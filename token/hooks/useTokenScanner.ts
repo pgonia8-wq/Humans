@@ -13,22 +13,36 @@ export interface WhaleAlert {
   amount: number;
 }
 
-export interface CreatorAnalysis {
-  totalPosts: number;
-  postsThisWeek: number;
-  totalLikes: number;
-  totalComments: number;
-  totalReposts: number;
-  totalTips: number;
-  totalBoosts: number;
-  hasCampaigns: boolean;
-  hasAirdrops: boolean;
-  postedLinksInFeed: boolean;
-  engagementRate: number;
-  activityTrend: "increasing" | "stable" | "decreasing" | "inactive";
-  tier: string;
-  isOrbVerified: boolean;
+export interface SocialAnalysis {
+  creatorId: string;
+  profile: {
+    username: string;
+    avatarUrl: string | null;
+    isVerified: boolean;
+    orbVerified: boolean;
+    followersCount: number;
+    followingCount: number;
+    accountAge: number;
+  } | null;
+  stats: {
+    totalPosts: number;
+    postsThisWeek: number;
+    postsThisMonth: number;
+    totalLikes: number;
+    totalComments: number;
+    totalReposts: number;
+    totalTips: number;
+    totalViews: number;
+    totalBoostScore: number;
+    activeBoostedPosts: number;
+    campaignPosts: number;
+    engagementRate: number;
+    activityTrend: "increasing" | "stable" | "decreasing" | "inactive";
+    tier: string;
+  };
   socialScore: number;
+  fomoSignals: string[];
+  warnings: string[];
 }
 
 export interface TokenAnalysis {
@@ -47,10 +61,11 @@ export interface TokenAnalysis {
   volumeTrend: "surging" | "rising" | "stable" | "declining" | "dead";
   washTradingRisk: boolean;
   ageHours: number;
-  creatorAnalysis: CreatorAnalysis | null;
+  socialAnalysis: SocialAnalysis | null;
   insights: string[];
   redFlags: string[];
   greenFlags: string[];
+  fomoSignals: string[];
   lastAnalyzed: string;
 }
 
@@ -70,9 +85,11 @@ interface ScannerState {
   analyses: TokenAnalysis[];
   marketSummary: MarketSummary | null;
   scanning: boolean;
+  scanningToken: string | null;
   lastScan: string | null;
   scanCount: number;
   learningData: LearningEntry[];
+  searchResult: TokenAnalysis | null;
 }
 
 interface LearningEntry {
@@ -84,9 +101,12 @@ interface LearningEntry {
 }
 
 const SCAN_INTERVAL = 20 * 60 * 1000;
+const TOP_N = 10;
 const LEARNING_KEY = "h_scanner_learning";
 const ANALYSES_KEY = "h_scanner_analyses";
 const SCAN_COUNT_KEY = "h_scanner_count";
+
+const TOKEN_API_BASE = (import.meta.env.VITE_TOKEN_API_URL || "").replace(/\/$/, "");
 
 function loadLearning(): LearningEntry[] {
   try {
@@ -107,7 +127,7 @@ function loadCachedAnalyses(): TokenAnalysis[] {
 }
 
 function saveCachedAnalyses(analyses: TokenAnalysis[]) {
-  localStorage.setItem(ANALYSES_KEY, JSON.stringify(analyses.slice(0, 100)));
+  localStorage.setItem(ANALYSES_KEY, JSON.stringify(analyses.slice(0, 50)));
 }
 
 function calculateHolderConcentration(holders: HolderInfo[]): number {
@@ -203,6 +223,7 @@ function calculateScores(
   buyerDumps: number,
   washTrading: boolean,
   holderConc: number,
+  socialScore: number,
   learning: LearningEntry[]
 ): { trust: number; momentum: number; overall: number } {
   let trust = 50;
@@ -234,7 +255,7 @@ function calculateScores(
   const learningBonus = calculateLearningAdjustment(token.id, learning);
   momentum += learningBonus;
 
-  const overall = Math.round(trust * 0.45 + momentum * 0.55);
+  const overall = Math.round(trust * 0.35 + momentum * 0.35 + socialScore * 0.30);
 
   return {
     trust: Math.max(0, Math.min(100, Math.round(trust))),
@@ -261,7 +282,7 @@ function calculateLearningAdjustment(tokenId: string, learning: LearningEntry[])
   return 0;
 }
 
-function determineHeat(score: number, change24h: number, volumeTrend: string): TokenHeat {
+function determineHeat(score: number, change24h: number, _volumeTrend: string): TokenHeat {
   if (score >= 75 && change24h > 10) return "HOT";
   if (score >= 60 && change24h > 0) return "RISING";
   if (score >= 40) return "NEUTRAL";
@@ -269,17 +290,22 @@ function determineHeat(score: number, change24h: number, volumeTrend: string): T
   return "COLD";
 }
 
-function determineRisk(trust: number, creatorDumping: boolean, washTrading: boolean, holderConc: number): RiskLevel {
+function determineRisk(trust: number, creatorDumping: boolean, washTrading: boolean, _holderConc: number): RiskLevel {
   if (trust >= 70 && !creatorDumping && !washTrading) return "SAFE";
   if (trust >= 50 && !creatorDumping) return "WATCH";
   if (trust >= 30 || creatorDumping) return "WARNING";
   return "DANGER";
 }
 
-function generateInsights(a: TokenAnalysis): string[] {
+function formatPct(n: number): string {
+  return n.toFixed(1) + "%";
+}
+
+function generateInsights(a: TokenAnalysis): { insights: string[]; redFlags: string[]; greenFlags: string[]; fomoSignals: string[] } {
   const insights: string[] = [];
   const redFlags: string[] = [];
   const greenFlags: string[] = [];
+  const fomoSignals: string[] = [];
 
   if (a.token.holders >= 50) greenFlags.push("Comunidad sólida con " + a.token.holders + " holders");
   if (a.token.lockedSupply > 0) greenFlags.push("Supply bloqueado: " + formatPct(a.token.lockedSupply / a.token.totalSupply * 100));
@@ -288,27 +314,121 @@ function generateInsights(a: TokenAnalysis): string[] {
   if (a.momentumScore >= 70) greenFlags.push("Momentum fuerte — tendencia alcista");
   if (a.volumeTrend === "surging") greenFlags.push("Volumen explosivo en las últimas 24h");
 
-  if (a.creatorDumping) redFlags.push("⚠ Creador vendiendo tokens — posible exit");
-  if (a.washTradingRisk) redFlags.push("⚠ Actividad sospechosa: posible wash trading");
-  if (a.holderConcentration > 70) redFlags.push("⚠ Alta concentración: top 3 wallets tienen " + formatPct(a.holderConcentration));
-  if (a.buyerDumps >= 3) redFlags.push("⚠ Múltiples dump de compradores recientes");
-  if (a.whales.filter(w => w.action === "dumping").length > 0) redFlags.push("⚠ Ballena vendiendo en las últimas 24h");
+  if (a.creatorDumping) redFlags.push("Creador vendiendo tokens — posible exit");
+  if (a.washTradingRisk) redFlags.push("Actividad sospechosa: posible wash trading");
+  if (a.holderConcentration > 70) redFlags.push("Alta concentración: top 3 wallets tienen " + formatPct(a.holderConcentration));
+  if (a.buyerDumps >= 3) redFlags.push("Múltiples dump de compradores recientes");
+  if (a.whales.filter(w => w.action === "dumping").length > 0) redFlags.push("Ballena vendiendo en las últimas 24h");
   if (a.ageHours < 24) redFlags.push("Token muy nuevo (<24h) — alto riesgo");
   if (a.token.holders < 5) redFlags.push("Muy pocos holders — baja liquidez orgánica");
   if (a.liquidityRatio < 0.1) redFlags.push("Ratio liquidez/cap muy bajo — cuidado al vender");
+
+  if (a.socialAnalysis) {
+    const sa = a.socialAnalysis;
+    fomoSignals.push(...sa.fomoSignals);
+    if (sa.warnings.length > 0) {
+      redFlags.push(...sa.warnings);
+    }
+    if (sa.stats.tier === "Influencer" || sa.stats.tier === "Activo Pro") {
+      greenFlags.push("Creador " + sa.stats.tier + " en la red social");
+    }
+    if (sa.profile?.orbVerified) {
+      greenFlags.push("Identidad verificada con World ID (Orb)");
+    }
+    if (sa.stats.activeBoostedPosts > 0) {
+      greenFlags.push("Creador invirtiendo en boost (" + sa.stats.activeBoostedPosts + " activos)");
+    }
+  }
 
   if (a.overallScore >= 70) insights.push("Token con fundamentos sólidos y buen momentum");
   else if (a.overallScore >= 50) insights.push("Token estable — monitorear evolución");
   else if (a.overallScore >= 30) insights.push("Precaución — métricas mixtas, DYOR");
   else insights.push("Alto riesgo — múltiples señales negativas");
 
-  a.redFlags = redFlags;
-  a.greenFlags = greenFlags;
-  return insights;
+  return { insights, redFlags, greenFlags, fomoSignals };
 }
 
-function formatPct(n: number): string {
-  return n.toFixed(1) + "%";
+async function fetchSocialAnalysis(creatorId: string): Promise<SocialAnalysis | null> {
+  try {
+    const res = await fetch(`${TOKEN_API_BASE}/api/socialAnalysis?creatorId=${encodeURIComponent(creatorId)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function analyzeToken(
+  token: Token,
+  learningData: LearningEntry[],
+  includeSocial: boolean
+): Promise<TokenAnalysis> {
+  const [holdersData, activityData] = await Promise.all([
+    api.getTokenHolders(token.id).catch(() => [] as HolderInfo[]),
+    api.getTokenActivity(token.id, 100).catch(() => ({ activities: [] as ActivityItem[], total: 0 })),
+  ]);
+
+  const holders = Array.isArray(holdersData) ? holdersData : [];
+  const activities = activityData.activities || [];
+
+  const holderConc = calculateHolderConcentration(holders);
+  const whales = detectWhales(holders, activities);
+  const creatorDumping = detectCreatorDump(token.creatorId, activities);
+  const buyerDumps = countBuyerDumps(activities);
+  const washTrading = detectWashTrading(activities);
+  const volumeTrend = getVolumeTrend(token);
+  const ageHours = (Date.now() - new Date(token.createdAt).getTime()) / 3600000;
+  const liquidityRatio = (token.totalWldInCurve || 0) / Math.max(token.marketCap, 0.01);
+
+  let socialAnalysis: SocialAnalysis | null = null;
+  let socialScoreVal = 0;
+
+  if (includeSocial) {
+    socialAnalysis = await fetchSocialAnalysis(token.creatorId);
+    if (socialAnalysis) {
+      socialScoreVal = socialAnalysis.socialScore;
+    }
+  }
+
+  const scores = calculateScores(
+    token, holders, activities, whales, creatorDumping,
+    buyerDumps, washTrading, holderConc, socialScoreVal, learningData
+  );
+
+  const heat = determineHeat(scores.overall, token.change24h, volumeTrend);
+  const riskLevel = determineRisk(scores.trust, creatorDumping, washTrading, holderConc);
+
+  const analysis: TokenAnalysis = {
+    token,
+    heat,
+    riskLevel,
+    trustScore: scores.trust,
+    momentumScore: scores.momentum,
+    socialScore: socialScoreVal,
+    overallScore: scores.overall,
+    whales,
+    creatorDumping,
+    buyerDumps,
+    holderConcentration: holderConc,
+    liquidityRatio,
+    volumeTrend,
+    washTradingRisk: washTrading,
+    ageHours,
+    socialAnalysis,
+    insights: [],
+    redFlags: [],
+    greenFlags: [],
+    fomoSignals: [],
+    lastAnalyzed: new Date().toISOString(),
+  };
+
+  const generated = generateInsights(analysis);
+  analysis.insights = generated.insights;
+  analysis.redFlags = generated.redFlags;
+  analysis.greenFlags = generated.greenFlags;
+  analysis.fomoSignals = generated.fomoSignals;
+
+  return analysis;
 }
 
 function computeMarketSummary(analyses: TokenAnalysis[]): MarketSummary {
@@ -343,9 +463,11 @@ export function useTokenScanner() {
     analyses: loadCachedAnalyses(),
     marketSummary: null,
     scanning: false,
+    scanningToken: null,
     lastScan: null,
     scanCount: parseInt(localStorage.getItem(SCAN_COUNT_KEY) || "0"),
     learningData: loadLearning(),
+    searchResult: null,
   });
 
   const scanningRef = useRef(false);
@@ -357,61 +479,13 @@ export function useTokenScanner() {
     setState(s => ({ ...s, scanning: true }));
 
     try {
-      const { tokens } = await api.getTokens({ limit: 50, sort: "volume" });
+      const { tokens } = await api.getTokens({ limit: TOP_N, sort: "volume" });
 
       const analyses: TokenAnalysis[] = [];
 
-      for (const token of tokens) {
+      for (const token of tokens.slice(0, TOP_N)) {
         try {
-          const [holdersData, activityData] = await Promise.all([
-            api.getTokenHolders(token.id).catch(() => [] as HolderInfo[]),
-            api.getTokenActivity(token.id, 100).catch(() => ({ activities: [] as ActivityItem[], total: 0 })),
-          ]);
-
-          const holders = Array.isArray(holdersData) ? holdersData : [];
-          const activities = activityData.activities || [];
-
-          const holderConc = calculateHolderConcentration(holders);
-          const whales = detectWhales(holders, activities);
-          const creatorDumping = detectCreatorDump(token.creatorId, activities);
-          const buyerDumps = countBuyerDumps(activities);
-          const washTrading = detectWashTrading(activities);
-          const volumeTrend = getVolumeTrend(token);
-          const ageHours = (Date.now() - new Date(token.createdAt).getTime()) / 3600000;
-          const liquidityRatio = (token.totalWldInCurve || 0) / Math.max(token.marketCap, 0.01);
-
-          const scores = calculateScores(
-            token, holders, activities, whales, creatorDumping,
-            buyerDumps, washTrading, holderConc, state.learningData
-          );
-
-          const heat = determineHeat(scores.overall, token.change24h, volumeTrend);
-          const riskLevel = determineRisk(scores.trust, creatorDumping, washTrading, holderConc);
-
-          const analysis: TokenAnalysis = {
-            token,
-            heat,
-            riskLevel,
-            trustScore: scores.trust,
-            momentumScore: scores.momentum,
-            socialScore: 0,
-            overallScore: scores.overall,
-            whales,
-            creatorDumping,
-            buyerDumps,
-            holderConcentration: holderConc,
-            liquidityRatio,
-            volumeTrend,
-            washTradingRisk: washTrading,
-            ageHours,
-            creatorAnalysis: null,
-            insights: [],
-            redFlags: [],
-            greenFlags: [],
-            lastAnalyzed: new Date().toISOString(),
-          };
-
-          analysis.insights = generateInsights(analysis);
+          const analysis = await analyzeToken(token, state.learningData, true);
           analyses.push(analysis);
         } catch {
           continue;
@@ -444,14 +518,15 @@ export function useTokenScanner() {
       const newCount = state.scanCount + 1;
       localStorage.setItem(SCAN_COUNT_KEY, String(newCount));
 
-      setState({
+      setState(s => ({
+        ...s,
         analyses,
         marketSummary: summary,
         scanning: false,
         lastScan: new Date().toISOString(),
         scanCount: newCount,
         learningData: newLearning,
-      });
+      }));
     } catch (err) {
       console.error("[SCANNER] Scan failed:", err);
       setState(s => ({ ...s, scanning: false }));
@@ -459,6 +534,69 @@ export function useTokenScanner() {
       scanningRef.current = false;
     }
   }, [state.learningData, state.scanCount]);
+
+  const scanSingleToken = useCallback(async (tokenId: string) => {
+    setState(s => ({ ...s, scanningToken: tokenId, searchResult: null }));
+
+    try {
+      const tokenData = await api.getToken(tokenId);
+      if (!tokenData) {
+        setState(s => ({ ...s, scanningToken: null }));
+        return null;
+      }
+
+      const analysis = await analyzeToken(tokenData, state.learningData, true);
+
+      setState(s => ({
+        ...s,
+        scanningToken: null,
+        searchResult: analysis,
+      }));
+
+      return analysis;
+    } catch (err) {
+      console.error("[SCANNER] Single scan failed:", err);
+      setState(s => ({ ...s, scanningToken: null }));
+      return null;
+    }
+  }, [state.learningData]);
+
+  const searchToken = useCallback(async (query: string) => {
+    setState(s => ({ ...s, scanningToken: query, searchResult: null }));
+
+    try {
+      const { tokens } = await api.getTokens({ limit: 20, sort: "volume" });
+      const q = query.toLowerCase().trim();
+      const match = tokens.find(
+        t => t.symbol.toLowerCase() === q ||
+             t.name.toLowerCase().includes(q) ||
+             t.symbol.toLowerCase().includes(q)
+      );
+
+      if (!match) {
+        setState(s => ({ ...s, scanningToken: null }));
+        return null;
+      }
+
+      const analysis = await analyzeToken(match, state.learningData, true);
+
+      setState(s => ({
+        ...s,
+        scanningToken: null,
+        searchResult: analysis,
+      }));
+
+      return analysis;
+    } catch (err) {
+      console.error("[SCANNER] Search failed:", err);
+      setState(s => ({ ...s, scanningToken: null }));
+      return null;
+    }
+  }, [state.learningData]);
+
+  const clearSearch = useCallback(() => {
+    setState(s => ({ ...s, searchResult: null }));
+  }, []);
 
   useEffect(() => {
     runScan();
@@ -472,8 +610,13 @@ export function useTokenScanner() {
     analyses: state.analyses,
     marketSummary: state.marketSummary,
     scanning: state.scanning,
+    scanningToken: state.scanningToken,
     lastScan: state.lastScan,
     scanCount: state.scanCount,
+    searchResult: state.searchResult,
     rescan: runScan,
+    scanSingleToken,
+    searchToken,
+    clearSearch,
   };
 }
