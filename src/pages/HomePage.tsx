@@ -42,6 +42,7 @@ const TOKEN_APP_URL: string =
 const ProfileModal = lazy(() => import("../components/ProfileModal"));
 const Inbox = lazy(() => import("./chat/Inbox"));
 const AutonomousGrowthBrain = lazy(() => import("../components/AutonomousGrowthBrain"));
+const ScannerBrain = lazy(() => import("../components/ScannerBrain"));
 
 // ─────────────────────────────────────────────
 // TIPOS
@@ -580,6 +581,9 @@ const HomePage: React.FC<HomePageProps> = ({
     <div className={`min-h-screen overflow-y-auto overflow-x-hidden ${isDark ? "bg-[#09090b] text-white" : "bg-[#fafafa] text-black"}`}>
       <Suspense fallback={null}>
         <AutonomousGrowthBrain />
+      </Suspense>
+      <Suspense fallback={null}>
+        <ScannerBrain userId={userId} />
       </Suspense>
 
       {/* ── HEADER FLOTANTE ── */}

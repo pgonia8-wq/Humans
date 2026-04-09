@@ -378,6 +378,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
     setShowSlideModal(false);
     setSelectedTier(null);
     setShowUpgradeOptions(false);
+    setUpgradeError(null);
   };
 
   const confirmUpgrade = async () => {
@@ -408,9 +409,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
         description: `Upgrade ${selectedTier}`,
       });
       if (payRes?.finalPayload?.status !== "success") {
-        throw new Error(
-          payRes?.finalPayload?.description || (t ? t("pago_cancelado") : "Pago cancelado"),
-        );
+        cancelUpgrade();
+        return;
       }
       const transactionId = payRes?.finalPayload?.transaction_id;
       const res = await fetch("/api/upgrade", {

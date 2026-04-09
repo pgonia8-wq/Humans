@@ -14,6 +14,7 @@ const OFFICIAL_ACCOUNTS = [
   { id: "@sports",        username: "H Sports",        tier: "official" },
   { id: "@entertainment", username: "H Entertainment", tier: "official" },
   { id: "@world",         username: "H World",         tier: "official" },
+  { id: "@scanner",       username: "H Scanner",       tier: "official" },
 ];
 
 export default async function handler(req, res) {

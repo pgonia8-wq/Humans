@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { api, setApiUserId } from "@/services/api";
 
-export type Screen = "discovery" | "token" | "profile" | "creator" | "settings";
+export type Screen = "discovery" | "token" | "profile" | "creator" | "settings" | "scanner";
 export type DisplayCurrency = "USD" | "WLD";
 
 export interface WorldAppUser {

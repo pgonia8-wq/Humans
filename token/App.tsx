@@ -7,6 +7,7 @@ import TokenPage from "@/features/tokens/TokenPage";
 
 import UserProfilePage from "@/features/user/UserProfile";
 import CreatorDashboard from "@/features/creator/CreatorDashboard";
+import ScannerPage from "@/features/scanner/ScannerPage";
 
 function SplashScreen() {
   return (
@@ -113,7 +114,7 @@ function MainApp() {
     switch (screen) {
       case "discovery": return <DiscoveryPage />;
       case "token": return <TokenPage />;
-
+      case "scanner": return <ScannerPage />;
       case "profile": return <UserProfilePage />;
       default: return <DiscoveryPage />;
     }

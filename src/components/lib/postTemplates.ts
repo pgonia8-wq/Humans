@@ -158,6 +158,26 @@ const PERSONALITIES: Record<OfficialAccount, Personality> = {
       ],
     },
   },
+  "@scanner": {
+    tone: "analytical-senior",
+    emoji: ["🔍", "📊", "🧠", "⚠️", "🛡️"],
+    formats: {
+      es: [
+        () => `🔍 ANÁLISIS DE MERCADO\n\nEl mercado muestra señales mixtas hoy. Volumen moderado con presión compradora en ciertos sectores.\n\n📊 Indicadores clave:\n• Liquidez general estable\n• Actividad de ballenas: moderada\n• Nuevos tokens: varios en observación\n\nRecuerden: siempre verifiquen métricas antes de invertir. El FOMO es el peor consejero.\n\n🧠 DYOR — H Scanner`,
+        () => `🛡️ TIPS DE SEGURIDAD\n\nAntes de comprar cualquier token, verifica:\n\n✅ ¿El creador tiene historial de posts?\n✅ ¿Cuántos holders tiene?\n✅ ¿La concentración de wallets es saludable?\n✅ ¿Hay actividad sospechosa de wash trading?\n\nUn token con buenas métricas sociales y distribución equilibrada de holders es más confiable.\n\n🔍 Usa el Scanner para verificar — H Scanner`,
+        () => `📊 RESUMEN DEL DÍA\n\nPatrones que estoy viendo:\n\n→ Creadores activos en la red social tienden a mantener tokens más estables\n→ Tokens con alta concentración en pocos wallets = más riesgo\n→ El volumen orgánico vs artificial marca la diferencia\n\nNo te dejes llevar solo por el precio. Mira la actividad real.\n\n🧠 Analiza con datos, no con emociones — H Scanner`,
+        () => `⚠️ EDUCACIÓN CRYPTO\n\n¿Qué es el "rug pull"?\n\nCuando un creador:\n• Crea un token con mucho hype\n• Acumula liquidez\n• Vende todo de golpe\n\nCómo protegerte:\n🔍 Revisa el historial social del creador\n🔍 Verifica si tiene tokens bloqueados\n🔍 Mira si tiene verificación Orb\n\nEl Scanner analiza esto por ti automáticamente.\n\n🛡️ Invierte seguro — H Scanner`,
+        () => `🧠 DATO DEL DÍA\n\nLas estadísticas muestran que los tokens cuyos creadores publican regularmente en la red social tienen un 60% más de retención de holders.\n\nLa actividad social del creador es uno de los mejores indicadores de compromiso con el proyecto.\n\nRevisa el Social Score en el Scanner antes de invertir.\n\n📊 Datos > Emociones — H Scanner`,
+      ],
+      en: [
+        () => `🔍 MARKET ANALYSIS\n\nMixed signals in the market today. Moderate volume with buying pressure in certain sectors.\n\n📊 Key indicators:\n• Overall liquidity stable\n• Whale activity: moderate\n• New tokens: several under observation\n\nRemember: always check metrics before investing. FOMO is the worst advisor.\n\n🧠 DYOR — H Scanner`,
+        () => `🛡️ SECURITY TIPS\n\nBefore buying any token, verify:\n\n✅ Does the creator have posting history?\n✅ How many holders does it have?\n✅ Is wallet concentration healthy?\n✅ Any suspicious wash trading activity?\n\nA token with good social metrics and balanced holder distribution is more reliable.\n\n🔍 Use the Scanner to verify — H Scanner`,
+        () => `📊 DAILY ROUNDUP\n\nPatterns I'm observing:\n\n→ Creators active on the social network tend to maintain more stable tokens\n→ Tokens with high concentration in few wallets = higher risk\n→ Organic vs artificial volume makes the difference\n\nDon't just follow the price. Look at real activity.\n\n🧠 Analyze with data, not emotions — H Scanner`,
+        () => `⚠️ CRYPTO EDUCATION\n\nWhat is a "rug pull"?\n\nWhen a creator:\n• Creates a token with lots of hype\n• Accumulates liquidity\n• Sells everything at once\n\nHow to protect yourself:\n🔍 Check the creator's social history\n🔍 Verify locked tokens\n🔍 Look for Orb verification\n\nThe Scanner analyzes this for you automatically.\n\n🛡️ Invest safely — H Scanner`,
+        () => `🧠 DAILY INSIGHT\n\nStatistics show that tokens whose creators regularly post on the social network have 60% better holder retention.\n\nThe creator's social activity is one of the best indicators of project commitment.\n\nCheck the Social Score in the Scanner before investing.\n\n📊 Data > Emotions — H Scanner`,
+      ],
+    },
+  },
 };
 
 const ACCOUNT_CATEGORIES: Record<OfficialAccount, Category[]> = {
@@ -169,6 +189,7 @@ const ACCOUNT_CATEGORIES: Record<OfficialAccount, Category[]> = {
   "@sports":        ["sports"],
   "@entertainment": ["entertainment", "lifestyle"],
   "@world":         ["world_news"],
+  "@scanner":       ["market_analysis", "crypto_news", "trading_signals"],
 };
 
 export function getAccountCategories(account: OfficialAccount): Category[] {

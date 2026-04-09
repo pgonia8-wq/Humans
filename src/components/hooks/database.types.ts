@@ -18,7 +18,8 @@ export type OfficialAccount =
   | "@builders"
   | "@sports"
   | "@entertainment"
-  | "@world";
+  | "@world"
+  | "@scanner";
 
 export interface ContentQueueRow {
   id: string;

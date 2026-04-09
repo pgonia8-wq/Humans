@@ -1,10 +1,11 @@
 import { useApp } from "@/context/AppContext";
 import type { Screen } from "@/context/AppContext";
-import { Compass, User, Plus } from "lucide-react";
+import { Compass, User, Plus, ScanSearch } from "lucide-react";
 import { motion } from "framer-motion";
 
 const tabs: { key: Screen; icon: typeof Compass; label: string }[] = [
   { key: "discovery", icon: Compass, label: "Explore" },
+  { key: "scanner", icon: ScanSearch, label: "Scanner" },
   { key: "profile", icon: User, label: "Profile" },
 ];
 
