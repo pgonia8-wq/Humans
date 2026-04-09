@@ -135,16 +135,17 @@ export default function ScannerBrain({ userId }: ScannerBrainProps) {
     try {
       const alreadyPromoted = stateRef.current.boostPromosToday;
 
-      const { data: recentBoosts } = await supabase
-        .from("boosts")
-        .select("user_id, created_at")
-        .gte("created_at", new Date(Date.now() - 24 * 3600000).toISOString())
+      const { data: boostedPosts } = await supabase
+        .from("posts")
+        .select("user_id")
+        .eq("is_boosted", true)
+        .gte("boosted_until", new Date().toISOString())
         .order("created_at", { ascending: false })
         .limit(20);
 
-      if (!recentBoosts?.length) return null;
+      if (!boostedPosts?.length) return null;
 
-      const uniqueUsers = [...new Set(recentBoosts.map(b => b.user_id))];
+      const uniqueUsers = [...new Set(boostedPosts.map(b => b.user_id))];
       const eligibleUsers = uniqueUsers.filter(u => !alreadyPromoted.includes(u));
 
       if (!eligibleUsers.length) return null;
