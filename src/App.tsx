@@ -180,7 +180,7 @@ import React, { useState, useEffect, useRef } from "react";
                 const wcData = await wcRes.json();
                 console.log("[ERUDA:WALLET] Worldcoin username API:", JSON.stringify(wcData));
                 const u = wcData.username || null;
-                const a = wcData.profilePictureUrl || null;
+                const a = wcData.profile_picture_url || wcData.profilePictureUrl || null;
                 if (u) {
                   setUsername(u);
                   setGlobalUsername(u);
