@@ -407,15 +407,17 @@ const HomePage: React.FC<HomePageProps> = ({
   // ─────────────────────────────────────────────
   // INICIALIZACIÓN al tener userId
   // ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!userId) return;
-    fetchOrUpsertProfile();
-    fetchNotifications();
-    loadUnread();
-    setTimeout(() => {
+  // Posts públicos — cargan de inmediato sin necesitar userId
+    useEffect(() => {
       fetchGlobalPosts();
-    }, 10000);
-  }, [userId]);
+    }, []);
+
+    useEffect(() => {
+      if (!userId) return;
+      fetchOrUpsertProfile();
+      fetchNotifications();
+      loadUnread();
+    }, [userId]);
 
   // ─────────────────────────────────────────────
   // REALTIME: mensajes no leídos
@@ -586,7 +588,20 @@ const HomePage: React.FC<HomePageProps> = ({
         <ScannerBrain userId={userId} />
       </Suspense>
 
-      {/* ── HEADER FLOTANTE ── */}
+      {/* ── BANNER VERIFICACIÓN ── */}
+        {!verified && (
+          <div style={{ position: "fixed", bottom: 80, left: 0, right: 0, zIndex: 100, display: "flex", justifyContent: "center", padding: "0 16px", pointerEvents: "none" }}>
+            <button
+              onClick={verifyUser}
+              disabled={verifying}
+              style={{ pointerEvents: "auto", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "white", border: "none", borderRadius: 16, padding: "14px 28px", fontSize: 15, fontWeight: 700, cursor: verifying ? "not-allowed" : "pointer", boxShadow: "0 4px 24px rgba(99,102,241,0.55)", opacity: verifying ? 0.7 : 1, width: "100%", maxWidth: 360 }}
+            >
+              {verifying ? "Verificando..." : "✦ Verificate con World ID"}
+            </button>
+          </div>
+        )}
+
+        {/* ── HEADER FLOTANTE ── */}
       <header
         className={`fixed top-3 left-3 right-3 z-30 flex items-center justify-between px-4 py-2.5 rounded-2xl border ${
           isDark ? "bg-[#09090b]/85 border-white/[0.09]" : "bg-white/90 border-black/[0.07]"
