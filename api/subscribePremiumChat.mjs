@@ -74,7 +74,17 @@ export default async function handler(req, res) {
 
   if (!userId || typeof userId !== "string" || userId.trim() === "") {
     return res.status(400).json({ error: "userId es requerido" });
-  }
+
+    const { data: _profile } = await supabase
+      .from("profiles")
+      .select("verification_level")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!_profile || !_profile.verification_level) {
+      return res.status(403).json({ error: "Device verification required" });
+    }
+    }
   if (!transactionId || typeof transactionId !== "string" || transactionId.trim() === "") {
     return res.status(400).json({ error: "transactionId es requerido" });
   }
