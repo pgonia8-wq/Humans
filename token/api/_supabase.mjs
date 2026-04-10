@@ -116,6 +116,29 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   const RATE_LIMIT_WINDOW = 60000;
   const RATE_LIMIT_MAX = 60;
 
+  
+
+    const ipRateLimitMap = new Map();
+    const IP_RATE_LIMIT_WINDOW = 60000;
+    const IP_RATE_LIMIT_MAX = 60;
+
+    export function rateLimitByIp(req, res) {
+      const ip = req?.headers?.["x-forwarded-for"]?.split(",")[0]?.trim()
+        || req?.socket?.remoteAddress || "unknown";
+      const now = Date.now();
+      const entry = ipRateLimitMap.get(ip);
+      if (!entry || now - entry.ts > IP_RATE_LIMIT_WINDOW) {
+        ipRateLimitMap.set(ip, { ts: now, count: 1 });
+        return true;
+      }
+      entry.count++;
+      if (entry.count > IP_RATE_LIMIT_MAX) {
+        res.status(429).json({ error: "Too many requests from this IP. Try again later." });
+        return false;
+      }
+      return true;
+    }
+  
   export function rateLimit(userId, res) {
     if (!userId) return true;
     const now = Date.now();
