@@ -150,7 +150,9 @@ export default async function handler(req, res) {
           await triggerGraduation(tokenId, token.symbol, totalWldInCurve, newPrice);
         }
 
-        return res.status(200).json({
+        await supabase.rpc("log_audit", { p_event: "token_confirm_buy", p_user: order.user_id || "unknown", p_details: JSON.stringify({ orderId, transactionId }) });
+
+    return res.status(200).json({
           success: true, orderId,
           tokensReceived: tokensOut, fee,
           avgPrice: unitPrice, newPrice, newPriceUsd,
