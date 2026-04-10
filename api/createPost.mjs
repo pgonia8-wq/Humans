@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { rateLimitPersistent } from "./_rateLimit.mjs";
 
 const supabase = createClient(
   process.env.SUPABASE_URL ?? "",
@@ -17,6 +18,11 @@ export default async function handler(req, res) {
 
   if (!user_id || typeof user_id !== "string") {
     return res.status(400).json({ error: "user_id required" });
+  }
+
+  const rl = await rateLimitPersistent("create_post:" + user_id, { windowMs: 3600000, max: 15 });
+  if (rl.limited) {
+    return res.status(429).json({ error: "Max 15 posts per hour" });
   }
   if (!content || typeof content !== "string" || !content.trim()) {
     return res.status(400).json({ error: "content required" });
