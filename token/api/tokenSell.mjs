@@ -125,6 +125,13 @@ import { supabase, cors } from "./_supabase.mjs";
             .maybeSingle();
 
           if (!hUpd) {
+            
+            await supabase.from("tokens").update({
+              circulating_supply: supply, price_wld: Number(token.price_wld),
+              price_usdc: Number(token.price_usdc), total_wld_in_curve: Number(token.total_wld_in_curve),
+              treasury_balance: Number(token.treasury_balance), curve_percent: Number(token.curve_percent),
+              market_cap: Number(token.market_cap), volume_24h: Number(token.volume_24h),
+            }).eq("id", tokenId).eq("circulating_supply", supply);
             if (attempt < MAX_RETRIES - 1) continue;
             return res.status(409).json({ error: "Concurrent holdings update, please retry" });
           }
@@ -138,6 +145,13 @@ import { supabase, cors } from "./_supabase.mjs";
             .maybeSingle();
 
           if (!hDel) {
+            
+            await supabase.from("tokens").update({
+              circulating_supply: supply, price_wld: Number(token.price_wld),
+              price_usdc: Number(token.price_usdc), total_wld_in_curve: Number(token.total_wld_in_curve),
+              treasury_balance: Number(token.treasury_balance), curve_percent: Number(token.curve_percent),
+              market_cap: Number(token.market_cap), volume_24h: Number(token.volume_24h),
+            }).eq("id", tokenId).eq("circulating_supply", supply);
             if (attempt < MAX_RETRIES - 1) continue;
             return res.status(409).json({ error: "Concurrent holdings update, please retry" });
           }
