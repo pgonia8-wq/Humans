@@ -139,7 +139,6 @@ async function acquireLock(): Promise<boolean> {
   function releaseLock(): void {
     try { localStorage.removeItem(STORAGE_LOCK); } catch {}
     supabase.from("system_locks").delete().eq("key", "growth_brain").then(() => {}).catch(() => {});
-  } catch {}
 }
 
 async function fetchTrendsFromApi(): Promise<TrendData[]> {
