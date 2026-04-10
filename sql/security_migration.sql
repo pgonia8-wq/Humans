@@ -52,7 +52,10 @@
   CREATE INDEX IF NOT EXISTS idx_processed_tx_created ON processed_transactions(created_at);
 
   ALTER TABLE processed_transactions ENABLE ROW LEVEL SECURITY;
-  CREATE POLICY IF NOT EXISTS "processed_tx_select" ON processed_transactions FOR SELECT USING (true);
+  DO $ BEGIN
+    CREATE POLICY "processed_tx_select" ON processed_transactions FOR SELECT USING (true);
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $;
 
   -- ═══════════════════════════════════════════════════════════════
   -- 4. TABLA: rate_limit_hits (rate limiting persistente)
@@ -88,10 +91,22 @@
   );
 
   ALTER TABLE system_locks ENABLE ROW LEVEL SECURITY;
-  CREATE POLICY IF NOT EXISTS "system_locks_select" ON system_locks FOR SELECT USING (true);
-  CREATE POLICY IF NOT EXISTS "system_locks_insert" ON system_locks FOR INSERT WITH CHECK (true);
-  CREATE POLICY IF NOT EXISTS "system_locks_update" ON system_locks FOR UPDATE USING (true) WITH CHECK (true);
-  CREATE POLICY IF NOT EXISTS "system_locks_delete" ON system_locks FOR DELETE USING (true);
+  DO $ BEGIN
+    CREATE POLICY "system_locks_select" ON system_locks FOR SELECT USING (true);
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $;
+  DO $ BEGIN
+    CREATE POLICY "system_locks_insert" ON system_locks FOR INSERT WITH CHECK (true);
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $;
+  DO $ BEGIN
+    CREATE POLICY "system_locks_update" ON system_locks FOR UPDATE USING (true) WITH CHECK (true);
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $;
+  DO $ BEGIN
+    CREATE POLICY "system_locks_delete" ON system_locks FOR DELETE USING (true);
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $;
 
   -- ═══════════════════════════════════════════════════════════════
   -- 6. TABLA: security_events (logging de seguridad)
@@ -111,7 +126,10 @@
   CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type, created_at);
 
   ALTER TABLE security_events ENABLE ROW LEVEL SECURITY;
-  CREATE POLICY IF NOT EXISTS "security_events_select" ON security_events FOR SELECT USING (true);
+  DO $ BEGIN
+    CREATE POLICY "security_events_select" ON security_events FOR SELECT USING (true);
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $;
 
   -- ═══════════════════════════════════════════════════════════════
   -- 7. FUNCIÓN: deduct_balance con advisory lock (atómico)
