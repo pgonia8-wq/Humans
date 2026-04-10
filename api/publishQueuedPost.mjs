@@ -13,6 +13,12 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
+  const CRON_SECRET = process.env.CRON_SECRET;
+    const authHeader = req.headers?.authorization;
+    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
   const { account } = req.body ?? {};
 
   if (!account || typeof account !== "string") {
