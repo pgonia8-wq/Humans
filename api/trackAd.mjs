@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { requireOrb } from "../token/api/_orbGuard.mjs";
 
 const supabase = createClient(
   process.env.SUPABASE_URL ?? "",
@@ -38,6 +39,10 @@ export default async function handler(req, res) {
   }
 
   const { postId, campaignId, userId, type, country, language, interests } = req.body || {};
+
+  const orbOk = await requireOrb(userId, res);
+  if (!orbOk) return;
+
 
   if (!postId || !campaignId || !type) {
     return res.status(400).json({ error: "postId, campaignId, and type are required" });
