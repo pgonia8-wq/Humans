@@ -104,20 +104,40 @@ export default async function handler(req, res) {
         .maybeSingle();
       const username = profile?.username ?? "anon";
 
-      await supabase.from("holdings").upsert({
-        user_id: userId,
-        token_id: tokenId,
-        token_name: token.name,
-        token_symbol: token.symbol,
-        token_emoji: token.emoji ?? "🌟",
-        amount: newAmount,
-        avg_buy_price: avgPrice,
-        current_price: newPrice,
-        value: newAmount * newPrice,
-        pnl: (newPrice - avgPrice) * newAmount,
-        pnl_percent: avgPrice > 0 ? ((newPrice - avgPrice) / avgPrice) * 100 : 0,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,token_id" });
+      if (holdingRow) {
+            const { data: hUpd } = await supabase.from("holdings")
+              .update({
+                amount: newAmount,
+                avg_buy_price: avgPrice,
+                token_name: token.name, token_symbol: token.symbol,
+                token_emoji: token.emoji ?? "\u{1F31F}",
+                current_price: newPrice,
+                value: newAmount * newPrice,
+                pnl: (newPrice - avgPrice) * newAmount,
+                pnl_percent: avgPrice > 0 ? ((newPrice - avgPrice) / avgPrice) * 100 : 0,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("user_id", userId)
+              .eq("token_id", tokenId)
+              .eq("amount", prevAmount)
+              .select("user_id")
+              .maybeSingle();
+
+            if (!hUpd) {
+              if (attempt < MAX_RETRIES - 1) continue;
+              return res.status(409).json({ error: "Concurrent holdings update, please retry" });
+            }
+          } else {
+            await supabase.from("holdings").insert({
+              user_id: userId, token_id: tokenId,
+              token_name: token.name, token_symbol: token.symbol,
+              token_emoji: token.emoji ?? "\u{1F31F}",
+              amount: tokensOut, avg_buy_price: unitPrice,
+              current_price: newPrice, value: tokensOut * newPrice,
+              pnl: 0, pnl_percent: 0,
+              updated_at: new Date().toISOString(),
+            });
+          }
 
       if (prevAmount === 0) {
         await supabase.rpc("increment_holders", { tid: tokenId });
