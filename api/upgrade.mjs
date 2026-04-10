@@ -85,6 +85,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "Missing required fields" });
   }
 
+    const { data: _profile } = await supabase
+      .from("profiles")
+      .select("verification_level")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!_profile || !_profile.verification_level) {
+      return res.status(403).json({ error: "Device verification required" });
+    }
+  
   try {
     const { data: existingTx } = await supabase
       .from("upgrades")
