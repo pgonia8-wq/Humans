@@ -157,13 +157,12 @@ export default async function handler(req, res) {
           p_amount: wldReceived,
         });
         if (balErr) {
-          console.error("[SELL] Failed to credit WLD balance:", balErr.message);
-          await supabase.from("user_balances").upsert({
-            user_id: userId,
-            balance: wldReceived,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: "user_id" });
-        }
+            console.error("[SELL] credit_balance RPC failed, retrying:", balErr.message);
+            const { error: retryErr } = await supabase.rpc("credit_balance", { p_user_id: userId, p_amount: wldReceived });
+            if (retryErr) {
+              console.error("[SELL] credit_balance retry also failed:", retryErr.message);
+            }
+          }
 
         const { data: profile } = await supabase
         .from("profiles")
