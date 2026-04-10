@@ -5,7 +5,7 @@ import { ThemeContext } from "../lib/ThemeContext";
 import { useFollow } from "../lib/useFollow";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { useLanguage } from "../LanguageContext";
-import GlobalChatRoom from "../pages/chat/GlobalChatRoom";
+const GlobalChatRoom = React.lazy(() => import("../pages/chat/GlobalChatRoom"));
 import ProfileModal from "./ProfileModal";
 import { LIKE_VALUE_WLD, calculatePostEarnings, incrementLikeCount } from "../lib/economy";
 
@@ -1286,11 +1286,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           </button>
 
           <div className="flex-1 pt-16 overflow-hidden">
-            <GlobalChatRoom
-              isOpen={showGlobalChat}
-              onClose={() => setShowGlobalChat(false)}
-              currentUserId={currentUserId}
-            />
+            <React.Suspense fallback={null}>
+              <GlobalChatRoom
+                isOpen={showGlobalChat}
+                onClose={() => setShowGlobalChat(false)}
+                currentUserId={currentUserId}
+              />
+            </React.Suspense>
           </div>
         </div>
       )}
