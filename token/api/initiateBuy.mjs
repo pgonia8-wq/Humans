@@ -18,6 +18,17 @@ import { supabase, cors } from "./_supabase.mjs";
     const orbOk = await requireOrb(userId, res);
     if (!orbOk) return;
 
+
+      const { count: pendingCount } = await supabase
+        .from("payment_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("status", "pending");
+
+      if (pendingCount >= 3) {
+        return res.status(429).json({ error: "Too many pending orders. Complete or wait for existing orders to expire." });
+      }
+  
     try {
       const { data: token, error: tErr } = await supabase
         .from("tokens")
