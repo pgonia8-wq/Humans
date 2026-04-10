@@ -70,7 +70,12 @@ export default async function handler(req, res) {
         await supabase.from("holdings").update({ amount: newHeld, updated_at: new Date().toISOString() })
           .eq("user_id", userId).eq("token_id", tokenId);
       } else {
-        await supabase.from("holdings").delete().eq("user_id", userId).eq("token_id", tokenId);
+        const { data: hDel } = await supabase.from("holdings")
+            .delete().eq("user_id", userId).eq("token_id", tokenId)
+            .eq("amount", heldAmount).select("user_id").maybeSingle();
+          if (!hDel) {
+            return res.status(409).json({ error: "Concurrent holdings update, please retry" });
+          }
         await supabase.rpc("decrement_holders", { tid: tokenId });
       }
 
