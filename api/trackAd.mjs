@@ -47,6 +47,32 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "type must be impression or click" });
   }
 
+    if (userId) {
+      const { data: postData } = await supabase
+        .from("posts")
+        .select("author_id")
+        .eq("id", postId)
+        .maybeSingle();
+      if (postData && postData.author_id === userId) {
+        return res.status(403).json({ error: "Cannot interact with own ad post" });
+      }
+    }
+
+    if (userId && campaignId) {
+      const { data: existing } = await supabase
+        .from("ad_metrics")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("user_id", userId)
+        .eq("type", type)
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        return res.status(409).json({ error: "Already tracked this " + type + " for this campaign" });
+      }
+    }
+
+  
   try {
     let value = IMPRESSION_VALUE;
     let creatorEarning = IMPRESSION_VALUE * 0.7;
@@ -77,10 +103,17 @@ export default async function handler(req, res) {
       creatorEarning = cpc * 0.7;
       platformEarning = cpc * 0.3;
 
-      await supabase
+      const { data: spentUpdate } = await supabase
         .from("campaigns")
         .update({ spent: campaign.spent + cpc })
-        .eq("id", campaignId);
+        .eq("id", campaignId)
+        .eq("spent", campaign.spent)
+        .select("id")
+        .maybeSingle();
+
+      if (!spentUpdate) {
+        return res.status(409).json({ error: "Concurrent budget update — retry" });
+      }
     }
 
     await supabase.from("ad_metrics").insert({
