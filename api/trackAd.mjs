@@ -96,18 +96,6 @@ export default async function handler(req, res) {
       creatorEarning = cpc * 0.7;
       platformEarning = cpc * 0.3;
 
-      const { data: spentUpdate } = await supabase
-        .from("campaigns")
-        .update({ spent: campaign.spent + cpc })
-        .eq("id", campaignId)
-        .eq("spent", campaign.spent)
-        .select("id")
-        .maybeSingle();
-
-      if (!spentUpdate) {
-        return res.status(409).json({ error: "Concurrent budget update — retry" });
-      }
-    }
 
     const { error: insertErr } = await supabase.from("ad_metrics").insert({
       post_id: postId,
