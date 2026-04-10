@@ -43,15 +43,7 @@ import { supabase, cors } from "./_supabase.mjs";
         }
       }
 
-      const { data: alreadyClaimed } = await supabase
-        .from("airdrop_claims")
-        .select("id")
-        .eq("airdrop_link_id", link.id)
-        .eq("user_id", userId)
-        .limit(1);
-
-      if (alreadyClaimed && alreadyClaimed.length > 0) {
-        return res.status(409).json({ error: "You already claimed this airdrop" });
+      // Claim dedup moved to atomic INSERT below (UNIQUE constraint on airdrop_link_id + user_id));
       }
 
       const claimAmount = link.mode === "one_time" ? remaining : Math.min(remaining, Math.floor(link.amount / 100));
@@ -94,12 +86,20 @@ import { supabase, cors } from "./_supabase.mjs";
         })
         .eq("id", link.id);
 
-      await supabase.from("airdrop_claims").insert({
-        airdrop_link_id: link.id,
-        user_id: userId,
-        amount: claimAmount,
-        claimed_at: new Date().toISOString(),
-      });
+      const { error: claimErr } = await supabase.from("airdrop_claims").insert({
+          airdrop_link_id: link.id,
+          user_id: userId,
+          amount: claimAmount,
+          claimed_at: new Date().toISOString(),
+        });
+
+        if (claimErr) {
+          if (claimErr.code === "23505") {
+            return res.status(409).json({ error: "You already claimed this airdrop" });
+          }
+          console.error("[AIRDROP] Claim insert error:", claimErr.message);
+          return res.status(500).json({ error: "Failed to record claim" });
+        }
 
       const { data: profile } = await supabase
         .from("profiles")
