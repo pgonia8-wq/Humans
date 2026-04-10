@@ -80,32 +80,20 @@ export default async function handler(req, res) {
 
   const reference = body.reference;
 
-  // Anti-replay
-  try {
-    const replayTables = {
-      chat_gold: "subscriptions",
-      chat_classic: "subscriptions",
-      extra_room: "room_credits",
-      boost: "boosts",
-      campaign_budget: "campaigns",
-    };
-    const replayTable = replayTables[action];
-    if (replayTable) {
-      const { data: existingTx, error: checkErr } = await supabase
-        .from(replayTable)
-        .select("id")
-        .eq("transaction_id", transactionId)
-        .maybeSingle();
-
-      if (checkErr) {
-        console.error("[VERIFY_PAYMENT] Anti-replay check failed:", checkErr.message);
-      } else if (existingTx) {
-        return res.status(200).json({ success: true, message: "Acceso ya otorgado", replayed: true });
+  // Anti-replay atómico: INSERT en processed_transactions con UNIQUE(transaction_id)
+    try {
+      const { error: arErr } = await supabase
+        .from("processed_transactions")
+        .insert({ transaction_id: transactionId, user_id: userId, action, created_at: new Date().toISOString() });
+      if (arErr) {
+        if (arErr.code === "23505") {
+          return res.status(200).json({ success: true, message: "Acceso ya otorgado", replayed: true });
+        }
+        console.error("[VERIFY_PAYMENT] Anti-replay insert error:", arErr.message);
       }
+    } catch (e) {
+      console.error("[VERIFY_PAYMENT] Anti-replay error:", e.message);
     }
-  } catch (e) {
-    console.error("[VERIFY_PAYMENT] Anti-replay error:", e.message);
-  }
 
   // Verificar transacción con Worldcoin
   const { ok: txOk, data: txData } = await verifyWorldcoinTransaction(transactionId);
