@@ -1,6 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
 export default async function handler(req, res) {
+  const CRON_SECRET = process.env.CRON_SECRET;
+  const authHeader = req.headers?.authorization;
+  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
