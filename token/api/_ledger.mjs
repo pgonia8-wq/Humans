@@ -59,8 +59,8 @@ import { supabase } from "./_supabase.mjs";
       {
         order_id: orderId || null, type: "sell_slippage", user_id: userId, username,
         token_id: tokenId, token_symbol: tokenSymbol, amount_wld: slippage,
-        direction: "in", description: `Sell slippage 10% → treasury`,
-        metadata: { slippage_percent: 0.10 },
+        direction: "in", description: `Sell slippage ${curveReturn > 0 ? ((slippage / curveReturn) * 100).toFixed(1) : "0"}% → treasury`,
+        metadata: { slippage_percent: curveReturn > 0 ? slippage / curveReturn : 0 },
       },
       {
         order_id: orderId || null, type: "sell_fee", user_id: userId, username,
