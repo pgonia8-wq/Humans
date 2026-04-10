@@ -163,13 +163,12 @@ import { supabase, cors } from "./_supabase.mjs";
           p_amount: wldReceived,
         });
         if (balErr) {
-          console.error("[SELL] Failed to credit WLD balance via RPC:", balErr.message);
-          await supabase.from("user_balances").upsert({
-            user_id: userId,
-            balance: wldReceived,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: "user_id" });
-        }
+            console.error("[SELL] credit_balance RPC failed, retrying:", balErr.message);
+            const { error: retryErr } = await supabase.rpc("credit_balance", { p_user_id: userId, p_amount: wldReceived });
+            if (retryErr) {
+              console.error("[SELL] credit_balance retry also failed:", retryErr.message);
+            }
+          }
 
         await supabase.from("token_activity").insert({
           type: "sell", user_id: userId, username,
