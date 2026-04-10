@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { ethers } from "ethers";
+import { verifySiweMessage } from "@worldcoin/minikit-js";
 
 if (!process.env.SUPABASE_URL) {
   console.error("[WITHDRAW] ERROR: SUPABASE_URL no configurada");
@@ -16,6 +17,8 @@ const supabase = createClient(
 const WORLD_CHAIN_RPC = process.env.WORLD_CHAIN_RPC ?? "https://worldchain-mainnet.g.alchemy.com/public";
 const WLD_CONTRACT = "0x2cFc85d8E48F8EaB294be644d9E25C3030863003";
 const WLD_DECIMALS = 18;
+const MIN_RESERVE_WLD = 100;
+const MAX_WITHDRAW_WLD = 500;
 
 const ERC20_ABI = [
   "function transfer(address to, uint256 amount) returns (bool)",
@@ -37,6 +40,10 @@ async function executeTransfer(toAddress, amount) {
   const balance = await contract.balanceOf(wallet.address);
   if (balance < amountWei) {
     throw new Error(`Insufficient WLD in payout wallet. Has: ${ethers.formatUnits(balance, WLD_DECIMALS)}, needs: ${amount}`);
+  }
+  const reserveWei = ethers.parseUnits(MIN_RESERVE_WLD.toString(), WLD_DECIMALS);
+  if (balance - amountWei < reserveWei) {
+    throw new Error("Withdrawal would breach minimum reserve of " + MIN_RESERVE_WLD + " WLD");
   }
 
   const tx = await contract.transfer(toAddress, amountWei);
@@ -72,6 +79,42 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "Dirección de wallet inválida" });
   }
 
+
+    if (amount > MAX_WITHDRAW_WLD) {
+      return res.status(400).json({ success: false, error: "Máximo retiro: " + MAX_WITHDRAW_WLD + " WLD" });
+    }
+
+    const { payload, nonce } = body;
+    if (!payload || !nonce || !payload.message || !payload.signature || !payload.address) {
+      return res.status(401).json({ success: false, error: "Autenticación SIWE requerida (payload + nonce)" });
+    }
+
+    try {
+      const validMessage = await verifySiweMessage(payload, nonce);
+      if (!validMessage.isValid) {
+        return res.status(401).json({ success: false, error: "Firma SIWE inválida" });
+      }
+    } catch (authErr) {
+      console.error("[WITHDRAW] SIWE error:", authErr.message);
+      return res.status(401).json({ success: false, error: "Error verificando firma SIWE" });
+    }
+
+    if (payload.address.toLowerCase() !== userId.toLowerCase()) {
+      return res.status(403).json({ success: false, error: "userId no coincide con la firma SIWE" });
+    }
+
+    const { data: nonceData, error: nonceErr } = await supabase
+      .from("nonces")
+      .select("used, expires_at")
+      .eq("nonce", nonce)
+      .single();
+
+    if (nonceErr || !nonceData || nonceData.used || new Date(nonceData.expires_at) < new Date()) {
+      return res.status(401).json({ success: false, error: "Nonce inválido, expirado o ya usado" });
+    }
+
+    await supabase.from("nonces").update({ used: true }).eq("nonce", nonce);
+  
   try {
     const { data: balanceData, error: balanceError } = await supabase
       .from("balances")
