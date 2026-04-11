@@ -6,17 +6,14 @@
       <title>Human Mini App</title>
       <meta name="description" content="Mini App H - Human App dentro de World App" />
 
-      <!-- Preconnect: establece DNS + TCP con Supabase antes de que el JS arranque.
-           Esto elimina ~200-500ms de latencia en las primeras queries. -->
       <link rel="preconnect" href="https://vtjqfzpfehfofamhowjz.supabase.co" />
       <link rel="dns-prefetch" href="https://vtjqfzpfehfofamhowjz.supabase.co" />
-
-      <!-- Preconnect con el CDN de Supabase (storage de avatares e imágenes) -->
       <link rel="preconnect" href="https://vtjqfzpfehfofamhowjz.supabase.co" crossorigin />
-
-      <!-- Preconnect con Worldcoin (verificación de identidad) -->
       <link rel="preconnect" href="https://developer.worldcoin.org" />
       <link rel="dns-prefetch" href="https://developer.worldcoin.org" />
+
+      <script async src="https://cdn.jsdelivr.net/npm/eruda@3.4.0/eruda.min.js"
+        onload="eruda.init()"></script>
     </head>
     <body class="bg-gradient-to-br from-purple-100 via-pink-50 to-blue-50">
       <div id="root"></div>
