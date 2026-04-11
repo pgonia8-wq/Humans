@@ -1,26 +1,50 @@
 import { ReactNode, useEffect, useState } from "react";
-    import { MiniKit } from "@worldcoin/minikit-js";
+  import { MiniKit } from "@worldcoin/minikit-js";
 
-    export default function MiniKitProvider({ children }: { children: ReactNode }) {
-      const [ready, setReady] = useState(false);
+  const APP_ID = (import.meta as any).env?.VITE_APP_ID || "";
 
-      useEffect(() => {
-        const appId = (import.meta as any).env?.VITE_APP_ID || "";
-        console.log("[MiniKitProvider] Installing with appId:", appId);
+  export default function MiniKitProvider({ children }: { children: ReactNode }) {
+    const [ready, setReady] = useState(false);
 
+    useEffect(() => {
+      let mounted = true;
+
+      const initMiniKit = async () => {
         try {
-          MiniKit.install(appId);
-          console.log("[MiniKitProvider] isInstalled:", MiniKit.isInstalled());
-          console.log("[MiniKitProvider] user:", JSON.stringify((MiniKit as any).user));
+          await MiniKit.install(APP_ID);
+
+          console.log("[MiniKitProvider] installed");
+
+          if (MiniKit.isInstalled()) {
+            try {
+              if (MiniKit.appReady) {
+                MiniKit.appReady();
+                console.log("[MiniKitProvider] appReady()");
+              } else if ((MiniKit.commands as any)?.ready) {
+                (MiniKit.commands as any).ready();
+                console.log("[MiniKitProvider] ready() fallback");
+              }
+            } catch (e) {
+              console.warn("[MiniKitProvider] ready failed", e);
+            }
+          }
+
         } catch (err) {
-          console.error("[MiniKitProvider] Install error:", err);
+          console.error("[MiniKitProvider] install error:", err);
+        } finally {
+          if (mounted) setReady(true);
         }
+      };
 
-        setReady(true);
-      }, []);
+      initMiniKit();
 
-      if (!ready) return null;
+      return () => {
+        mounted = false;
+      };
+    }, []);
 
-      return <>{children}</>;
-    }
+    if (!ready) return null;
+
+    return <>{children}</>;
+  }
   
