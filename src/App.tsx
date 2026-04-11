@@ -21,9 +21,10 @@ import React, { useState, useEffect, useRef } from "react";
 
     useEffect(() => {
       const init = async () => {
-        console.log("[ERUDA:INIT] ▶ App init started", { ts: Date.now() });
+        try { MiniKit.appReady(); } catch (_) {}
+        console.log("[INIT] ▶ App init started", { ts: Date.now() });
         const storedId = localStorage.getItem("userId");
-        console.log("[ERUDA:INIT] localStorage userId:", storedId ? storedId.slice(0, 12) + "..." : "null");
+        console.log("[INIT] localStorage userId:", storedId ? storedId.slice(0, 12) + "..." : "null");
         if (storedId) {
           setUserId(storedId);
           setVerified(true);
@@ -32,7 +33,7 @@ import React, { useState, useEffect, useRef } from "react";
         const cachedWallet = localStorage.getItem("wallet");
         if (cachedWallet) {
           setWallet(cachedWallet);
-          console.log("[ERUDA:INIT] ⚡ Cached wallet:", cachedWallet.slice(0, 10) + "...");
+          console.log("[INIT] ⚡ Cached wallet:", cachedWallet.slice(0, 10) + "...");
         }
 
         (() => {
@@ -49,7 +50,6 @@ import React, { useState, useEffect, useRef } from "react";
           });
           poll().then(() => {
             setMiniKitReady(true);
-            try { MiniKit.appReady(); } catch (_) {}
             if (MiniKit.user) {
               const u = MiniKit.user.username || null;
               const a = MiniKit.user?.profilePictureUrl || null;
@@ -62,7 +62,7 @@ import React, { useState, useEffect, useRef } from "react";
         // Session re-validation removed: verify.mjs only accepts POST (GET → 405).
           // The userId in localStorage is already validated by the original verify flow.
 
-        console.log("[ERUDA:INIT] ◀ App init finished", { ts: Date.now() });
+        console.log("[INIT] ◀ App init finished", { ts: Date.now() });
       };
 
       init();
@@ -70,15 +70,15 @@ import React, { useState, useEffect, useRef } from "react";
 
     useEffect(() => {
       const loadWallet = async () => {
-        console.log("[ERUDA:WALLET] ▶ loadWallet check", { verified, wallet: !!wallet, verifying, miniKitReady, loading: walletLoading.current });
+        console.log("[WALLET] ▶ loadWallet check", { verified, wallet: !!wallet, verifying, miniKitReady, loading: walletLoading.current });
         if (!verified || wallet || verifying || !miniKitReady || walletLoading.current) {
-          console.log("[ERUDA:WALLET] ⏭ Skipping loadWallet (conditions not met)");
+          console.log("[WALLET] ⏭ Skipping loadWallet (conditions not met)");
           return;
         }
 
         if (localStorage.getItem("wallet")) {
           setWallet(localStorage.getItem("wallet")!);
-          console.log("[ERUDA:WALLET] ⚡ Cache hit — skip walletAuth");
+          console.log("[WALLET] ⚡ Cache hit — skip walletAuth");
           return;
         }
 
@@ -90,7 +90,7 @@ import React, { useState, useEffect, useRef } from "react";
             return r.json();
           })
           .then(({ nonce }) => {
-            console.log("[ERUDA:WALLET] Nonce received, calling walletAuth (background)...");
+            console.log("[WALLET] Nonce received, calling walletAuth (background)...");
             MiniKit.commandsAsync.walletAuth({
               nonce,
               requestId: "wallet-auth-" + Date.now(),
@@ -100,12 +100,12 @@ import React, { useState, useEffect, useRef } from "react";
             }).then((auth: any) => {
               const payload = auth?.finalPayload;
               if (payload?.status === "error") {
-                console.warn("[ERUDA:WALLET] ❌ WalletAuth error:", JSON.stringify(payload));
+                console.warn("[WALLET] ❌ WalletAuth error:", JSON.stringify(payload));
                 walletLoading.current = false;
                 return;
               }
               if (payload?.address && payload?.message && payload?.signature) {
-                console.log("[ERUDA:WALLET] ✅ WalletAuth success:", payload.address.slice(0, 10) + "...");
+                console.log("[WALLET] ✅ WalletAuth success:", payload.address.slice(0, 10) + "...");
                 fetch("/api/walletVerify", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -116,14 +116,14 @@ import React, { useState, useEffect, useRef } from "react";
                     if (vData.success) {
                       setWallet(vData.address);
                       localStorage.setItem("wallet", vData.address);
-                      console.log("[ERUDA:WALLET] ✅ Wallet set + cached:", vData.address.slice(0, 10) + "...");
+                      console.log("[WALLET] ✅ Wallet set + cached:", vData.address.slice(0, 10) + "...");
                     } else {
-                      console.warn("[ERUDA:WALLET] ❌ Verify rejected:", vData.error);
+                      console.warn("[WALLET] ❌ Verify rejected:", vData.error);
                     }
                     walletLoading.current = false;
                   })
                   .catch(e => {
-                    console.warn("[ERUDA:WALLET] ❌ Verify error:", e);
+                    console.warn("[WALLET] ❌ Verify error:", e);
                     walletLoading.current = false;
                   });
 
@@ -142,7 +142,7 @@ import React, { useState, useEffect, useRef } from "react";
                     .catch(() => {});
                 }
               } else {
-                console.warn("[ERUDA:WALLET] ⚠ No address in payload");
+                console.warn("[WALLET] ⚠ No address in payload");
                 walletLoading.current = false;
               }
 
@@ -153,12 +153,12 @@ import React, { useState, useEffect, useRef } from "react";
                 if (a) setAvatar(a);
               }
             }).catch((err: any) => {
-              console.warn("[ERUDA:WALLET] ⚠ walletAuth failed:", err.message);
+              console.warn("[WALLET] ⚠ walletAuth failed:", err.message);
               walletLoading.current = false;
             });
           })
           .catch(err => {
-            console.warn("[ERUDA:WALLET] ⚠ nonce failed:", err.message);
+            console.warn("[WALLET] ⚠ nonce failed:", err.message);
             walletLoading.current = false;
           });
       };
