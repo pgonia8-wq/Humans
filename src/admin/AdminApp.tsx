@@ -9,17 +9,21 @@ import LiveFeedPanel from "./components/LiveFeedPanel";
 import ErrorsPanel from "./components/ErrorsPanel";
 import SessionsPanel from "./components/SessionsPanel";
 import WhalesPanel from "./components/WhalesPanel";
+import IncidentPanel from "./components/IncidentPanel";
+import MoneyFlowPanel from "./components/MoneyFlowPanel";
 
 const TABS = [
   { id: "overview", label: "Panel General", icon: "📊" },
+  { id: "moneyflow", label: "Money Flow", icon: "💰" },
   { id: "whales", label: "Whales & Dumps", icon: "🐋" },
   { id: "activity", label: "Actividad", icon: "📡" },
+  { id: "incidents", label: "Incidentes", icon: "🛑" },
   { id: "errors", label: "Errores", icon: "🔥" },
+  { id: "alerts", label: "Alertas", icon: "⚡" },
   { id: "users", label: "Usuarios", icon: "👥" },
   { id: "reports", label: "Reportes", icon: "🚨" },
-  { id: "tokens", label: "Tokens", icon: "💰" },
+  { id: "tokens", label: "Tokens", icon: "💎" },
   { id: "sessions", label: "Sesiones", icon: "🔑" },
-  { id: "alerts", label: "Alertas", icon: "⚡" },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -94,9 +98,14 @@ export default function AdminApp() {
           const hRes = await fetch("/api/health");
           const hData = await hRes.json();
           setHealth(hData);
-          if (hData.alerts) hData.alerts.forEach((a: any) => newAlerts.push({ type: "critical", msg: a.type + ": " + JSON.stringify(a) }));
-          if (hData.status === "degraded") newAlerts.push({ type: "warning", msg: "Sistema degradado — latencia alta" });
+          if (hData.alerts) hData.alerts.forEach((a: any) => newAlerts.push({ type: a.severity || "critical", msg: `${a.type}: ${a.errorRate || a.p95 || a.count || ""}` }));
+          if (hData.status === "degraded") newAlerts.push({ type: "warning", msg: "Sistema degradado" });
           if (hData.status === "critical") newAlerts.push({ type: "critical", msg: "Sistema CRÍTICO" });
+          if (hData.tradingPaused) newAlerts.push({ type: "critical", msg: "🛑 Trading PAUSADO" });
+          if (hData.readOnlyMode) newAlerts.push({ type: "warning", msg: "⚠️ Modo solo lectura activo" });
+          if (hData.failedTrades1m > 50) newAlerts.push({ type: "critical", msg: `${hData.failedTrades1m} trades fallidos en último minuto` });
+          if (hData.p95 > 250) newAlerts.push({ type: "warning", msg: `Latencia P95: ${hData.p95}ms` });
+          if (hData.errorRateNum > 5) newAlerts.push({ type: "critical", msg: `Error rate: ${hData.errorRate}` });
         } catch {}
         setAlerts(newAlerts);
       } catch {}
@@ -162,7 +171,9 @@ export default function AdminApp() {
               {alerts.length} ⚠
             </span>
           )}
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10f090", boxShadow: "0 0 8px #10f09060" }} title="Conectado" />
+          {health?.tradingPaused && <span style={{ background: "#f0505020", color: "#f05050", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer" }} onClick={() => switchTab("incidents")}>🛑 PAUSED</span>}
+          {health?.readOnlyMode && <span style={{ background: "#f7a60620", color: "#f7a606", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>⚠️ R/O</span>}
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: health?.status === "ok" ? "#10f090" : health?.status === "degraded" ? "#f7a606" : "#f05050", boxShadow: `0 0 8px ${health?.status === "ok" ? "#10f09060" : health?.status === "degraded" ? "#f7a60660" : "#f0505060"}` }} title={health?.status || "Conectado"} />
           <button onClick={() => { sessionStorage.removeItem("admin_key"); setAuthenticated(false); }} style={{ background: "none", border: "1px solid #2a2a3e", borderRadius: 8, color: "#888", padding: "6px 12px", fontSize: 11, cursor: "pointer" }}>
             Salir
           </button>
@@ -209,21 +220,29 @@ export default function AdminApp() {
               {tab.id === "errors" && (
                 <span style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "#f05050" }} />
               )}
+              {tab.id === "incidents" && (health?.tradingPaused || health?.readOnlyMode || health?.degradedMode) && (
+                <span style={{ marginLeft: "auto", background: "#f05050", color: "#fff", borderRadius: 6, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>!</span>
+              )}
+              {tab.id === "alerts" && alerts.length > 0 && (
+                <span style={{ marginLeft: "auto", background: "#f7a606", color: "#000", borderRadius: 6, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>{alerts.length}</span>
+              )}
             </button>
           ))}
         </nav>
 
         <main style={{ flex: 1, padding: isMobile ? 12 : 24, overflow: "auto", maxHeight: "calc(100vh - 52px)" }}>
           {activeTab === "overview" && <OverviewPanel stats={stats} health={health} onViewUser={handleViewUser} />}
+          {activeTab === "moneyflow" && <MoneyFlowPanel apiCall={apiCall} />}
           {activeTab === "whales" && <WhalesPanel apiCall={apiCall} onViewUser={handleViewUser} />}
           {activeTab === "activity" && <LiveFeedPanel apiCall={apiCall} onViewUser={handleViewUser} />}
+          {activeTab === "incidents" && <IncidentPanel apiCall={apiCall} tokens={stats?.tokens || []} />}
           {activeTab === "errors" && <ErrorsPanel apiCall={apiCall} />}
+          {activeTab === "alerts" && <AlertPanel alerts={alerts} stats={stats} health={health} />}
           {activeTab === "users" && !selectedUserId && <UsersPanel apiCall={apiCall} onSelectUser={setSelectedUserId} />}
           {activeTab === "users" && selectedUserId && <UserDetailPanel apiCall={apiCall} userId={selectedUserId} onBack={() => setSelectedUserId(null)} />}
           {activeTab === "reports" && <ReportsPanel apiCall={apiCall} onViewUser={handleViewUser} />}
           {activeTab === "tokens" && <TokensPanel tokens={stats?.tokens || []} trading={stats?.trading} />}
           {activeTab === "sessions" && <SessionsPanel apiCall={apiCall} onViewUser={handleViewUser} />}
-          {activeTab === "alerts" && <AlertPanel alerts={alerts} stats={stats} health={health} />}
         </main>
       </div>
     </div>
