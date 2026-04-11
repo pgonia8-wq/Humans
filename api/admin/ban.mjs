@@ -1,4 +1,4 @@
-import { supabase, adminAuth, cors } from "./_auth.mjs";
+import { supabase, adminAuth, cors, writeLog } from "./_auth.mjs";
 
 export default async function handler(req, res) {
   cors(res, req);
@@ -28,6 +28,7 @@ export default async function handler(req, res) {
         details: JSON.stringify({ reason, action: "ban" }),
       }).catch(() => {});
 
+      await writeLog({ category: "admin_action", event: "user_banned", severity: "warning", user_id: userId, details: { reason, action: "ban" }, endpoint: "/api/admin/ban" });
       return res.status(200).json({ success: true, message: "User banned" });
     }
 
@@ -48,6 +49,7 @@ export default async function handler(req, res) {
         details: JSON.stringify({ action: "unban" }),
       }).catch(() => {});
 
+      await writeLog({ category: "admin_action", event: "user_unbanned", severity: "info", user_id: userId, details: { action: "unban" }, endpoint: "/api/admin/ban" });
       return res.status(200).json({ success: true, message: "User unbanned" });
     }
   } catch (err) {

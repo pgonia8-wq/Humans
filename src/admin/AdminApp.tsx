@@ -5,12 +5,20 @@ import UserDetailPanel from "./components/UserDetailPanel";
 import ReportsPanel from "./components/ReportsPanel";
 import TokensPanel from "./components/TokensPanel";
 import AlertPanel from "./components/AlertPanel";
+import LiveFeedPanel from "./components/LiveFeedPanel";
+import ErrorsPanel from "./components/ErrorsPanel";
+import SessionsPanel from "./components/SessionsPanel";
+import WhalesPanel from "./components/WhalesPanel";
 
 const TABS = [
   { id: "overview", label: "Panel General", icon: "📊" },
+  { id: "whales", label: "Whales & Dumps", icon: "🐋" },
+  { id: "activity", label: "Actividad", icon: "📡" },
+  { id: "errors", label: "Errores", icon: "🔥" },
   { id: "users", label: "Usuarios", icon: "👥" },
   { id: "reports", label: "Reportes", icon: "🚨" },
   { id: "tokens", label: "Tokens", icon: "💰" },
+  { id: "sessions", label: "Sesiones", icon: "🔑" },
   { id: "alerts", label: "Alertas", icon: "⚡" },
 ] as const;
 
@@ -31,6 +39,8 @@ export default function AdminApp() {
   const [stats, setStats] = useState<any>(null);
   const [health, setHealth] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
   const apiCall = useCallback(async (path: string, opts?: any) => {
     const key = adminKey || getStoredKey();
@@ -126,20 +136,30 @@ export default function AdminApp() {
     );
   }
 
+  const switchTab = (id: TabId) => {
+    setActiveTab(id);
+    if (id !== "users") setSelectedUserId(null);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0f", fontFamily: "'Inter', -apple-system, sans-serif", color: "#e0e0e0" }}>
-      <header style={{ background: "#12121a", borderBottom: "1px solid #1e1e2e", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <header style={{ background: "#12121a", borderBottom: "1px solid #1e1e2e", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            style={{ display: isMobile ? "block" : "none", background: "none", border: "none", color: "#888", fontSize: 20, cursor: "pointer", padding: "4px 8px" }}>
+            ☰
+          </button>
           <span style={{ fontSize: 20 }}>🛡️</span>
           <div>
-            <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" }}>Mission Control</h1>
-            <span style={{ fontSize: 10, color: "#666" }}>Humans Admin Dashboard</span>
+            <h1 style={{ fontSize: isMobile ? 14 : 16, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" }}>Mission Control</h1>
+            {!isMobile && <span style={{ fontSize: 10, color: "#666" }}>Humans Admin Dashboard</span>}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 16 }}>
           {alerts.length > 0 && (
-            <span style={{ background: "#f0505020", color: "#f05050", padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
-              {alerts.length} alerta{alerts.length > 1 ? "s" : ""}
+            <span onClick={() => switchTab("alerts")} style={{ background: "#f0505020", color: "#f05050", padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+              {alerts.length} ⚠
             </span>
           )}
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10f090", boxShadow: "0 0 8px #10f09060" }} title="Conectado" />
@@ -149,12 +169,27 @@ export default function AdminApp() {
         </div>
       </header>
 
-      <div style={{ display: "flex" }}>
-        <nav style={{ width: 200, background: "#0f0f18", borderRight: "1px solid #1a1a2a", padding: "16px 8px", minHeight: "calc(100vh - 52px)", flexShrink: 0 }}>
+      <div style={{ display: "flex", position: "relative" }}>
+        {mobileMenuOpen && isMobile && (
+          <div onClick={() => setMobileMenuOpen(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 40 }} />
+        )}
+
+        <nav style={{
+          width: isMobile ? 220 : 200,
+          background: "#0f0f18",
+          borderRight: "1px solid #1a1a2a",
+          padding: "16px 8px",
+          minHeight: "calc(100vh - 52px)",
+          flexShrink: 0,
+          ...(isMobile ? {
+            position: "fixed", top: 52, left: mobileMenuOpen ? 0 : -230, bottom: 0,
+            zIndex: 45, transition: "left 0.2s ease", overflowY: "auto",
+          } : {}),
+        }}>
           {TABS.map(tab => (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id); if (tab.id !== "users") setSelectedUserId(null); }}
+              onClick={() => switchTab(tab.id)}
               style={{
                 display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px",
                 background: activeTab === tab.id ? "#1a1a2e" : "transparent",
@@ -171,16 +206,23 @@ export default function AdminApp() {
                   {stats.overview.pendingReports}
                 </span>
               )}
+              {tab.id === "errors" && (
+                <span style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "#f05050" }} />
+              )}
             </button>
           ))}
         </nav>
 
-        <main style={{ flex: 1, padding: 24, overflow: "auto", maxHeight: "calc(100vh - 52px)" }}>
+        <main style={{ flex: 1, padding: isMobile ? 12 : 24, overflow: "auto", maxHeight: "calc(100vh - 52px)" }}>
           {activeTab === "overview" && <OverviewPanel stats={stats} health={health} onViewUser={handleViewUser} />}
+          {activeTab === "whales" && <WhalesPanel apiCall={apiCall} onViewUser={handleViewUser} />}
+          {activeTab === "activity" && <LiveFeedPanel apiCall={apiCall} onViewUser={handleViewUser} />}
+          {activeTab === "errors" && <ErrorsPanel apiCall={apiCall} />}
           {activeTab === "users" && !selectedUserId && <UsersPanel apiCall={apiCall} onSelectUser={setSelectedUserId} />}
           {activeTab === "users" && selectedUserId && <UserDetailPanel apiCall={apiCall} userId={selectedUserId} onBack={() => setSelectedUserId(null)} />}
           {activeTab === "reports" && <ReportsPanel apiCall={apiCall} onViewUser={handleViewUser} />}
           {activeTab === "tokens" && <TokensPanel tokens={stats?.tokens || []} trading={stats?.trading} />}
+          {activeTab === "sessions" && <SessionsPanel apiCall={apiCall} onViewUser={handleViewUser} />}
           {activeTab === "alerts" && <AlertPanel alerts={alerts} stats={stats} health={health} />}
         </main>
       </div>

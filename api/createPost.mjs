@@ -86,10 +86,14 @@ import { createClient } from "@supabase/supabase-js";
         return res.status(500).json({ error: error.message });
       }
 
-      console.log(JSON.stringify({ event: "create_post_ok", reqId, userId: user_id, postId: data?.id, latency_ms: Date.now() - t0 }));
+      const elapsed = Date.now() - t0;
+      console.log(JSON.stringify({ event: "create_post_ok", reqId, userId: user_id, postId: data?.id, latency_ms: elapsed }));
+      supabase.from("admin_logs").insert({ category: "activity", event: "create_post", severity: "info", user_id, endpoint: "/api/createPost", latency_ms: elapsed, details: { postId: data?.id, content_length: cleanContent?.length, reqId } }).catch(() => {});
       return res.status(201).json({ success: true, postId: data?.id });
     } catch (err) {
-      console.error(JSON.stringify({ event: "error", type: "create_post_exception", reqId, endpoint: "/api/createPost", userId: user_id, error: err.message, latency_ms: Date.now() - t0 }));
+      const elapsed = Date.now() - t0;
+      console.error(JSON.stringify({ event: "error", type: "create_post_exception", reqId, endpoint: "/api/createPost", userId: user_id, error: err.message, latency_ms: elapsed }));
+      supabase.from("admin_logs").insert({ category: "error", event: "create_post_error", severity: "error", user_id, endpoint: "/api/createPost", latency_ms: elapsed, details: { error: err.message, reqId } }).catch(() => {});
       return res.status(500).json({ error: "Internal server error" });
     }
   }

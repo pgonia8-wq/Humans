@@ -189,6 +189,7 @@ export default async function handler(req, res) {
       trackRequest(elapsed); trackTrade(amountWld);
       if (elapsed > 500) triggerAlert("SLOW_BUY", { reqId, elapsed });
       console.log(JSON.stringify({ op: "BUY_OK", reqId, tokenId, userId, tokensOut, fee, newPrice, newSupply, elapsed_ms: elapsed }));
+      supabase.from("admin_logs").insert({ category: "activity", event: "token_buy", severity: "info", user_id: userId, username, endpoint: "/api/tokenBuy", latency_ms: elapsed, details: { tokenId, tokenSymbol: token.symbol, amountWld, tokensOut, fee, newPrice, reqId } }).catch(() => {});
       return res.status(200).json({
         success: true,
         tokensReceived: tokensOut, fee,
@@ -201,6 +202,7 @@ export default async function handler(req, res) {
       trackRequest(elapsed, true);
       if (err.message?.includes("concurrent") || err.message?.includes("OCC")) trackOccConflict();
       console.error(JSON.stringify({ op: "BUY_ERR", reqId, tokenId, userId, attempt, error: err.message, elapsed_ms: elapsed }));
+      supabase.from("admin_logs").insert({ category: "error", event: "buy_error", severity: attempt >= MAX_RETRIES - 1 ? "error" : "warning", user_id: userId, endpoint: "/api/tokenBuy", latency_ms: elapsed, details: { tokenId, attempt, error: err.message, reqId } }).catch(() => {});
       if (attempt >= MAX_RETRIES - 1) {
         if (orderId) {
           await supabase.from("payment_orders").update({

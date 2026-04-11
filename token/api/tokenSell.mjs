@@ -199,6 +199,7 @@ import { supabase, cors } from "./_supabase.mjs";
       trackRequest(elapsed); trackTrade(wldReceived);
       if (elapsed > 500) triggerAlert("SLOW_SELL", { reqId, elapsed });
       console.log(JSON.stringify({ op: "SELL_OK", reqId, tokenId, userId, tokensToSell, wldReceived, fee, newPrice, newSupply, elapsed_ms: elapsed }));
+      supabase.from("admin_logs").insert({ category: "activity", event: "token_sell", severity: "info", user_id: userId, username, endpoint: "/api/tokenSell", latency_ms: elapsed, details: { tokenId, tokenSymbol: token.symbol, tokensToSell, wldReceived, fee, newPrice, reqId } }).catch(() => {});
       return res.status(200).json({
           success: true,
           wldReceived, fee,
@@ -214,6 +215,7 @@ import { supabase, cors } from "./_supabase.mjs";
         trackRequest(elapsed, true);
         if (err.message?.includes("concurrent") || err.message?.includes("OCC")) trackOccConflict();
         console.error(JSON.stringify({ op: "SELL_ERR", reqId, tokenId, userId, attempt, error: err.message, elapsed_ms: elapsed }));
+        supabase.from("admin_logs").insert({ category: "error", event: "sell_error", severity: attempt >= MAX_RETRIES - 1 ? "error" : "warning", user_id: userId, endpoint: "/api/tokenSell", latency_ms: elapsed, details: { tokenId, attempt, error: err.message, reqId } }).catch(() => {});
         if (attempt >= MAX_RETRIES - 1) {
           return res.status(500).json({ error: "Internal server error" });
         }

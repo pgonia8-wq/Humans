@@ -1,4 +1,4 @@
-import { supabase, adminAuth, cors } from "./_auth.mjs";
+import { supabase, adminAuth, cors, writeLog } from "./_auth.mjs";
 
 export default async function handler(req, res) {
   cors(res, req);
@@ -67,6 +67,7 @@ export default async function handler(req, res) {
         details: JSON.stringify({ reportId, action, banUser }),
       }).catch(() => {});
 
+      await writeLog({ category: "admin_action", event: `report_${action}`, severity: banUser ? "warning" : "info", user_id: report.user_id, details: { reportId, action, banUser, reason: report.reason }, endpoint: "/api/admin/reports" });
       return res.status(200).json({ success: true });
     } catch (err) {
       console.error("[ADMIN/REPORTS POST]", err.message);

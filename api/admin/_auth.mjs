@@ -16,6 +16,18 @@ export function adminAuth(req, res) {
   return true;
 }
 
+export async function writeLog({ category = "activity", event, severity = "info", user_id, username, details = {}, endpoint, latency_ms }) {
+  try {
+    await supabase.from("admin_logs").insert({
+      category, event, severity, user_id: user_id || null, username: username || null,
+      details: typeof details === "object" ? details : { raw: details },
+      endpoint: endpoint || null, latency_ms: latency_ms || null,
+    });
+  } catch (e) {
+    console.error("[WRITE_LOG]", e.message);
+  }
+}
+
 export function cors(res, req) {
   const origin = req?.headers?.origin || "";
   const allowed = (process.env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
