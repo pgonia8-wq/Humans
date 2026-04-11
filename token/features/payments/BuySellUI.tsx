@@ -137,9 +137,10 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
       setBuyStep("paying");
       const transactionId = await requestPayment(amountWld, `Buy ${token.symbol} tokens`);
       setBuyStep("processing");
+      const idempotencyKey = generatePayReference();
 
       const result = await api.buyToken({
-        tokenId: token.id, amountWld, userId: user.id, transactionId,
+        tokenId: token.id, amountWld, userId: user.id, transactionId, idempotencyKey,
       });
 
       if (!result.success) { setError(result.message || "Buy failed"); setBuyStep("idle"); return; }
@@ -156,7 +157,10 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("cancelled")) setBuyStep("idle");
-      else { setError(msg); setBuyStep("idle"); }
+      else if (msg.includes("Concurrent trade") || msg.includes("concurrent")) {
+        setError("Someone traded just before you — please retry.");
+        setBuyStep("idle");
+      } else { setError(msg); setBuyStep("idle"); }
     }
   };
 
@@ -173,18 +177,29 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
     }
     setLoading(true);
     setError(null);
+    const idempotencyKey = generatePayReference();
     try {
-      const result = await api.sellToken({ tokenId: token.id, tokensToSell, userId: user.id });
+      const result = await api.sellToken({ tokenId: token.id, tokensToSell, userId: user.id, idempotencyKey });
       if (!result.success) { setError(result.message || "Sell failed"); setLoading(false); return; }
       updateBalance(balanceWld + result.wldReceived, balanceUsdc);
       emitToBridge("onTokenSold", {
         tokenId: token.id, tokenSymbol: token.symbol,
         tokensSold: tokensToSell, wldReceived: result.wldReceived, userId: user.id,
       });
+      if (result.wasPartial) {
+        setError("Partial payout: you received " + result.wldReceived.toFixed(6) + " WLD (high sell demand reduced your payout)");
+      }
       setBuyStep("success");
-      setTimeout(() => { setBuyStep("idle"); setLoading(false); onSuccess(); }, 1500);
+      setTimeout(() => { setBuyStep("idle"); setLoading(false); onSuccess(); }, result.wasPartial ? 4000 : 1500);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("Concurrent trade") || msg.includes("concurrent")) {
+        setError("Someone traded just before you — please retry.");
+      } else if (msg.includes("2.5%") || msg.includes("Max sell")) {
+        setError("Maximum 2.5% of supply per transaction. Split your sell into smaller parts.");
+      } else {
+        setError(msg);
+      }
       setLoading(false);
     }
   };

@@ -120,6 +120,7 @@ export interface BuyRequest {
   amountWld: number;
   userId: string;
   transactionId?: string;
+  idempotencyKey?: string;
 }
 
 export interface BuyResult {
@@ -138,6 +139,7 @@ export interface SellRequest {
   tokenId: string;
   tokensToSell: number;
   userId: string;
+  idempotencyKey?: string;
 }
 
 export interface SellResult {
@@ -151,6 +153,7 @@ export interface SellResult {
   newSupply: number;
   curvePercent: number;
   message: string;
+  wasPartial?: boolean;
 }
 
 export interface CreateTokenRequest {

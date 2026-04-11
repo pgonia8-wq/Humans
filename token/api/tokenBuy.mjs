@@ -18,9 +18,28 @@ export default async function handler(req, res) {
   const amountWld = body.amountWld;
   const userId = body.userId || body.user_id;
   const transactionId = body.transactionId || body.transaction_id;
-  console.log("[BUY] INPUT:", { tokenId, amountWld, userId, transactionId });
+  const idempotencyKey = body.idempotencyKey || body.idempotency_key || null;
+  console.log("[BUY] INPUT:", { tokenId, amountWld, userId, transactionId, idempotencyKey });
   if (!tokenId || !amountWld || !userId || !transactionId) {
     return res.status(400).json({ error: "Missing tokenId, amountWld, userId" });
+  }
+
+  if (idempotencyKey) {
+    const { data: existing } = await supabase
+      .from("token_activity")
+      .select("id, amount, price, total")
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+    if (existing) {
+      console.log("[BUY] Idempotency hit — returning cached result for key:", idempotencyKey);
+      return res.status(200).json({
+        success: true, duplicate: true,
+        tokensReceived: Number(existing.amount), fee: 0,
+        avgPrice: Number(existing.price), newPrice: Number(existing.price),
+        newPriceUsd: 0, newSupply: 0, curvePercent: 0,
+        message: "Duplicate request — original trade already executed",
+      });
+    }
   }
   if (amountWld <= 0 || amountWld > 120) {
     return res.status(400).json({ error: "amountWld must be between 0 and 120 WLD" });
@@ -143,6 +162,7 @@ export default async function handler(req, res) {
         p_market_cap: newSupply * newPriceUsd,
         p_volume_24h: volumeNew,
         p_expected_supply: supply,
+        p_idempotency_key: idempotencyKey,
       });
 
       if (rpcErr) throw rpcErr;

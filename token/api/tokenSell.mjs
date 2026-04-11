@@ -16,11 +16,31 @@ import { supabase, cors } from "./_supabase.mjs";
     const body = req.body ?? {};
     const tokensToSell = body.tokensToSell || body.tokens_to_sell;
     const userId = body.userId || body.user_id;
-    console.log("[SELL] INPUT:", { tokenId, tokensToSell, userId });
+    const idempotencyKey = body.idempotencyKey || body.idempotency_key || null;
+    console.log("[SELL] INPUT:", { tokenId, tokensToSell, userId, idempotencyKey });
     if (!tokenId || !tokensToSell || !userId) {
       return res.status(400).json({ error: "Missing tokenId, tokensToSell, userId" });
     }
     if (tokensToSell <= 0) return res.status(400).json({ error: "tokensToSell must be positive" });
+
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from("token_activity")
+        .select("id, amount, price, total")
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
+      if (existing) {
+        console.log("[SELL] Idempotency hit — returning cached result for key:", idempotencyKey);
+        return res.status(200).json({
+          success: true, duplicate: true,
+          wldReceived: Number(existing.total), fee: 0,
+          grossWld: 0, avgPrice: Number(existing.price),
+          newPrice: Number(existing.price), newPriceUsd: 0,
+          newSupply: 0, curvePercent: 0,
+          message: "Duplicate request — original trade already executed",
+        });
+      }
+    }
 
     const orbOk = await requireOrb(userId, res);
     if (!orbOk) return;
@@ -66,7 +86,7 @@ import { supabase, cors } from "./_supabase.mjs";
         const treasuryBal = Number(token.treasury_balance ?? 0);
         const {
           wldReceived, fee, slippageAmt, totalFees,
-          curveReturn, newSupply, newPrice,
+          curveReturn, newSupply, newPrice, wasPartial,
         } = solveSell(tokensToSell, supply, treasuryBal);
 
         const totalWldInCurve = Number(token.total_wld_in_curve ?? 0);
@@ -178,6 +198,7 @@ import { supabase, cors } from "./_supabase.mjs";
           token_id: tokenId, token_symbol: token.symbol,
           amount: tokensToSell, price: newPrice, total: wldReceived,
           timestamp: new Date().toISOString(),
+          ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
         });
 
         await recordPriceSnapshot(tokenId, newPrice, newPriceUsd, newSupply, wldReceived * wldUsd, "sell");
@@ -200,7 +221,10 @@ import { supabase, cors } from "./_supabase.mjs";
           avgPrice: tokensToSell > 0 ? wldReceived / tokensToSell : 0,
           newPrice, newPriceUsd, newSupply,
           curvePercent: cp,
-          message: "Sold " + tokensToSell.toLocaleString() + " " + token.symbol + " for " + wldReceived.toFixed(6) + " WLD",
+          wasPartial: wasPartial || false,
+          message: wasPartial
+            ? "Partial payout: received " + wldReceived.toFixed(6) + " WLD (high sell demand)"
+            : "Sold " + tokensToSell.toLocaleString() + " " + token.symbol + " for " + wldReceived.toFixed(6) + " WLD",
         });
       } catch (err) {
         console.error("[SELL attempt=" + attempt + "]", err.message);
