@@ -2,6 +2,7 @@ const userWindows = new Map();
 const payloadHashes = new Map();
 const burstTracker = new Map();
 const tradingLoops = new Map();
+const trustScores = new Map();
 
 const BASE_LIMITS = {
   like: { perSec: 10, perMin: 120 },
@@ -9,6 +10,13 @@ const BASE_LIMITS = {
   trade: { perSec: 3, perMin: 60 },
   delete: { perSec: 1, perMin: 15 },
   default: { perSec: 5, perMin: 100 },
+};
+
+const TRUST_TIERS = {
+  new: { multiplier: 0.5, burstLimit: 5 },
+  normal: { multiplier: 1.0, burstLimit: 8 },
+  verified: { multiplier: 1.5, burstLimit: 12 },
+  premium: { multiplier: 2.0, burstLimit: 15 },
 };
 
 const CLEANUP_INTERVAL = 120000;
@@ -32,8 +40,15 @@ function cleanup() {
   }
 }
 
-function getUserTrustScore(userId) {
-  return 1.0;
+export function setUserTrust(userId, tier) {
+  if (TRUST_TIERS[tier]) {
+    trustScores.set(userId, tier);
+  }
+}
+
+function getUserTrust(userId) {
+  const tier = trustScores.get(userId) || "normal";
+  return TRUST_TIERS[tier] || TRUST_TIERS.normal;
 }
 
 function hashPayload(payload) {
@@ -51,9 +66,9 @@ export function smartRateLimit(userId, opType, payload = null) {
   cleanup();
   const now = Date.now();
   const limits = BASE_LIMITS[opType] || BASE_LIMITS.default;
-  const trustScore = getUserTrustScore(userId);
-  const effectivePerSec = Math.ceil(limits.perSec * trustScore);
-  const effectivePerMin = Math.ceil(limits.perMin * trustScore);
+  const trust = getUserTrust(userId);
+  const effectivePerSec = Math.ceil(limits.perSec * trust.multiplier);
+  const effectivePerMin = Math.ceil(limits.perMin * trust.multiplier);
 
   const key = `${userId}:${opType}`;
   let window = userWindows.get(key);
@@ -85,7 +100,7 @@ export function smartRateLimit(userId, opType, payload = null) {
   burst.actions = burst.actions.filter(t => now - t < 1000);
   burst.actions.push(now);
   burst.lastAction = now;
-  if (burst.actions.length > 5) {
+  if (burst.actions.length > trust.burstLimit) {
     return { limited: true, reason: "burst_spam", retryAfterMs: 2000 };
   }
 
@@ -140,5 +155,6 @@ export function getRateLimitStats() {
     trackedPayloads: payloadHashes.size,
     burstTracking: burstTracker.size,
     tradingLoops: tradingLoops.size,
+    trustScores: trustScores.size,
   };
 }

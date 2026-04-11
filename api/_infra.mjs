@@ -9,6 +9,15 @@ const STATES = {
   HARD_SAFE: "HARD_SAFE",
 };
 
+const STATE_RANK = {
+  [STATES.NORMAL]: 0,
+  [STATES.STRESS]: 1,
+  [STATES.CRITICAL]: 2,
+  [STATES.STABILIZATION]: 3,
+  [STATES.LOCKDOWN]: 4,
+  [STATES.HARD_SAFE]: 5,
+};
+
 const state = {
   current: STATES.NORMAL,
   since: Date.now(),
@@ -19,18 +28,15 @@ const state = {
   gpi: 0,
   gpiHistory: [],
   config: {
-    stressLatencyP95: 200,
-    stressErrorRate: 3,
-    stressDbConnections: 70,
-    criticalDbUsage: 80,
-    criticalErrorRate: 10,
-    criticalQueueSize: 50000,
-    lockdownAutoSec: 300,
-    stabilizationAfterCriticalSec: 120,
-    hardSafeAfterLockdownSec: 300,
-    recoveryErrorRate: 2,
-    recoveryLatencyP95: 150,
-    recoveryDbUsage: 70,
+    stressLatencyP95: 500,
+    stressSysErrRate: 6,
+    stressDbUsage: 85,
+    criticalDbUsage: 90,
+    criticalSysErrRate: 18,
+    criticalQueueSize: 500000,
+    lockdownSysErrRate: 35,
+    stabilizationAfterCriticalSec: 90,
+    hardSafeAfterLockdownSec: 400,
     gpiWeights: { queueSize: 0.20, dbLatency: 0.25, errorRate: 0.25, rps: 0.15, connectionSat: 0.15 },
   },
   cache: { enabled: false, feedTTL: 0, profileTTL: 0, tokenTTL: 0 },
@@ -43,6 +49,73 @@ const state = {
   dbWriteReduction: 0,
   aggressiveBatching: false,
 };
+
+const rolling = {
+  sysErr: 0,
+  weightedErr: 0,
+  p95: 0,
+  dbUse: 0,
+};
+const EMA_ALPHA = 0.3;
+
+function emaUpdate(field, value) {
+  rolling[field] = rolling[field] * (1 - EMA_ALPHA) + value * EMA_ALPHA;
+}
+
+const ERROR_WEIGHTS = {
+  db_failure: 1.0,
+  timeout: 0.8,
+  internal: 0.9,
+  unhandled: 1.0,
+  rate_limited: 0.1,
+  idempotency: 0,
+  insufficient_funds: 0,
+  validation: 0,
+  cb_rejected: 0.1,
+  network_drop: 0,
+  client_disconnect: 0,
+  retry: 0,
+};
+
+const SYSTEM_ERRORS = new Set(["db_failure", "timeout", "internal", "unhandled"]);
+const EXPECTED_ERRORS = new Set(["rate_limited", "idempotency", "insufficient_funds", "validation", "cb_rejected"]);
+
+const errorCounters = {
+  system: 0,
+  expected: 0,
+  noise: 0,
+  total: 0,
+  byKind: {},
+};
+
+export function recordErrorByKind(kind) {
+  errorCounters.total++;
+  if (!errorCounters.byKind[kind]) errorCounters.byKind[kind] = 0;
+  errorCounters.byKind[kind]++;
+  if (SYSTEM_ERRORS.has(kind)) errorCounters.system++;
+  else if (EXPECTED_ERRORS.has(kind)) errorCounters.expected++;
+  else errorCounters.noise++;
+}
+
+export function getErrorClassification() {
+  const m = getMetrics();
+  const total = m.requests || 1;
+  return {
+    systemErrorRate: (errorCounters.system / total) * 100,
+    expectedErrorRate: (errorCounters.expected / total) * 100,
+    noiseErrorRate: (errorCounters.noise / total) * 100,
+    totalErrorRate: m.errorRateNum || 0,
+    weightedErrorRate: Object.entries(errorCounters.byKind).reduce(
+      (sum, [kind, count]) => sum + count * (ERROR_WEIGHTS[kind] || 0), 0
+    ) / total * 100,
+    counters: { ...errorCounters },
+  };
+}
+
+let hystTarget = null;
+let hystSince = 0;
+const HYST_ESCALATION_MS = 15000;
+const HYST_RECOVERY_MS = 90000;
 
 const PRIORITY = { TRADING: 1, FINANCIAL: 2, TOKEN_STATE: 3, QUEUE_PROCESSING: 4, SOCIAL: 5, UI_REALTIME: 6 };
 
@@ -155,12 +228,19 @@ const applyMap = {
 function setState(newState, reason = "manual") {
   if (newState === state.current) return;
   const old = state.current;
+  const isDeescalation = STATE_RANK[newState] < STATE_RANK[old];
   state.current = newState;
   state.since = Date.now();
-  if (newState === STATES.CRITICAL) state.criticalSince = state.criticalSince || Date.now();
-  else if (newState !== STATES.STABILIZATION) state.criticalSince = null;
-  if (newState === STATES.LOCKDOWN) state.lockdownSince = state.lockdownSince || Date.now();
-  else if (newState !== STATES.HARD_SAFE) state.lockdownSince = null;
+  if (newState === STATES.CRITICAL) {
+    state.criticalSince = isDeescalation ? Date.now() : (state.criticalSince || Date.now());
+  } else if (newState !== STATES.STABILIZATION) {
+    state.criticalSince = null;
+  }
+  if (newState === STATES.LOCKDOWN) {
+    state.lockdownSince = isDeescalation ? Date.now() : (state.lockdownSince || Date.now());
+  } else if (newState !== STATES.HARD_SAFE) {
+    state.lockdownSince = null;
+  }
   applyMap[newState]();
   logTransition(old, newState, reason);
 }
@@ -171,7 +251,8 @@ export function computeGPI(dbLatencyMs = 0, dbUsagePercent = 0, queueSize = 0) {
 
   const queueScore = Math.min(100, (queueSize / 500000) * 100);
   const dbLatScore = Math.min(100, (dbLatencyMs / 1000) * 100);
-  const errScore = Math.min(100, (m.errorRateNum || 0) * 10);
+  const ec = getErrorClassification();
+  const errScore = Math.min(100, ec.systemErrorRate * 10);
   const rpsScore = Math.min(100, (m.rps || 0) / 100 * 100);
   const connScore = Math.min(100, (dbUsagePercent / 100) * 100);
 
@@ -190,83 +271,64 @@ export function computeGPI(dbLatencyMs = 0, dbUsagePercent = 0, queueSize = 0) {
   return state.gpi;
 }
 
-function checkRecoveryConditions(m, dbUsagePercent) {
-  return (
-    (m.errorRateNum || 0) < state.config.recoveryErrorRate &&
-    (m.p95 || 0) < state.config.recoveryLatencyP95 &&
-    dbUsagePercent < state.config.recoveryDbUsage
-  );
-}
-
 export function evaluateState(dbUsagePercent = 0, dbLatencyMs = 0, queueSize = 0) {
   if (!state.auto) return state.current;
   const m = getMetrics();
-  const errRate = m.errorRateNum || 0;
   const p95 = m.p95 || 0;
+  const now = Date.now();
 
   const gpi = computeGPI(dbLatencyMs, dbUsagePercent, queueSize);
 
-  if (state.current === STATES.HARD_SAFE) {
-    if (checkRecoveryConditions(m, dbUsagePercent)) {
-      setState(STATES.STRESS, `auto-recovery: metrics stable (err=${errRate.toFixed(1)}% p95=${p95}ms db=${dbUsagePercent}%)`);
-    }
-    return state.current;
+  emaUpdate("sysErr", getErrorClassification().systemErrorRate);
+  emaUpdate("weightedErr", getErrorClassification().weightedErrorRate);
+  emaUpdate("p95", p95);
+  emaUpdate("dbUse", dbUsagePercent);
+
+  const sysErr = rolling.sysErr;
+  const latP95 = rolling.p95;
+  const dbUse = rolling.dbUse;
+  const cfg = state.config;
+
+  const shouldStress = latP95 > cfg.stressLatencyP95 || sysErr > cfg.stressSysErrRate || dbUse > cfg.stressDbUsage;
+  const shouldCrit = dbUse > cfg.criticalDbUsage || sysErr > cfg.criticalSysErrRate || queueSize > cfg.criticalQueueSize;
+  const shouldLock = sysErr > cfg.lockdownSysErrRate;
+
+  let candidate = state.current;
+
+  if (state.current === STATES.NORMAL && shouldStress) candidate = STATES.STRESS;
+  if ((state.current === STATES.NORMAL || state.current === STATES.STRESS) && shouldCrit) candidate = STATES.CRITICAL;
+  if (state.current === STATES.CRITICAL) {
+    state.criticalSince = state.criticalSince || now;
+    if (now - state.criticalSince > cfg.stabilizationAfterCriticalSec * 1000) candidate = STATES.STABILIZATION;
+  }
+  if ((state.current === STATES.CRITICAL || state.current === STATES.STABILIZATION) && shouldLock) candidate = STATES.LOCKDOWN;
+  if (state.current === STATES.LOCKDOWN) {
+    state.lockdownSince = state.lockdownSince || now;
+    if (now - state.lockdownSince > cfg.hardSafeAfterLockdownSec * 1000) candidate = STATES.HARD_SAFE;
   }
 
-  if (state.current === STATES.STABILIZATION) {
-    if (checkRecoveryConditions(m, dbUsagePercent)) {
-      setState(STATES.STRESS, `auto-recovery: stabilization complete (err=${errRate.toFixed(1)}%)`);
-    } else if (state.criticalSince) {
-      const criticalElapsed = (Date.now() - state.criticalSince) / 1000;
-      if (criticalElapsed > state.config.lockdownAutoSec) {
-        setState(STATES.LOCKDOWN, `auto: stabilization failed, critical for ${Math.round(criticalElapsed)}s`);
+  if (candidate === state.current) {
+    if (state.current === STATES.HARD_SAFE && !shouldLock) candidate = STATES.LOCKDOWN;
+    else if (state.current === STATES.LOCKDOWN && !shouldCrit) candidate = STATES.CRITICAL;
+    else if ((state.current === STATES.CRITICAL || state.current === STATES.STABILIZATION) && !shouldStress) candidate = STATES.STRESS;
+    else if (state.current === STATES.STRESS && !shouldStress) candidate = STATES.NORMAL;
+  }
+
+  if (candidate !== state.current) {
+    const isEscalation = STATE_RANK[candidate] > STATE_RANK[state.current];
+    const holdMs = isEscalation ? HYST_ESCALATION_MS : HYST_RECOVERY_MS;
+
+    if (hystTarget === candidate) {
+      if (now - hystSince >= holdMs) {
+        setState(candidate, `auto: sysErr=${sysErr.toFixed(1)}% p95=${latP95.toFixed(0)}ms dbUse=${dbUse.toFixed(0)}% q=${queueSize} gpi=${gpi}`);
+        hystTarget = null;
       }
-    }
-    return state.current;
-  }
-
-  if (state.current === STATES.LOCKDOWN && state.lockdownSince) {
-    const lockdownElapsed = (Date.now() - state.lockdownSince) / 1000;
-    if (lockdownElapsed > state.config.hardSafeAfterLockdownSec) {
-      setState(STATES.HARD_SAFE, `auto: lockdown for ${Math.round(lockdownElapsed)}s → hard safe mode`);
-      return state.current;
-    }
-    if (checkRecoveryConditions(m, dbUsagePercent)) {
-      setState(STATES.STRESS, `auto-recovery: lockdown resolved (err=${errRate.toFixed(1)}%)`);
-    }
-    return state.current;
-  }
-
-  if (state.current === STATES.CRITICAL && state.criticalSince) {
-    const criticalElapsed = (Date.now() - state.criticalSince) / 1000;
-    if (criticalElapsed > state.config.stabilizationAfterCriticalSec) {
-      setState(STATES.STABILIZATION, `auto: critical for ${Math.round(criticalElapsed)}s → stabilization`);
-      return state.current;
-    }
-  }
-
-  if (gpi >= 90) {
-    if (state.current !== STATES.LOCKDOWN && state.current !== STATES.HARD_SAFE) {
-      setState(STATES.LOCKDOWN, `auto: GPI=${gpi} (>=90)`);
-    }
-  } else if (gpi >= 75 || dbUsagePercent > state.config.criticalDbUsage || errRate > state.config.criticalErrorRate || queueSize > state.config.criticalQueueSize) {
-    if (state.current !== STATES.CRITICAL && state.current !== STATES.LOCKDOWN && state.current !== STATES.STABILIZATION) {
-      setState(STATES.CRITICAL, `auto: GPI=${gpi} dbUsage=${dbUsagePercent}% errRate=${errRate.toFixed(1)}% queue=${queueSize}`);
-    }
-  } else if (gpi >= 50 || p95 > state.config.stressLatencyP95 || errRate > state.config.stressErrorRate || dbUsagePercent > state.config.stressDbConnections) {
-    if (state.current === STATES.NORMAL) {
-      setState(STATES.STRESS, `auto: GPI=${gpi} p95=${p95}ms errRate=${errRate.toFixed(1)}%`);
-    }
-    if (state.current === STATES.CRITICAL) {
-      setState(STATES.STRESS, `auto: recovering from critical GPI=${gpi}`);
+    } else {
+      hystTarget = candidate;
+      hystSince = now;
     }
   } else {
-    if (state.current === STATES.STRESS) {
-      setState(STATES.NORMAL, `auto: GPI=${gpi} metrics recovered`);
-    }
-    if (state.current === STATES.CRITICAL) {
-      setState(STATES.STRESS, `auto: recovering from critical GPI=${gpi}`);
-    }
+    hystTarget = null;
   }
 
   return state.current;
@@ -282,6 +344,7 @@ export function enableAutoState() {
 }
 
 export function getSystemState() {
+  const ec = getErrorClassification();
   return {
     state: state.current,
     since: new Date(state.since).toISOString(),
@@ -300,6 +363,8 @@ export function getSystemState() {
     aggressiveBatching: state.aggressiveBatching,
     config: { ...state.config },
     history: state.history.slice(-50),
+    errorClassification: ec,
+    rollingMetrics: { ...rolling },
   };
 }
 

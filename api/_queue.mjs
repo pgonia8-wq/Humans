@@ -10,18 +10,18 @@ const STATUSES = { PENDING: "PENDING", PROCESSING: "PROCESSING", DONE: "DONE", F
 const PRIORITIES = { high: 1, medium: 2, low: 3 };
 
 const BACKPRESSURE = {
-  DROP_LOW: 50000,
-  DROP_MEDIUM: 100000,
-  TRADING_ONLY: 250000,
-  SOCIAL_DISABLED: 500000,
-  HARD_LOCKDOWN: 1000000,
+  DROP_LOW: 150000,
+  DROP_MEDIUM: 300000,
+  TRADING_ONLY: 500000,
+  SOCIAL_DISABLED: 800000,
+  HARD_LOCKDOWN: 1500000,
 };
 
 const PROTECTED_TYPES = new Set([OP_TYPES.BUY, OP_TYPES.SELL]);
 
 const inMemoryQueue = [];
 const MAX_MEMORY_QUEUE = 10000;
-const BATCH_SIZE = 25;
+const BATCH_SIZE = 200;
 const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 1000;
 
@@ -31,7 +31,7 @@ const workerState = {
   failed: 0,
   dropped: 0,
   lastRun: null,
-  intervalMs: 2000,
+  intervalMs: 500,
   timer: null,
 };
 
@@ -220,7 +220,7 @@ async function processBatch() {
   return processed;
 }
 
-export function startWorker(intervalMs = 2000) {
+export function startWorker(intervalMs = 500) {
   if (workerState.running) return;
   workerState.running = true;
   workerState.intervalMs = intervalMs;
