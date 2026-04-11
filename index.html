@@ -17,16 +17,6 @@
       <!-- Preconnect con Worldcoin (verificación de identidad) -->
       <link rel="preconnect" href="https://developer.worldcoin.org" />
       <link rel="dns-prefetch" href="https://developer.worldcoin.org" />
-
-      <!-- Eruda: consola de depuración móvil (botón verde abajo-derecha) -->
-      <script src="https://cdn.jsdelivr.net/npm/eruda@3.4.0/eruda.min.js"></script>
-      <script>
-        eruda.init();
-        console.log("[ERUDA] ✅ Console ready", new Date().toISOString());
-        console.log("[ERUDA] userAgent:", navigator.userAgent);
-        console.log("[ERUDA] URL:", location.href);
-        console.log("[ERUDA] referrer:", document.referrer || "none");
-      </script>
     </head>
     <body class="bg-gradient-to-br from-purple-100 via-pink-50 to-blue-50">
       <div id="root"></div>
