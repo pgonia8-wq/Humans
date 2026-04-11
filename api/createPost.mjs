@@ -16,6 +16,8 @@ import { createClient } from "@supabase/supabase-js";
   }
 
   export default async function handler(req, res) {
+    const t0 = Date.now();
+    const reqId = Math.random().toString(36).slice(2, 10);
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -27,7 +29,7 @@ import { createClient } from "@supabase/supabase-js";
     const user_id = body.user_id || body.userId;
     const { content, image_url } = body;
 
-    console.log("[CREATE_POST] INPUT:", { user_id, content_length: content?.length });
+    console.log(JSON.stringify({ event: "create_post", reqId, userId: user_id, content_length: content?.length, ts: new Date().toISOString() }));
 
     if (!user_id || typeof user_id !== "string") {
       return res.status(400).json({ error: "user_id required" });
@@ -80,13 +82,14 @@ import { createClient } from "@supabase/supabase-js";
       }).select("id").maybeSingle();
 
       if (error) {
-        console.error("[CREATE_POST] DB error:", error.message);
+        console.error(JSON.stringify({ event: "error", type: "create_post_db", reqId, endpoint: "/api/createPost", userId: user_id, error: error.message, latency_ms: Date.now() - t0 }));
         return res.status(500).json({ error: error.message });
       }
 
+      console.log(JSON.stringify({ event: "create_post_ok", reqId, userId: user_id, postId: data?.id, latency_ms: Date.now() - t0 }));
       return res.status(201).json({ success: true, postId: data?.id });
     } catch (err) {
-      console.error("[CREATE_POST] Error:", err.message);
+      console.error(JSON.stringify({ event: "error", type: "create_post_exception", reqId, endpoint: "/api/createPost", userId: user_id, error: err.message, latency_ms: Date.now() - t0 }));
       return res.status(500).json({ error: "Internal server error" });
     }
   }

@@ -7,8 +7,11 @@ import {
   TOTAL_SUPPLY, MAX_CREATOR_HOLD,
   GRADUATION_WLD, GRADUATION_HOLDERS, MAX_RETRIES,
 } from "./_curve.mjs";
+import { trackRequest, trackTrade, trackOccConflict, triggerAlert } from "../../api/_metrics.mjs";
 
 export default async function handler(req, res) {
+  const t0 = Date.now();
+  const reqId = Math.random().toString(36).slice(2, 10);
   cors(res);
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -18,28 +21,9 @@ export default async function handler(req, res) {
   const amountWld = body.amountWld;
   const userId = body.userId || body.user_id;
   const transactionId = body.transactionId || body.transaction_id;
-  const idempotencyKey = body.idempotencyKey || body.idempotency_key || null;
-  console.log("[BUY] INPUT:", { tokenId, amountWld, userId, transactionId, idempotencyKey });
+  console.log(JSON.stringify({ op: "BUY_START", reqId, tokenId, amountWld, userId, transactionId, ts: new Date().toISOString() }));
   if (!tokenId || !amountWld || !userId || !transactionId) {
     return res.status(400).json({ error: "Missing tokenId, amountWld, userId" });
-  }
-
-  if (idempotencyKey) {
-    const { data: existing } = await supabase
-      .from("token_activity")
-      .select("id, amount, price, total")
-      .eq("idempotency_key", idempotencyKey)
-      .maybeSingle();
-    if (existing) {
-      console.log("[BUY] Idempotency hit — returning cached result for key:", idempotencyKey);
-      return res.status(200).json({
-        success: true, duplicate: true,
-        tokensReceived: Number(existing.amount), fee: 0,
-        avgPrice: Number(existing.price), newPrice: Number(existing.price),
-        newPriceUsd: 0, newSupply: 0, curvePercent: 0,
-        message: "Duplicate request — original trade already executed",
-      });
-    }
   }
   if (amountWld <= 0 || amountWld > 120) {
     return res.status(400).json({ error: "amountWld must be between 0 and 120 WLD" });
@@ -162,7 +146,6 @@ export default async function handler(req, res) {
         p_market_cap: newSupply * newPriceUsd,
         p_volume_24h: volumeNew,
         p_expected_supply: supply,
-        p_idempotency_key: idempotencyKey,
       });
 
       if (rpcErr) throw rpcErr;
@@ -202,6 +185,10 @@ export default async function handler(req, res) {
         await triggerGraduation(tokenId, token.symbol, totalWldInCurve, newPrice);
       }
 
+      const elapsed = Date.now() - t0;
+      trackRequest(elapsed); trackTrade(amountWld);
+      if (elapsed > 500) triggerAlert("SLOW_BUY", { reqId, elapsed });
+      console.log(JSON.stringify({ op: "BUY_OK", reqId, tokenId, userId, tokensOut, fee, newPrice, newSupply, elapsed_ms: elapsed }));
       return res.status(200).json({
         success: true,
         tokensReceived: tokensOut, fee,
@@ -210,7 +197,10 @@ export default async function handler(req, res) {
         message: "Bought " + tokensOut.toLocaleString() + " " + token.symbol,
       });
     } catch (err) {
-      console.error("[BUY attempt=" + attempt + "]", err.message);
+      const elapsed = Date.now() - t0;
+      trackRequest(elapsed, true);
+      if (err.message?.includes("concurrent") || err.message?.includes("OCC")) trackOccConflict();
+      console.error(JSON.stringify({ op: "BUY_ERR", reqId, tokenId, userId, attempt, error: err.message, elapsed_ms: elapsed }));
       if (attempt >= MAX_RETRIES - 1) {
         if (orderId) {
           await supabase.from("payment_orders").update({

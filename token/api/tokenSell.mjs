@@ -6,8 +6,11 @@ import { supabase, cors } from "./_supabase.mjs";
     solveSell, curvePercent, spotPrice, getWldUsdRate,
     CREATOR_LOCK_HOURS, MAX_RETRIES,
   } from "./_curve.mjs";
+  import { trackRequest, trackTrade, trackOccConflict, trackPartialPayout, triggerAlert } from "../../api/_metrics.mjs";
 
   export default async function handler(req, res) {
+    const t0 = Date.now();
+    const reqId = Math.random().toString(36).slice(2, 10);
     cors(res);
     if (req.method === "OPTIONS") return res.status(200).end();
     if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -16,31 +19,11 @@ import { supabase, cors } from "./_supabase.mjs";
     const body = req.body ?? {};
     const tokensToSell = body.tokensToSell || body.tokens_to_sell;
     const userId = body.userId || body.user_id;
-    const idempotencyKey = body.idempotencyKey || body.idempotency_key || null;
-    console.log("[SELL] INPUT:", { tokenId, tokensToSell, userId, idempotencyKey });
+    console.log(JSON.stringify({ op: "SELL_START", reqId, tokenId, tokensToSell, userId, ts: new Date().toISOString() }));
     if (!tokenId || !tokensToSell || !userId) {
       return res.status(400).json({ error: "Missing tokenId, tokensToSell, userId" });
     }
     if (tokensToSell <= 0) return res.status(400).json({ error: "tokensToSell must be positive" });
-
-    if (idempotencyKey) {
-      const { data: existing } = await supabase
-        .from("token_activity")
-        .select("id, amount, price, total")
-        .eq("idempotency_key", idempotencyKey)
-        .maybeSingle();
-      if (existing) {
-        console.log("[SELL] Idempotency hit — returning cached result for key:", idempotencyKey);
-        return res.status(200).json({
-          success: true, duplicate: true,
-          wldReceived: Number(existing.total), fee: 0,
-          grossWld: 0, avgPrice: Number(existing.price),
-          newPrice: Number(existing.price), newPriceUsd: 0,
-          newSupply: 0, curvePercent: 0,
-          message: "Duplicate request — original trade already executed",
-        });
-      }
-    }
 
     const orbOk = await requireOrb(userId, res);
     if (!orbOk) return;
@@ -86,7 +69,7 @@ import { supabase, cors } from "./_supabase.mjs";
         const treasuryBal = Number(token.treasury_balance ?? 0);
         const {
           wldReceived, fee, slippageAmt, totalFees,
-          curveReturn, newSupply, newPrice, wasPartial,
+          curveReturn, newSupply, newPrice,
         } = solveSell(tokensToSell, supply, treasuryBal);
 
         const totalWldInCurve = Number(token.total_wld_in_curve ?? 0);
@@ -198,7 +181,6 @@ import { supabase, cors } from "./_supabase.mjs";
           token_id: tokenId, token_symbol: token.symbol,
           amount: tokensToSell, price: newPrice, total: wldReceived,
           timestamp: new Date().toISOString(),
-          ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
         });
 
         await recordPriceSnapshot(tokenId, newPrice, newPriceUsd, newSupply, wldReceived * wldUsd, "sell");
@@ -213,6 +195,10 @@ import { supabase, cors } from "./_supabase.mjs";
 
         await supabase.rpc("log_audit", { p_event: "token_sell", p_user: userId, p_details: JSON.stringify({ tokenId, tokensToSell, heldAmount, wldReceived }) });
 
+      const elapsed = Date.now() - t0;
+      trackRequest(elapsed); trackTrade(wldReceived);
+      if (elapsed > 500) triggerAlert("SLOW_SELL", { reqId, elapsed });
+      console.log(JSON.stringify({ op: "SELL_OK", reqId, tokenId, userId, tokensToSell, wldReceived, fee, newPrice, newSupply, elapsed_ms: elapsed }));
       return res.status(200).json({
           success: true,
           wldReceived, fee,
@@ -221,13 +207,13 @@ import { supabase, cors } from "./_supabase.mjs";
           avgPrice: tokensToSell > 0 ? wldReceived / tokensToSell : 0,
           newPrice, newPriceUsd, newSupply,
           curvePercent: cp,
-          wasPartial: wasPartial || false,
-          message: wasPartial
-            ? "Partial payout: received " + wldReceived.toFixed(6) + " WLD (high sell demand)"
-            : "Sold " + tokensToSell.toLocaleString() + " " + token.symbol + " for " + wldReceived.toFixed(6) + " WLD",
+          message: "Sold " + tokensToSell.toLocaleString() + " " + token.symbol + " for " + wldReceived.toFixed(6) + " WLD",
         });
       } catch (err) {
-        console.error("[SELL attempt=" + attempt + "]", err.message);
+        const elapsed = Date.now() - t0;
+        trackRequest(elapsed, true);
+        if (err.message?.includes("concurrent") || err.message?.includes("OCC")) trackOccConflict();
+        console.error(JSON.stringify({ op: "SELL_ERR", reqId, tokenId, userId, attempt, error: err.message, elapsed_ms: elapsed }));
         if (attempt >= MAX_RETRIES - 1) {
           return res.status(500).json({ error: "Internal server error" });
         }

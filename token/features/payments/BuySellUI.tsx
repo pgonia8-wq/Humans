@@ -121,6 +121,8 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
     return displayCurrency === "WLD" ? numAmount : numAmount / wldUsdRate;
   };
 
+  const [confirmHighImpact, setConfirmHighImpact] = useState(false);
+
   const handleBuy = async () => {
     if (!numAmount || numAmount <= 0 || !user?.id) return;
     const amountWld = getAmountWld();
@@ -128,6 +130,12 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
       setError("Amount too small (min ~0.0001 WLD)");
       return;
     }
+    if (priceImpact > 50 && !confirmHighImpact) {
+      setError(`This trade moves the price +${priceImpact.toFixed(1)}%. Tap Buy again to confirm.`);
+      setConfirmHighImpact(true);
+      return;
+    }
+    setConfirmHighImpact(false);
     setError(null);
     setBuyStep("checking_orb");
 
@@ -212,6 +220,15 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
   const estWld = tab === "sell" && numAmount > 0
     ? estimateSell(Math.floor(numAmount), token.circulatingSupply) : 0;
   const buyFeeWld = amountWldForEstimate * 0.02;
+
+  const priceImpact = (() => {
+    if (tab !== "buy" || estTokens <= 0 || !token.priceWld || token.priceWld <= 0) return 0;
+    const K = 2.35e-20;
+    const P0 = 0.00000055;
+    const newSupply = token.circulatingSupply + estTokens;
+    const newPrice = P0 + K * newSupply * newSupply;
+    return ((newPrice - token.priceWld) / token.priceWld) * 100;
+  })();
 
   const percents = [5, 10, 25, 50, 75, 100];
 
@@ -363,6 +380,14 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
                 <span className="text-muted-foreground">Price</span>
                 <span className="text-muted-foreground font-mono">{fmtWld(token.priceWld, { decimals: 8 })}</span>
               </div>
+              {priceImpact > 1 && (
+                <div className={`flex justify-between items-center ${priceImpact > 50 ? "text-red-400" : priceImpact > 20 ? "text-yellow-400" : "text-muted-foreground"}`}>
+                  <span className="flex items-center gap-1 text-[10px]">
+                    <AlertTriangle className="w-2.5 h-2.5" /> Price impact
+                  </span>
+                  <span className="font-mono font-bold text-[10px]">+{priceImpact.toFixed(1)}%</span>
+                </div>
+              )}
             </>
           ) : (
             <>

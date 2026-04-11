@@ -1,5 +1,6 @@
 import { defineConfig } from "vite"
   import react from "@vitejs/plugin-react"
+  import { resolve } from "path"
 
   export default defineConfig({
     plugins: [react()],
@@ -9,6 +10,10 @@ import { defineConfig } from "vite"
     build: {
       target: "esnext",
       rollupOptions: {
+        input: {
+          main: resolve(__dirname, "index.html"),
+          admin: resolve(__dirname, "admin.html"),
+        },
         output: {
           manualChunks: {
             "vendor-react":    ["react", "react-dom"],
@@ -25,4 +30,3 @@ import { defineConfig } from "vite"
       include: ["react", "react-dom", "@supabase/supabase-js"]
     }
   })
-  
