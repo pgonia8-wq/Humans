@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from "react";
+import React, { useState, useEffect, useContext, useRef, lazy, Suspense } from "react";
 import { trackImpression, trackClick } from "../../dashboard/src/lib/tracking";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
@@ -6,7 +6,7 @@ import { useFollow } from "../lib/useFollow";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { useLanguage } from "../LanguageContext";
 const GlobalChatRoom = React.lazy(() => import("../pages/chat/GlobalChatRoom"));
-import ProfileModal from "./ProfileModal";
+const ProfileModal = lazy(() => import("./ProfileModal"));
 import { LIKE_VALUE_WLD, calculatePostEarnings, incrementLikeCount } from "../lib/economy";
 
 // [E3] Helper para generar UUID v4 válido para referencias de pago Worldcoin
