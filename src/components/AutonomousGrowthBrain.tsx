@@ -485,6 +485,7 @@ export default function AutonomousGrowthBrain(): null {
                 account: p.account,
                 topic: p.topic,
                 content: p.content,
+                image_url: p.image_url || null,
               })),
             }),
           });
