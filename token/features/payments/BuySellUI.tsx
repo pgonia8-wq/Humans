@@ -70,7 +70,7 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
     setError(null);
   };
 
-  const requestPayment = (amountWld: number, description: string): Promise<string> => {
+  const requestPayment = (amountWld: number, description: string): Promise<{ transactionId: string; reference: string }> => {
     if (!RECEIVER) return Promise.reject(new Error("Payment receiver not configured"));
     const origin = import.meta.env?.VITE_PARENT_ORIGIN || "*";
     const reference = generatePayReference();
@@ -95,7 +95,7 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
           window.removeEventListener("message", handler);
           cancelRef.current = null;
           if (e.data.payload?.success && e.data.payload?.transactionId) {
-            resolve(e.data.payload.transactionId);
+            resolve({ transactionId: e.data.payload.transactionId, reference });
           } else {
             reject(new Error(e.data.payload?.error || "Payment failed"));
           }
@@ -143,12 +143,12 @@ export default function BuySellUI({ token, onSuccess, defaultTab, onClose }: Pro
       const orbRes = await api.checkOrbStatus(user.id);
       if (!orbRes.orbVerified) { setBuyStep("orb_required"); return; }
       setBuyStep("paying");
-      const transactionId = await requestPayment(amountWld, `Buy ${token.symbol} tokens`);
+      const { transactionId, reference: payRef } = await requestPayment(amountWld, `Buy ${token.symbol} tokens`);
       setBuyStep("processing");
       const idempotencyKey = generatePayReference();
 
       const result = await api.buyToken({
-        tokenId: token.id, amountWld, userId: user.id, transactionId, idempotencyKey,
+        tokenId: token.id, amountWld, userId: user.id, transactionId, reference: payRef, idempotencyKey,
       });
 
       if (!result.success) { setError(result.message || "Buy failed"); setBuyStep("idle"); return; }
