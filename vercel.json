@@ -1,26 +1,31 @@
 {
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/admin",
-      "destination": "/admin.html"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
-  "crons": [
-    {
-      "path": "/api/updateScores",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/distributePayout",
-      "schedule": "0 3 */7 * *"
-    }
-  ]
-}
+    "rewrites": [
+      {
+        "source": "/api/(.*)",
+        "destination": "/api/$1"
+      },
+      {
+        "source": "/admin",
+        "destination": "/admin.html"
+      },
+      {
+        "source": "/(.*)",
+        "destination": "/index.html"
+      }
+    ],
+    "crons": [
+      {
+        "path": "/api/updateScores",
+        "schedule": "*/15 * * * *"
+      },
+      {
+        "path": "/api/distributePayout",
+        "schedule": "0 3 */7 * *"
+      },
+      {
+        "path": "/api/cronBrain",
+        "schedule": "*/15 * * * *"
+      }
+    ]
+  }
+  
