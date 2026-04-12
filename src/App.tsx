@@ -153,8 +153,10 @@ import React, { useState, useEffect, useRef } from "react";
       try {
         if (!MiniKit.isInstalled()) throw new Error("MiniKit no instalado");
 
+        const storedUserId = localStorage.getItem("userId");
         const verifyRes = await MiniKit.commandsAsync.verify({
           action: "verify-user",
+          signal: storedUserId ?? "",
           verification_level: VerificationLevel.Device,
         });
 
