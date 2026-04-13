@@ -37,6 +37,20 @@ export default async function handler(req, res) {
     if (infraState.state === "CRITICAL") status = "critical";
     if (infraState.state === "LOCKDOWN") status = "critical";
 
+    const adminSecret = process.env.ADMIN_SECRET;
+    const authHeader = req.headers?.authorization;
+    const isAdmin = adminSecret && authHeader === `Bearer ${adminSecret}`;
+
+    const publicResponse = {
+      status,
+      db: { connected: dbOk, latency_ms: dbLatency },
+      timestamp: new Date().toISOString(),
+    };
+
+    if (!isAdmin) {
+      return res.status(200).json(publicResponse);
+    }
+
     let queueStats = {};
     let traceStats = {};
     let rateLimitStats = {};
@@ -45,7 +59,7 @@ export default async function handler(req, res) {
     try { rateLimitStats = getRateLimitStats(); } catch {}
 
     return res.status(200).json({
-      status,
+      ...publicResponse,
       systemState: infraState.state,
       systemStateSince: infraState.since,
       systemStateAuto: infraState.auto,
@@ -98,7 +112,6 @@ export default async function handler(req, res) {
       tracing: traceStats,
       rateLimit: rateLimitStats,
       alerts: alerts.length > 0 ? alerts : [],
-      timestamp: new Date().toISOString(),
     });
   } catch (err) {
     return res.status(500).json({ status: "critical", error: err.message });

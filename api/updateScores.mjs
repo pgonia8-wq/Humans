@@ -1,9 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
 export default async function handler(req, res) {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  const authHeader = req.headers?.authorization;
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    console.error("[UPDATE_SCORES] CRON_SECRET env var not configured");
+    return res.status(500).json({ error: "Server misconfiguration" });
+  }
+  if (req.headers?.authorization !== `Bearer ${cronSecret}`) {
     return res.status(403).json({ error: "Forbidden" });
   }
 
