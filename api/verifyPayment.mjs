@@ -93,22 +93,7 @@ export default async function handler(req, res) {
 
   const reference = body.reference;
 
-  // Anti-replay atómico: INSERT en processed_transactions con UNIQUE(transaction_id)
-    try {
-      const { error: arErr } = await supabase
-        .from("processed_transactions")
-        .insert({ transaction_id: transactionId, user_id: userId, action, created_at: new Date().toISOString() });
-      if (arErr) {
-        if (arErr.code === "23505") {
-          return res.status(200).json({ success: true, message: "Acceso ya otorgado", replayed: true });
-        }
-        console.error("[VERIFY_PAYMENT] Anti-replay insert error:", arErr.message);
-      }
-    } catch (e) {
-      console.error("[VERIFY_PAYMENT] Anti-replay error:", e.message);
-    }
-
-  // Verificar transacción con Worldcoin
+  // Verificar transacción con Worldcoin ANTES del anti-replay
   const { ok: txOk, data: txData } = await verifyWorldcoinTransaction(transactionId);
   const txStatus = txData?.transactionStatus ?? txData?.status ?? "";
 
@@ -122,6 +107,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Reference mismatch — posible manipulación de pago" });
   }
 
+  // Anti-replay atómico: INSERT en processed_transactions con UNIQUE(transaction_id)
+  // Solo se ejecuta después de confirmar que la transacción es válida en Worldcoin
+  try {
+    const { error: arErr } = await supabase
+      .from("processed_transactions")
+      .insert({ transaction_id: transactionId, user_id: userId, action, created_at: new Date().toISOString() });
+    if (arErr) {
+      if (arErr.code === "23505") {
+        return res.status(200).json({ success: true, message: "Acceso ya otorgado", replayed: true });
+      }
+      console.error("[VERIFY_PAYMENT] Anti-replay insert error:", arErr.message);
+    }
+  } catch (e) {
+    console.error("[VERIFY_PAYMENT] Anti-replay error:", e.message);
+  }
+
   // Aplicar acción en Supabase
   try {
     if (action === "tip") {
@@ -129,10 +130,25 @@ export default async function handler(req, res) {
       if (!postId) {
         return res.status(400).json({ error: "postId requerido para tip" });
       }
+
+      // Validar amount contra el monto real en la transacción de Worldcoin
+      const onChainAmount = txData?.inputToken?.amount ?? txData?.amount ?? null;
+      const requestedAmount = Number(amount) || 0;
+      if (requestedAmount <= 0) {
+        return res.status(400).json({ error: "amount debe ser positivo" });
+      }
+      if (onChainAmount !== null) {
+        const onChainAmountNum = Number(onChainAmount);
+        if (!isNaN(onChainAmountNum) && requestedAmount > onChainAmountNum * 1.01) {
+          console.error("[VERIFY_PAYMENT] Amount mismatch: requested", requestedAmount, "on-chain", onChainAmountNum);
+          return res.status(400).json({ error: "Amount mismatch — monto solicitado supera el pagado on-chain" });
+        }
+      }
+
       const { error: tipErr } = await supabase.from("tips").insert({
         from_user_id: userId,
         to_post_id: postId,
-        amount: amount || 0,
+        amount: requestedAmount,
         created_at: new Date().toISOString(),
       });
       if (tipErr) {

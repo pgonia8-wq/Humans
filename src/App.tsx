@@ -37,7 +37,28 @@ import React, { useState, useEffect, useRef } from "react";
         console.log("[App] storedId:", storedId ? storedId.slice(0, 12) + "..." : "null");
         if (storedId) {
           setUserId(storedId);
-          setVerified(true);
+          try {
+            const profileRes = await fetch(`/api/get-profile?userId=${encodeURIComponent(storedId)}`);
+            if (profileRes.ok) {
+              const { profile } = await profileRes.json();
+              if (profile?.verification_level) {
+                setVerified(true);
+                console.log("[App] Backend confirmed verification:", profile.verification_level);
+              } else {
+                localStorage.removeItem("userId");
+                setUserId(null);
+                console.warn("[App] Backend: userId not verified, cleared");
+              }
+            } else {
+              localStorage.removeItem("userId");
+              setUserId(null);
+              console.warn("[App] Backend profile not found, cleared");
+            }
+          } catch (e) {
+            console.warn("[App] Could not re-validate userId, requiring fresh verification");
+            localStorage.removeItem("userId");
+            setUserId(null);
+          }
         }
 
         const cachedWallet = localStorage.getItem("wallet");
