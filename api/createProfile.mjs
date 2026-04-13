@@ -13,14 +13,16 @@ import { requireOrb } from "../token/api/_orbGuard.mjs";
         de Supabase lanza un error críptico ("supabaseUrl is required").
         Se añade ?? "" y log de error al inicio para detectarlo rápido.
 
-   [C3] Llave de cierre de la función mal indentada (espacio extra al principio).
-        No causa error de runtime en JS/Vercel, pero es confuso en revisiones.
+   [C3] Llave de cierre de la función mal indentada.
+
+   [C4] requireOrb() se llamaba ANTES de validar el formato de userId:
+        un userId malformado alcanzaba Supabase sin sanitizar. Ahora la
+        validación de formato ocurre primero.
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit } from "./_rateLimit.mjs";
 
-// [C2] Validar variables de entorno al inicio — aparece en logs de Vercel
 if (!process.env.SUPABASE_URL) {
   console.error("[CREATE_PROFILE] ERROR: SUPABASE_URL no configurada");
 }
@@ -34,7 +36,6 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  // [C1] CORS — requerido para World App WebView
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -52,9 +53,6 @@ export default async function handler(req, res) {
   try {
     const { userId } = req.body;
 
-  const orbOk = await requireOrb(userId, res);
-  if (!orbOk) return;
-
     if (!userId || typeof userId !== "string" || userId.trim() === "") {
       return res.status(400).json({ success: false, error: "No userId provided" });
     }
@@ -63,7 +61,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Invalid userId format" });
     }
 
-    // Verificar si ya existe
+    const orbOk = await requireOrb(userId, res);
+    if (!orbOk) return;
+
     const { data: existing, error: selectError } = await supabase
       .from("profiles")
       .select("id, username, avatar_url, verified, tier, verification_level")
@@ -76,7 +76,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, profile: existing });
     }
 
-    // Crear nuevo
     const { data: inserted, error: insertError } = await supabase
       .from("profiles")
       .insert({

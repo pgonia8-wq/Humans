@@ -240,7 +240,7 @@ import React, { useState, useEffect, useRef } from "react";
       try {
         const verifyRes = await MiniKit.commandsAsync.verify({
           action: "user-orb",
-          signal: wallet ?? "",
+          signal: userId ?? "",
           verification_level: VerificationLevel.Orb,
         });
         const proof = verifyRes?.finalPayload;

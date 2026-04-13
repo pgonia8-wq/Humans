@@ -1,13 +1,15 @@
-import { supabase, cors } from "./_supabase.mjs";
+import { supabase, cors, rateLimitByIp } from "./_supabase.mjs";
 
 /**
  * GET /api/user?user_id=XXX
  * Devuelve el perfil del usuario para el token app, uniendo datos de profiles.
  */
 export default async function handler(req, res) {
-  cors(res);
+  cors(res, req);
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+
+  if (!rateLimitByIp(req, res)) return;
 
   const { user_id } = req.query;
   if (!user_id) return res.status(400).json({ error: "Missing user_id" });

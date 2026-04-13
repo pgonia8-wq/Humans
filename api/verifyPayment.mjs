@@ -137,12 +137,14 @@ export default async function handler(req, res) {
       if (requestedAmount <= 0) {
         return res.status(400).json({ error: "amount debe ser positivo" });
       }
-      if (onChainAmount !== null) {
-        const onChainAmountNum = Number(onChainAmount);
-        if (!isNaN(onChainAmountNum) && requestedAmount > onChainAmountNum * 1.01) {
-          console.error("[VERIFY_PAYMENT] Amount mismatch: requested", requestedAmount, "on-chain", onChainAmountNum);
-          return res.status(400).json({ error: "Amount mismatch — monto solicitado supera el pagado on-chain" });
-        }
+      const onChainAmountNum = onChainAmount !== null ? Number(onChainAmount) : NaN;
+      if (isNaN(onChainAmountNum) || onChainAmountNum <= 0) {
+        console.error("[VERIFY_PAYMENT] on-chain amount unavailable or zero — rejecting tip to prevent inflation");
+        return res.status(400).json({ error: "No se pudo validar el monto on-chain. Intenta de nuevo." });
+      }
+      if (requestedAmount > onChainAmountNum * 1.01) {
+        console.error("[VERIFY_PAYMENT] Amount mismatch: requested", requestedAmount, "on-chain", onChainAmountNum);
+        return res.status(400).json({ error: "Amount mismatch — monto solicitado supera el pagado on-chain" });
       }
 
       const { error: tipErr } = await supabase.from("tips").insert({

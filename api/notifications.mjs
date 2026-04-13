@@ -1,24 +1,27 @@
 import { createClient } from "@supabase/supabase-js";
+import { rateLimit } from "./_rateLimit.mjs";
 
 const supabase = createClient(
   process.env.SUPABASE_URL ?? "",
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
 );
 
-function cors(res, req) {
-  const origin = req?.headers?.origin || "*";
-  res.setHeader("Access-Control-Allow-Origin", origin);
+function cors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
 }
 
 export default async function handler(req, res) {
-  cors(res, req);
+  cors(res);
   if (req.method === "OPTIONS") return res.status(200).end();
 
   const userId = req.query?.userId || req.headers["x-user-id"];
   if (!userId) return res.status(400).json({ error: "Missing userId" });
+
+  if (rateLimit(req, { max: 30, windowMs: 60000 }).limited) {
+    return res.status(429).json({ error: "Too many requests" });
+  }
 
   if (req.method === "GET") {
     try {
