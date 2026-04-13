@@ -1,80 +1,57 @@
-/* ─────────────────────────────────────────────────────────────────────────────
-   DESTINO: api/verify.mjs
-   ESTADO: Sin cambios respecto a la versión actual del repo.
-   El archivo ya fue corregido correctamente. Se entrega aquí como referencia
-   de la versión completa y auditada.
-
-   BUGS QUE YA TIENE CORREGIDOS (documentados en el archivo original):
-   [V1] CORS con "*" — necesario para World App WebView
-   [V2] action hardcoded "verify-user" — se usa APP_ID + ACTION_ID desde env
-   [V3] Validación de env vars al inicio
-   [V4] Anti-replay con check de nullifier_hash existente
-   [V5] Verificación robusta de verifyData.success
-   [V6] APP_ID desde variable de entorno con fallback
-   ─────────────────────────────────────────────────────────────────────────── */
-
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit } from "./_rateLimit.mjs";
 
-if (!process.env.SUPABASE_URL) {
-  console.error("[VERIFY] ERROR: SUPABASE_URL no está configurada");
-}
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("[VERIFY] ERROR: SUPABASE_SERVICE_ROLE_KEY no está configurada");
-}
-if (!process.env.APP_ID) {
-  console.warn("[VERIFY] ADVERTENCIA: APP_ID no está configurada.");
-}
-
-const supabase = createClient(
-  process.env.SUPABASE_URL ?? "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
-);
-
-const APP_ID = process.env.APP_ID ?? "";
+// Validación de variables de entorno
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const APP_ID = process.env.APP_ID;
 const ACTION_ID = process.env.WORLDCOIN_ACTION_ID ?? "verify-user";
 
+if (!SUPABASE_URL || !SUPABASE_KEY || !APP_ID) {
+  console.error("[VERIFY] Error: Faltan variables de entorno críticas.");
+}
+
+const supabase = createClient(SUPABASE_URL ?? "", SUPABASE_KEY ?? "");
+
 export default async function handler(req, res) {
+  // CORS para WebView de World App
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
 
+  // Rate Limiting
   if (rateLimit(req, { max: 10, windowMs: 60000 }).limited) {
-    return res.status(429).json({ success: false, error: "Demasiadas solicitudes. Intenta en un minuto." });
+    return res.status(429).json({ success: false, error: "Demasiadas solicitudes." });
   }
 
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const body = req.body || {};
-  const { payload } = body;
+  const { payload } = req.body || {};
 
-  if (
-    !payload ||
-    !payload.nullifier_hash ||
-    !payload.proof ||
-    !payload.merkle_root ||
-    !payload.verification_level
-  ) {
-    return res.status(400).json({ success: false, error: "Faltan campos en proof" });
+  if (!payload?.nullifier_hash || !payload?.proof || !payload?.merkle_root) {
+    return res.status(400).json({ success: false, error: "Prueba de verificación incompleta." });
+  }
+
+  // CORRECCIÓN: Aceptar 'device' o 'orb' (Orb es un superset de Device)
+  const validLevels = ["device", "orb"];
+  if (!validLevels.includes(payload.verification_level)) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "Nivel de verificación no soportado por esta aplicación." 
+    });
   }
 
   const nullifierHash = payload.nullifier_hash;
 
-    if (payload.verification_level !== "device") {
-      return res.status(400).json({ success: false, error: "Only device-level verification accepted on this endpoint" });
-    }
-
-  // Anti-replay: verificar si este nullifier_hash ya fue verificado
+  // 1. Anti-replay check
   try {
     const { data: existing } = await supabase
       .from("profiles")
-      .select("id, verified")
+      .select("verified")
       .eq("id", nullifierHash)
       .maybeSingle();
 
@@ -82,11 +59,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, nullifier_hash: nullifierHash, reused: true });
     }
   } catch (err) {
-    console.warn("[VERIFY] No se pudo verificar anti-replay:", err.message);
+    console.warn("[VERIFY] Error en anti-replay check:", err.message);
   }
 
-  // Verificar con Worldcoin Developer Portal
-  let verifyData;
+  // 2. Verificación con Worldcoin Portal
   try {
     const verifyResponse = await fetch(
       `https://developer.worldcoin.org/api/v2/verify/${APP_ID}`,
@@ -103,48 +79,37 @@ export default async function handler(req, res) {
       }
     );
 
-    verifyData = await verifyResponse.json();
-
-    const isSuccess = verifyResponse.ok && (verifyData.success === true || verifyData.success === "true");
+    const verifyData = await verifyResponse.json();
+    const isSuccess = verifyResponse.ok && verifyData.success;
 
     if (!isSuccess) {
-        const errMsg = verifyData.detail ?? verifyData.error ?? "";
-        if (errMsg.includes("already") || verifyData.code === "already_verified") {
-          return res.status(200).json({ success: true, nullifier_hash: nullifierHash, reused: true });
-        }
-        return res.status(verifyResponse.status || 400).json({
-          success: false,
-          error: errMsg || "Verificación fallida en Worldcoin",
-        });
+      // Manejar si el usuario ya verificó esta acción específica antes
+      if (verifyData.code === "already_verified") {
+        return res.status(200).json({ success: true, nullifier_hash: nullifierHash, reused: true });
       }
-  } catch (err) {
-    console.error("[VERIFY] Error de red al contactar Worldcoin:", err.message);
-    return res.status(500).json({ success: false, error: "Error al contactar Worldcoin" });
-  }
+      return res.status(verifyResponse.status).json({
+        success: false,
+        error: verifyData.detail || "Error en la validación de Worldcoin",
+      });
+    }
 
-  // Guardar/actualizar perfil en Supabase
-  try {
+    // 3. Upsert del perfil verificado
     const { error: upsertError } = await supabase
       .from("profiles")
-      .upsert(
-        {
-          id: nullifierHash,
-          tier: "free",
-          verified: true,
-          verification_level: "device",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
+      .upsert({
+        id: nullifierHash,
+        tier: "free",
+        verified: true,
+        verification_level: payload.verification_level,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" });
 
-    if (upsertError) {
-      console.error("[VERIFY] Error upsert:", upsertError.message);
-      return res.status(500).json({ success: false, error: upsertError.message });
-    }
+    if (upsertError) throw upsertError;
+
+    return res.status(200).json({ success: true, nullifier_hash: nullifierHash });
+
   } catch (err) {
-    console.error("[VERIFY] Error:", err.message);
-    return res.status(500).json({ success: false, error: "Error al guardar perfil" });
+    console.error("[VERIFY] Error crítico:", err.message);
+    return res.status(500).json({ success: false, error: "Error interno del servidor" });
   }
-
-  return res.status(200).json({ success: true, nullifier_hash: nullifierHash });
 }
