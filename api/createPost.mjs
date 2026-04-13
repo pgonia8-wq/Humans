@@ -6,8 +6,6 @@ import { createTrace, startSpan, finishTrace, log, SPANS, LOG_TYPES } from "./_t
 import { enqueue, OP_TYPES } from "./_queue.mjs";
 import { trackRequest, trackPost, isReadOnlyMode } from "./_metrics.mjs";
 
-// Cliente inicializado de forma lazy para evitar crash al cargar el módulo
-// cuando las variables de entorno no están disponibles aún.
 let _supabase = null;
 function getSupabase() {
   if (!_supabase) {
@@ -30,8 +28,22 @@ function sanitizeContent(text) {
     .trim();
 }
 
-// Wrapper global: garantiza que SIEMPRE se devuelve JSON, incluso si
-// hay un error de inicialización o excepción no capturada.
+const ALLOWED_IMAGE_PROTOCOLS = ["https:"];
+const MAX_IMAGE_URL_LENGTH = 2048;
+
+function validateImageUrl(url) {
+  if (!url) return null;
+  if (typeof url !== "string" || url.length > MAX_IMAGE_URL_LENGTH) return null;
+  try {
+    const parsed = new URL(url);
+    if (!ALLOWED_IMAGE_PROTOCOLS.includes(parsed.protocol)) return null;
+    if (!parsed.hostname || parsed.hostname === "localhost") return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -62,7 +74,6 @@ async function handleCreatePost(req, res) {
   const t0 = Date.now();
   const reqId = Math.random().toString(36).slice(2, 10);
 
-  // Validar env vars antes de cualquier operación
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseKey) {
@@ -84,6 +95,21 @@ async function handleCreatePost(req, res) {
   if (!user_id || typeof user_id !== "string") {
     finishTrace(trace, "error");
     return res.status(400).json({ error: "user_id required" });
+  }
+
+  if (!content || typeof content !== "string" || !content.trim()) {
+    finishTrace(trace, "error");
+    return res.status(400).json({ error: "content required" });
+  }
+  if (content.length > 10000) {
+    finishTrace(trace, "error");
+    return res.status(400).json({ error: "content too long" });
+  }
+
+  const validatedImageUrl = validateImageUrl(image_url);
+  if (image_url && !validatedImageUrl) {
+    finishTrace(trace, "error");
+    return res.status(400).json({ error: "image_url must be a valid https URL" });
   }
 
   if (isReadOnlyMode()) {
@@ -125,9 +151,10 @@ async function handleCreatePost(req, res) {
     return res.status(429).json({ error: "Máximo 15 posts por hora" });
   }
 
+  const cleanContent = sanitizeContent(content);
+
   if (shouldQueueSocial()) {
-    const cleanContent = sanitizeContent(content || "");
-    const qResult = await enqueue(OP_TYPES.POST, { user_id, content: cleanContent, image_url: image_url || null }, user_id);
+    const qResult = await enqueue(OP_TYPES.POST, { user_id, content: cleanContent, image_url: validatedImageUrl }, user_id);
     if (qResult.queued) {
       trackPost();
       const elapsed = Date.now() - t0;
@@ -138,21 +165,13 @@ async function handleCreatePost(req, res) {
     }
   }
 
-  if (!content || typeof content !== "string" || !content.trim()) {
-    return res.status(400).json({ error: "content required" });
-  }
-  if (content.length > 10000) {
-    return res.status(400).json({ error: "content too long" });
-  }
-
-  const cleanContent = sanitizeContent(content);
   const now = new Date().toISOString();
 
   try {
     const { data, error } = await supabase.from("posts").insert({
       user_id,
       content: cleanContent,
-      image_url: image_url || null,
+      image_url: validatedImageUrl,
       timestamp: now,
       created_at: now,
       deleted_flag: false,
@@ -183,8 +202,6 @@ async function handleCreatePost(req, res) {
     finishTrace(trace, "ok");
     log(trace, SPANS.RESPONSE, LOG_TYPES.SOCIAL, "201", { postId: data?.id, elapsed });
     console.log(JSON.stringify({ event: "create_post_ok", reqId, traceId: trace.traceId, userId: user_id, postId: data?.id, latency_ms: elapsed }));
-    // Promise.resolve() es necesario porque supabase v2.98+ devuelve un thenable
-    // sin .catch() propio — envolverlo garantiza que no crashea.
     Promise.resolve(supabase.from("admin_logs").insert({
       category: "activity", event: "create_post", severity: "info", user_id,
       endpoint: "/api/createPost", latency_ms: elapsed,

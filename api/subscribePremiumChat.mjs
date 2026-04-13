@@ -53,6 +53,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "userId es requerido" });
   }
 
+  if (!transactionId || typeof transactionId !== "string" || transactionId.trim() === "") {
+    return res.status(400).json({ error: "transactionId es requerido" });
+  }
+
   const { data: _profile } = await supabase
     .from("profiles")
     .select("verification_level")
@@ -61,28 +65,6 @@ export default async function handler(req, res) {
 
   if (!_profile || !_profile.verification_level) {
     return res.status(403).json({ error: "Device verification required" });
-  }
-
-  if (!transactionId || typeof transactionId !== "string" || transactionId.trim() === "") {
-    return res.status(400).json({ error: "transactionId es requerido" });
-  }
-
-  try {
-    const { data: existingTx } = await supabase
-      .from("subscriptions")
-      .select("id")
-      .eq("transaction_id", transactionId)
-      .maybeSingle();
-
-    if (existingTx) {
-      return res.status(200).json({
-        success: true,
-        message: "Suscripción ya activa",
-        product: "chat_classic",
-      });
-    }
-  } catch (dbErr) {
-    console.error("[SUBSCRIBE] Anti-replay check failed:", dbErr.message);
   }
 
   const { ok: txOk, data: txData } = await verifyWorldcoinPayment(transactionId);
@@ -100,23 +82,39 @@ export default async function handler(req, res) {
   try {
     const { error: insertError } = await supabase
       .from("subscriptions")
-      .upsert(
-        {
-          user_id: userId,
-          product: "chat_classic",
-          transaction_id: transactionId,
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,product" }
-      );
+      .insert({
+        user_id: userId,
+        product: "chat_classic",
+        transaction_id: transactionId,
+        active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
 
     if (insertError) {
-      console.error("[SUBSCRIBE] Error:", insertError.message);
-      return res.status(500).json({
-        error: "Error al activar suscripción en base de datos",
-      });
+      if (insertError.code === "23505") {
+        return res.status(200).json({
+          success: true,
+          message: "Suscripción ya activa",
+          product: "chat_classic",
+        });
+      }
+      const { error: upsertError } = await supabase
+        .from("subscriptions")
+        .upsert(
+          {
+            user_id: userId,
+            product: "chat_classic",
+            transaction_id: transactionId,
+            active: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,product" }
+        );
+      if (upsertError) {
+        console.error("[SUBSCRIBE] Error:", upsertError.message);
+        return res.status(500).json({ error: "Error al activar suscripción en base de datos" });
+      }
     }
   } catch (dbErr) {
     console.error("[SUBSCRIBE] Error:", dbErr.message);

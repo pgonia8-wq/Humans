@@ -59,13 +59,12 @@ export default async function handler(req, res) {
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Atomic: mark tips as distributed BEFORE processing (prevents double-payout)
-      const { data: tips, error: tipsError } = await supabase
-        .from("tips")
-        .update({ distributed_at: new Date().toISOString() })
-        .is("distributed_at", null)
-        .gte("created_at", sevenDaysAgo)
-        .select("from_user_id, to_post_id, amount, id");
+    const { data: tips, error: tipsError } = await supabase
+      .from("tips")
+      .update({ distributed_at: new Date().toISOString() })
+      .is("distributed_at", null)
+      .gte("created_at", sevenDaysAgo)
+      .select("from_user_id, to_post_id, amount, id");
 
     if (tipsError) {
       console.error("[PAYOUT] Error fetching tips:", tipsError.message);
@@ -86,6 +85,7 @@ export default async function handler(req, res) {
     (posts || []).forEach(p => { postOwnerMap[p.id] = p.user_id; });
 
     const creatorTotals = {};
+    const creatorTipIds = {};
     let totalAmount = 0;
 
     for (const tip of tips) {
@@ -95,6 +95,8 @@ export default async function handler(req, res) {
       if (amount <= 0) continue;
       totalAmount += amount;
       creatorTotals[creatorId] = (creatorTotals[creatorId] || 0) + amount;
+      if (!creatorTipIds[creatorId]) creatorTipIds[creatorId] = [];
+      creatorTipIds[creatorId].push(tip.id);
     }
 
     if (totalAmount <= 0) {
@@ -124,7 +126,15 @@ export default async function handler(req, res) {
           }
         } catch (err) {
           console.error(`[PAYOUT] Transfer to creator ${creatorId} failed:`, err.message);
-          results.push({ creatorId, amount: creatorAmount, error: err.message });
+          const failedIds = creatorTipIds[creatorId] || [];
+          if (failedIds.length > 0) {
+            await supabase
+              .from("tips")
+              .update({ distributed_at: null })
+              .in("id", failedIds);
+            console.warn(`[PAYOUT] Rolled back distributed_at for ${failedIds.length} tips of creator ${creatorId} — will retry next run`);
+          }
+          results.push({ creatorId, amount: creatorAmount, error: err.message, retryable: true });
         }
       } else {
         const { error: balErr } = await supabase.rpc("credit_balance", {
@@ -133,19 +143,25 @@ export default async function handler(req, res) {
         });
         if (balErr) {
           console.error(`[PAYOUT] Balance credit for ${creatorId} failed:`, balErr.message);
+          const failedIds = creatorTipIds[creatorId] || [];
+          if (failedIds.length > 0) {
+            await supabase
+              .from("tips")
+              .update({ distributed_at: null })
+              .in("id", failedIds);
+          }
+          results.push({ creatorId, amount: creatorAmount, error: balErr.message, retryable: true });
+        } else {
+          results.push({ creatorId, amount: creatorAmount, method: "balance_credit" });
+          totalCreatorPaid += creatorAmount;
+          creatorsPaid++;
         }
-        results.push({ creatorId, amount: creatorAmount, method: "balance_credit" });
-        totalCreatorPaid += creatorAmount;
-        creatorsPaid++;
       }
     }
 
     const platformAmount = totalAmount * PLATFORM_SHARE;
     const poolAmount = totalAmount * POOL_SHARE;
     const platformTotal = platformAmount + poolAmount;
-
-    const tipIds = tips.map(t => t.id);
-    // distributed_at already set atomically at the start
 
     await supabase.from("payout_logs").insert({
       total_tips: totalAmount,

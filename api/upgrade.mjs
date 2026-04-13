@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { nanoid } from "nanoid";
+import crypto from "node:crypto";
+import { rateLimit } from "./_rateLimit.mjs";
 
 const supabase = createClient(
   process.env.SUPABASE_URL ?? "",
@@ -8,8 +10,11 @@ const supabase = createClient(
 
 const PREMIUM_LIMIT = 10000;
 const PREMIUM_PLUS_LIMIT = 3000;
+const VALID_TIERS = ["premium", "premium+"];
+const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
 
-// Obtiene precio dinámico
+const APP_ID = process.env.APP_ID ?? "";
+
 async function getUpgradePrice(tier) {
   if (tier === "premium") {
     const { count } = await supabase
@@ -26,7 +31,6 @@ async function getUpgradePrice(tier) {
   }
 }
 
-// Crea token de referido
 async function createReferralToken(userId) {
   const token = nanoid(10);
   const { error } = await supabase.from("referral_tokens").insert({
@@ -37,30 +41,30 @@ async function createReferralToken(userId) {
     tips_allowed: false,
     created_at: new Date().toISOString(),
   });
-
   if (error) throw error;
   return token;
 }
 
-// Verifica tx on-chain (Etherscan API for Optimism — token creation chain)
-async function verifyTxOnChain(transactionId) {
-    const apiKey = process.env.ETHERSCAN_API_KEY ?? "";
-    if (!apiKey) {
-      console.error("[UPGRADE] ETHERSCAN_API_KEY not configured");
-      return { success: false, error: "ETHERSCAN_API_KEY not configured" };
-    }
-    try {
-      const resp = await fetch(`https://api-optimistic.etherscan.io/api?module=transaction&action=gettxreceiptstatus&txhash=${transactionId}&apikey=${apiKey}`);
-      const data = await resp.json();
-      const ok = data.status === "1" && data.result?.status === "1";
-      return { success: ok, error: ok ? null : "Transaction not successful on chain" };
-    } catch (err) {
-      console.error("[UPGRADE] Etherscan API error:", err.message);
-      return { success: false, error: "Failed to verify transaction on chain" };
-    }
+async function verifyWorldcoinPayment(transactionId) {
+  const rpKey = process.env.RP_SIGNING_KEY ?? "";
+  if (!rpKey || !APP_ID) {
+    console.error("[UPGRADE] RP_SIGNING_KEY or APP_ID not configured");
+    return { ok: false, status: "", error: "Payment verification not configured" };
   }
-  
-// Handler principal
+  try {
+    const resp = await fetch(
+      `https://developer.worldcoin.org/api/v2/minikit/transaction/${transactionId}?app_id=${APP_ID}`,
+      { headers: { Authorization: `Bearer ${rpKey}` } }
+    );
+    const data = await resp.json();
+    const status = data?.transactionStatus ?? data?.status ?? "";
+    return { ok: resp.ok, status, data };
+  } catch (err) {
+    console.error("[UPGRADE] Worldcoin payment verification error:", err.message);
+    return { ok: false, status: "", error: err.message };
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -69,7 +73,9 @@ export default async function handler(req, res) {
 
   if (req.method === "GET" && req.query.getPrice === "true") {
     const tier = req.query.tier;
-    if (!tier) return res.status(400).json({ success: false, error: "Missing tier" });
+    if (!tier || !VALID_TIERS.includes(tier)) {
+      return res.status(400).json({ success: false, error: "Invalid or missing tier" });
+    }
     const price = await getUpgradePrice(tier);
     return res.status(200).json({ success: true, price });
   }
@@ -78,23 +84,35 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
+  if (rateLimit(req, { max: 10, windowMs: 60000 }).limited) {
+    return res.status(429).json({ success: false, error: "Too many requests" });
+  }
+
   const body = req.body || {};
   const { userId, tier, transactionId } = body;
 
-  if (!userId || !tier || !transactionId) {
-    return res.status(400).json({ success: false, error: "Missing required fields" });
+  if (!userId || typeof userId !== "string") {
+    return res.status(400).json({ success: false, error: "Missing userId" });
   }
 
-    const { data: _profile } = await supabase
-      .from("profiles")
-      .select("verification_level")
-      .eq("id", userId)
-      .maybeSingle();
+  if (!tier || !VALID_TIERS.includes(tier)) {
+    return res.status(400).json({ success: false, error: `Invalid tier. Must be one of: ${VALID_TIERS.join(", ")}` });
+  }
 
-    if (!_profile || !_profile.verification_level) {
-      return res.status(403).json({ error: "Device verification required" });
-    }
-  
+  if (!transactionId || !TX_HASH_RE.test(transactionId)) {
+    return res.status(400).json({ success: false, error: "Invalid transactionId format" });
+  }
+
+  const { data: _profile } = await supabase
+    .from("profiles")
+    .select("verification_level")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!_profile || !_profile.verification_level) {
+    return res.status(403).json({ error: "Device verification required" });
+  }
+
   try {
     const { data: existingTx } = await supabase
       .from("upgrades")
@@ -105,28 +123,15 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: "Upgrade ya procesado" });
     }
 
-    const txResult = await verifyTxOnChain(transactionId);
-    if (!txResult.success) {
-      return res.status(400).json({ success: false, error: txResult.error || "Transaction verification failed" });
+    const { ok: txOk, status: txStatus, error: txErr } = await verifyWorldcoinPayment(transactionId);
+    if (!txOk) {
+      return res.status(502).json({ success: false, error: txErr || "Could not verify payment with Worldcoin" });
     }
-
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("wallet")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (userProfile?.wallet) {
-      try {
-        const txResp = await fetch(`https://api-optimistic.etherscan.io/api?module=proxy&action=eth_getTransactionByHash&txhash=${transactionId}&apikey=${process.env.ETHERSCAN_API_KEY}`);
-        const txDetail = await txResp.json();
-        const txFrom = txDetail?.result?.from?.toLowerCase();
-        if (txFrom && txFrom !== userProfile.wallet.toLowerCase()) {
-          return res.status(403).json({ success: false, error: "Transaction sender does not match user wallet" });
-        }
-      } catch (e) {
-        console.warn("[UPGRADE] Could not verify tx ownership:", e.message);
-      }
+    if (txStatus === "failed") {
+      return res.status(402).json({ success: false, error: "Payment transaction failed" });
+    }
+    if (txStatus === "pending" || txStatus === "") {
+      return res.status(202).json({ success: false, error: "Payment pending confirmation, retry in a moment", transactionStatus: "pending" });
     }
 
     const price = await getUpgradePrice(tier);
@@ -139,9 +144,13 @@ export default async function handler(req, res) {
       transaction_id: transactionId,
     });
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      if (insertError.code === "23505") {
+        return res.status(200).json({ success: true, message: "Upgrade ya procesado" });
+      }
+      throw insertError;
+    }
 
-    // Update profiles.tier
     const { error: updateError } = await supabase
       .from("profiles")
       .update({ tier })
@@ -153,7 +162,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ success: true, price, referralToken: newReferralToken });
   } catch (err) {
-    console.error("[BACKEND] Error:", err);
+    console.error("[UPGRADE] Error:", err);
     return res.status(500).json({ success: false, error: "Internal server error" });
   }
 }

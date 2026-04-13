@@ -40,10 +40,6 @@ export default async function handler(req, res) {
 
   const { postId, campaignId, userId, type, country, language, interests } = req.body || {};
 
-  const orbOk = await requireOrb(userId, res);
-  if (!orbOk) return;
-
-
   if (!postId || !campaignId || !type) {
     return res.status(400).json({ error: "postId, campaignId, and type are required" });
   }
@@ -52,20 +48,20 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "type must be impression or click" });
   }
 
-    if (userId) {
-      const { data: postData } = await supabase
-        .from("posts")
-        .select("author_id")
-        .eq("id", postId)
-        .maybeSingle();
-      if (postData && postData.author_id === userId) {
-        return res.status(403).json({ error: "Cannot interact with own ad post" });
-      }
+  const orbOk = await requireOrb(userId, res);
+  if (!orbOk) return;
+
+  if (userId) {
+    const { data: postData } = await supabase
+      .from("posts")
+      .select("author_id")
+      .eq("id", postId)
+      .maybeSingle();
+    if (postData && postData.author_id === userId) {
+      return res.status(403).json({ error: "Cannot interact with own ad post" });
     }
+  }
 
-    // Dedup handled by UNIQUE constraint (campaign_id, user_id, type) + 23505 catch below
-
-  
   try {
     let value = IMPRESSION_VALUE;
     let creatorEarning = IMPRESSION_VALUE * 0.7;
@@ -119,26 +115,30 @@ export default async function handler(req, res) {
     }
 
     if (type === "click") {
-        const { data: campaign } = await supabase
+      const MAX_OCC_RETRIES = 3;
+      let occ_ok = false;
+      for (let i = 0; i < MAX_OCC_RETRIES; i++) {
+        const { data: fresh } = await supabase
           .from("campaigns")
           .select("spent")
           .eq("id", campaignId)
           .single();
-        if (campaign) {
-          const { data: spentUpdate } = await supabase
-            .from("campaigns")
-            .update({ spent: campaign.spent + value })
-            .eq("id", campaignId)
-            .eq("spent", campaign.spent)
-            .select("id")
-            .maybeSingle();
-          if (!spentUpdate) {
-            console.warn("[trackAd] Budget deduction OCC conflict — metric recorded, budget retry needed");
-          }
-        }
+        if (!fresh) break;
+        const { data: spentUpdate } = await supabase
+          .from("campaigns")
+          .update({ spent: fresh.spent + value })
+          .eq("id", campaignId)
+          .eq("spent", fresh.spent)
+          .select("id")
+          .maybeSingle();
+        if (spentUpdate) { occ_ok = true; break; }
       }
+      if (!occ_ok) {
+        console.error("[trackAd] Budget deduction OCC failed after retries — possible overspend for campaign", campaignId);
+      }
+    }
 
-      return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true });
   } catch (err) {
     console.error("[trackAd] Error:", err);
     return res.status(500).json({ error: "Internal server error" });

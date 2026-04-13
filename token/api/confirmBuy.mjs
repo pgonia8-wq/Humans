@@ -193,7 +193,7 @@ export default async function handler(req, res) {
             return res.status(409).json({ error: "Concurrent holdings update, please retry" });
           }
         } else {
-          await supabase.from("holdings").insert({
+          const { error: hInsertErr } = await supabase.from("holdings").insert({
             user_id: userId, token_id: tokenId,
             token_name: token.name, token_symbol: token.symbol,
             token_emoji: token.emoji ?? "\u{1F31F}",
@@ -202,6 +202,14 @@ export default async function handler(req, res) {
             pnl: 0, pnl_percent: 0,
             updated_at: new Date().toISOString(),
           });
+          if (hInsertErr) {
+            if (hInsertErr.code === "23505") {
+              console.warn("[confirmBuy] Holdings INSERT 23505 — concurrent buy, retrying as OCC update");
+              if (attempt < MAX_RETRIES - 1) continue;
+              return res.status(409).json({ error: "Concurrent holdings insert, please retry" });
+            }
+            throw hInsertErr;
+          }
           await supabase.rpc("increment_holders", { tid: tokenId });
         }
 

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import crypto from "node:crypto";
 
 const supabase = createClient(
   process.env.SUPABASE_URL ?? "",
@@ -8,8 +9,14 @@ const supabase = createClient(
 export { supabase };
 
 export function adminAuth(req, res) {
-  const key = req.headers["x-admin-key"] || req.query?.key;
-  if (!key || key !== process.env.ADMIN_SECRET) {
+  const key = req.headers["x-admin-key"];
+  const secret = process.env.ADMIN_SECRET || "";
+  if (
+    !key ||
+    !secret ||
+    key.length !== secret.length ||
+    !crypto.timingSafeEqual(Buffer.from(key), Buffer.from(secret))
+  ) {
     res.status(401).json({ error: "Unauthorized" });
     return false;
   }
@@ -34,8 +41,10 @@ export function cors(res, req) {
   if (allowed.length > 0 && origin && allowed.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
-  } else {
+  } else if (!origin) {
     res.setHeader("Access-Control-Allow-Origin", "*");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "null");
   }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-admin-key");
