@@ -6,31 +6,42 @@ interface IRegistry {
 }
 
 interface IOracle {
-    function data(address user) external view returns (
+    function getMetrics(address user) external view returns (
         uint256 score,
         uint256 influence,
-        uint256 timestamp,
-        uint256 nonce
+        uint256 timestamp
     );
 }
 
+/**
+ * @title Totem
+ * @notice Soulbound NFT identity (1 humano = 1 tótem)
+ * @dev FINAL PRODUCTION: reputación económica viva, anti-gaming, decay, cap, integración limpia
+ */
 contract Totem {
 
-    string public name = "Human Totem";
-    string public symbol = "TOTEM";
+    string public constant name = "Human Totem";
+    string public constant symbol = "TOTEM";
 
     uint256 public totalSupply;
 
-    IRegistry public registry;
-    IOracle public oracle;
+    IRegistry public immutable registry;
+    IOracle public immutable oracle;
 
     address public admin;
+    address public pendingAdmin;
+    bool public paused;
+
+    uint256 public constant MIN_SYNC_INTERVAL = 1 hours;
+    uint256 public constant MAX_ACCUMULATED_SCORE = 10_000_000;
+    uint256 public constant MAX_FUTURE_DRIFT = 5 minutes;
 
     struct History {
         uint256 totalScoreAccumulated;
         uint256 lastScore;
-        uint256 negativeEvents;
+        uint256 lastInfluence;
         uint256 lastUpdate;
+        uint256 negativeEvents;
     }
 
     struct Status {
@@ -46,90 +57,150 @@ contract Totem {
     mapping(address => Status) public status;
 
     event Mint(address indexed user, uint256 tokenId);
+    event HistoryInitialized(address indexed user, uint256 score, uint256 influence);
+    event Sync(address indexed user, uint256 score, uint256 influence, uint256 level, uint256 badge);
+    event NegativeEvent(address indexed user, uint256 totalNegativeEvents);
     event FraudLock(address indexed user, bool locked);
-    event BadgeUpdated(address indexed user, uint256 badge);
     event LevelUpdated(address indexed user, uint256 level);
+    event BadgeUpdated(address indexed user, uint256 badge);
+    event Paused(address indexed admin, bool status);
+    event AdminTransferStarted(address indexed current, address indexed pending);
+    event AdminTransferred(address indexed newAdmin);
+
+    error NotAdmin();
+    error NoPendingAdmin();
+    error NotRegistered();
+    error AlreadyMinted();
+    error Soulbound();
+    error TokenNotExists();
+    error InvalidTimestamp();
+    error SyncTooFrequent();
+    error FraudLocked();
+    error PausedError();
+    error ZeroAddress();
+
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert NotAdmin();
+        _;
+    }
+
+    modifier notPaused() {
+        if (paused) revert PausedError();
+        _;
+    }
 
     constructor(address _registry, address _oracle) {
+        if (_registry == address(0) || _oracle == address(0)) revert ZeroAddress();
+
         registry = IRegistry(_registry);
         oracle = IOracle(_oracle);
+
         admin = msg.sender;
+        paused = false;
     }
 
-    // =========================
-    // MINT
-    // =========================
+    function mint() external notPaused {
+        if (!registry.isTotem(msg.sender)) revert NotRegistered();
+        if (tokenOf[msg.sender] != 0) revert AlreadyMinted();
+        if (status[msg.sender].fraudLocked) revert FraudLocked();
 
-    function mint() external {
+        unchecked { totalSupply++; }
+        uint256 tokenId = totalSupply;
 
-        require(registry.isTotem(msg.sender), "Not registered");
-        require(tokenOf[msg.sender] == 0, "Already minted");
+        ownerOf[tokenId] = msg.sender;
+        tokenOf[msg.sender] = tokenId;
 
-        totalSupply++;
+        (uint256 score, uint256 influence, ) = oracle.getMetrics(msg.sender);
 
-        uint256 id = totalSupply;
+        history[msg.sender] = History({
+            totalScoreAccumulated: 0,
+            lastScore: score,
+            lastInfluence: influence,
+            lastUpdate: block.timestamp,
+            negativeEvents: 0
+        });
 
-        ownerOf[id] = msg.sender;
-        tokenOf[msg.sender] = id;
-
-        emit Mint(msg.sender, id);
+        emit Mint(msg.sender, tokenId);
+        emit HistoryInitialized(msg.sender, score, influence);
     }
 
-    // =========================
-    // SOULBOUND
-    // =========================
+    // Soulbound real
+    function transferFrom(address, address, uint256) external pure { revert Soulbound(); }
+    function safeTransferFrom(address, address, uint256) external pure { revert Soulbound(); }
+    function safeTransferFrom(address, address, uint256, bytes calldata) external pure { revert Soulbound(); }
+    function approve(address, uint256) external pure { revert Soulbound(); }
+    function setApprovalForAll(address, bool) external pure { revert Soulbound(); }
 
-    function transferFrom(address, address, uint256) external pure {
-        revert("Soulbound");
-    }
-
-    function approve(address, uint256) external pure {
-        revert("Soulbound");
-    }
-
-    // =========================
-    // SYNC DESDE ORACLE
-    // =========================
-
-    function sync(address user) external {
-
-        (uint256 score,, uint256 timestamp,) = oracle.data(user);
+    function sync(address user) external onlyAdmin notPaused {
+        if (tokenOf[user] == 0) revert TokenNotExists();
+        if (!registry.isTotem(user)) revert NotRegistered();
+        if (status[user].fraudLocked) revert FraudLocked();
 
         History storage h = history[user];
 
-        if (h.lastUpdate > 0) {
-            h.totalScoreAccumulated += score;
+        if (block.timestamp < h.lastUpdate + MIN_SYNC_INTERVAL) {
+            revert SyncTooFrequent();
         }
 
-        // detectar eventos negativos
-        if (score < h.lastScore) {
+        (uint256 score, uint256 influence, uint256 timestamp) = oracle.getMetrics(user);
+
+        if (timestamp <= h.lastUpdate || timestamp > block.timestamp + MAX_FUTURE_DRIFT) {
+            revert InvalidTimestamp();
+        }
+
+        // Decay suave (reputación viva)
+        uint256 decay = h.totalScoreAccumulated / 100;
+        if (h.totalScoreAccumulated > decay) {
+            h.totalScoreAccumulated -= decay;
+        }
+
+        uint256 delta = 0;
+
+        if (score > h.lastScore) {
+            delta = score - h.lastScore;
+        } else if (h.lastUpdate > 0) {
             h.negativeEvents++;
+            emit NegativeEvent(user, h.negativeEvents);
+
+            uint256 penalty = (h.lastScore - score) / 3;
+            uint256 maxPenalty = h.totalScoreAccumulated / 2;
+            if (penalty > maxPenalty) penalty = maxPenalty;
+
+            if (h.totalScoreAccumulated > penalty) {
+                h.totalScoreAccumulated -= penalty;
+            } else {
+                h.totalScoreAccumulated = 0;
+            }
+        }
+
+        unchecked {
+            h.totalScoreAccumulated += delta;
+        }
+
+        if (h.totalScoreAccumulated > MAX_ACCUMULATED_SCORE) {
+            h.totalScoreAccumulated = MAX_ACCUMULATED_SCORE;
         }
 
         h.lastScore = score;
+        h.lastInfluence = influence;
         h.lastUpdate = timestamp;
 
-        // actualizar nivel
-        uint256 lvl = calculateLevel(h.totalScoreAccumulated);
-        status[user].level = lvl;
-
-        // actualizar badge
+        uint256 level = calculateLevel(h.totalScoreAccumulated);
         uint256 badge = calculateBadge(score, h.negativeEvents);
+
+        status[user].level = level;
         status[user].badge = badge;
 
-        emit LevelUpdated(user, lvl);
+        emit Sync(user, score, influence, level, badge);
+        emit LevelUpdated(user, level);
         emit BadgeUpdated(user, badge);
     }
 
-    // =========================
-    // FRAUDE
-    // =========================
-
-    function setFraud(address user, bool locked) external {
-        require(msg.sender == admin, "Not admin");
+    function setFraudLock(address user, bool locked) external onlyAdmin notPaused {
+        if (tokenOf[user] == 0) revert TokenNotExists();
+        if (!registry.isTotem(user)) revert NotRegistered();
 
         status[user].fraudLocked = locked;
-
         emit FraudLock(user, locked);
     }
 
@@ -137,83 +208,72 @@ contract Totem {
         return status[user].fraudLocked;
     }
 
-    // =========================
-    // LÓGICA DE NIVEL
-    // =========================
-
-    function calculateLevel(uint256 totalScore) public pure returns (uint256) {
-
-        if (totalScore > 1_000_000) return 5;
-        if (totalScore > 500_000) return 4;
-        if (totalScore > 100_000) return 3;
-        if (totalScore > 10_000) return 2;
+    function calculateLevel(uint256 total) public pure returns (uint256) {
+        if (total > 1_000_000) return 5;
+        if (total > 500_000) return 4;
+        if (total > 100_000) return 3;
+        if (total > 10_000) return 2;
         return 1;
     }
 
-    // =========================
-    // BADGES
-    // =========================
-
-    function calculateBadge(uint256 score, uint256 negatives) public pure returns (uint256) {
-
-        if (negatives > 50) return 0; // tóxico
-        if (score > 8000) return 3; // elite
-        if (score > 5000) return 2; // bueno
-        return 1; // normal
+    function calculateBadge(uint256 score, uint256 neg) public pure returns (uint256) {
+        if (neg > 50) return 0;
+        if (score > 8000) return 3;
+        if (score > 5000) return 2;
+        return 1;
     }
 
-    // =========================
-    // METADATA DINÁMICA JSON
-    // =========================
-
     function tokenURI(uint256 tokenId) external view returns (string memory) {
-
         address user = ownerOf[tokenId];
-
-        require(user != address(0), "Not exists");
-
-        (uint256 score, uint256 influence,,) = oracle.data(user);
+        if (user == address(0)) revert TokenNotExists();
 
         History memory h = history[user];
         Status memory s = status[user];
 
-        return string(
-            abi.encodePacked(
-                "{",
-                '"name":"Totem #', uint2str(tokenId), '",',
-                '"description":"Human economic identity",',
-                '"attributes":[',
-
-                '{"trait_type":"Score","value":', uint2str(score), '},',
-                '{"trait_type":"Influence","value":', uint2str(influence), '},',
+        return string(abi.encodePacked(
+            '{"name":"Human Totem #', uint2str(tokenId), '",',
+            '"description":"1 Human = 1 Totem - On-chain economic identity",',
+            '"attributes":[',
+                '{"trait_type":"Score","value":', uint2str(h.lastScore), '},',
+                '{"trait_type":"Influence","value":', uint2str(h.lastInfluence), '},',
+                '{"trait_type":"Accumulated Score","value":', uint2str(h.totalScoreAccumulated), '},',
                 '{"trait_type":"Level","value":', uint2str(s.level), '},',
                 '{"trait_type":"Badge","value":', uint2str(s.badge), '},',
                 '{"trait_type":"Negative Events","value":', uint2str(h.negativeEvents), '},',
-                '{"trait_type":"Fraud Locked","value":"', s.fraudLocked ? "true" : "false", '"}',
-
-                "]}"
-            )
-        );
+                '{"trait_type":"Fraud Locked","value":', s.fraudLocked ? "true" : "false", '}',
+            ']}'
+        ));
     }
 
-    // =========================
-    // HELPERS
-    // =========================
+    function setPaused(bool _paused) external onlyAdmin {
+        paused = _paused;
+        emit Paused(msg.sender, _paused);
+    }
 
-    function uint2str(uint256 _i) internal pure returns (string memory str) {
+    function startAdminTransfer(address newAdmin) external onlyAdmin {
+        if (newAdmin == address(0)) revert ZeroAddress();
+        pendingAdmin = newAdmin;
+        emit AdminTransferStarted(admin, newAdmin);
+    }
+
+    function acceptAdmin() external {
+        if (msg.sender != pendingAdmin) revert NoPendingAdmin();
+        admin = pendingAdmin;
+        pendingAdmin = address(0);
+        emit AdminTransferred(admin);
+    }
+
+    function uint2str(uint256 _i) internal pure returns (string memory) {
         if (_i == 0) return "0";
         uint256 j = _i;
-        uint256 length;
-        while (j != 0) {
-            length++;
-            j /= 10;
-        }
-        bytes memory bstr = new bytes(length);
-        uint256 k = length;
+        uint256 len = 0;
+        while (j != 0) { len++; j /= 10; }
+        bytes memory b = new bytes(len);
+        uint256 k = len;
         while (_i != 0) {
-            bstr[--k] = bytes1(uint8(48 + _i % 10));
+            b[--k] = bytes1(uint8(48 + _i % 10));
             _i /= 10;
         }
-        str = string(bstr);
+        return string(b);
     }
 }
