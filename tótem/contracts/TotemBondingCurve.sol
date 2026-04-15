@@ -1,3 +1,5 @@
+
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -10,7 +12,7 @@ interface IRegistry {
 }
 
 interface IOracle {
-    function getInfluence(address user) external view returns (uint256); // base 1000
+    function getScore(address user) external view returns (uint256);
 }
 
 contract TotemBondingCurve is ReentrancyGuard, Ownable {
@@ -20,7 +22,6 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
     IOracle public immutable oracle;
     address public treasury;
 
-    // ====================== CURVA EXACTA ======================
     uint256 public constant INITIAL_PRICE_WLD = 55 * 10**7;
     uint256 public constant SCALE = 1e20;
     uint256 public constant CURVE_K = 235;
@@ -29,133 +30,200 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
     uint256 public constant SELL_FEE_BPS = 300;
     uint256 public constant FEE_DENOMINATOR = 10_000;
 
-    // Penalidad máxima 7.5% (92.5 - 107.5)
-    uint256 public constant INFLUENCE_MIN = 925;
-    uint256 public constant INFLUENCE_MAX = 1075;
-    uint256 public constant INFLUENCE_BASE = 1000;
+    uint256 public constant SCORE_MIN = 925;
+    uint256 public constant SCORE_MAX = 1075;
+    uint256 public constant SCORE_BASE = 1000;
 
-    // Distribución del excedente
-    uint256 public constant RESERVE_PERCENT = 500;   // 5% reserva pool
-    uint256 public constant TREASURY_PERCENT = 250;  // 2.5% treasury
+    mapping(address => uint256) public realSupply;
 
-    mapping(address => uint256) public globalSupply;
-
-    event Buy(address indexed totem, uint256 wldIn, uint256 tokensOut, uint256 influence);
-    event Sell(address indexed totem, uint256 tokensIn, uint256 wldOut, uint256 influence);
+    event Buy(address indexed totem, uint256 wldIn, uint256 tokensOut, uint256 score);
+    event Sell(address indexed totem, uint256 tokensIn, uint256 wldOut, uint256 score);
     event TreasuryUpdated(address newTreasury);
 
-    constructor(
-        address _wld,
-        address _registry,
-        address _oracle,
-        address _initialTreasury
-    ) Ownable(msg.sender) {
+    error NotATotem();
+    error ZeroAmount();
+    error InsufficientSupply();
+    error SlippageExceeded();
+    error OracleAnomaly();
+
+    constructor(address _wld, address _registry, address _oracle, address _treasury) Ownable(msg.sender) {
         wldToken = IERC20(_wld);
         registry = IRegistry(_registry);
         oracle = IOracle(_oracle);
-        treasury = _initialTreasury;
+        treasury = _treasury;
+    }
+
+    function _g(uint256 score) internal pure returns (uint256) {
+        if (score < SCORE_MIN || score > SCORE_MAX) revert OracleAnomaly();
+        return score;
     }
 
     function V(uint256 s) public pure returns (uint256) {
         uint256 linear = INITIAL_PRICE_WLD * s;
-        uint256 cubic = (CURVE_K * s * s * s) / (3 * SCALE);
+        uint256 s2 = (s * s) / SCALE;
+        uint256 s3 = (s2 * s) / SCALE;
+        uint256 cubic = (CURVE_K * s3) / 3;
         return linear + cubic;
     }
 
-    function previewBuy(address totem, uint256 amountWldIn) public view returns (uint256 tokensOut) {
-        if (!registry.isTotem(totem)) revert NotATotem();
-        if (amountWldIn == 0) revert ZeroAmount();
-
-        uint256 s0 = globalSupply[totem];
-        uint256 s1 = s0 + amountWldIn;
-
-        uint256 baseValue = V(s1) - V(s0);
-
-        uint256 fee = (baseValue * BUY_FEE_BPS) / FEE_DENOMINATOR;
-        tokensOut = baseValue - fee;
+    function dV(uint256 s) public pure returns (uint256) {
+        uint256 s2 = (s * s) / SCALE;
+        return INITIAL_PRICE_WLD + (CURVE_K * s2);
     }
 
-    function previewSell(address totem, uint256 tokensIn) public view returns (uint256 wldOut) {
-        if (!registry.isTotem(totem)) revert NotATotem();
-        if (tokensIn == 0) revert ZeroAmount();
-
-        uint256 s0 = globalSupply[totem];
-        if (tokensIn > s0) revert InsufficientSupply();
-
-        uint256 s1 = s0 - tokensIn;
-
-        uint256 baseValue = V(s0) - V(s1);
-
-        uint256 influence = _getBoundedInfluence(totem);
-        uint256 influencedWld = (baseValue * influence) / INFLUENCE_BASE;
-
-        uint256 fee = (influencedWld * SELL_FEE_BPS) / FEE_DENOMINATOR;
-        wldOut = influencedWld - fee;
+    function _effective(uint256 real, uint256 score) internal pure returns (uint256) {
+        return (real * score) / SCORE_BASE;
     }
 
-    function buy(address totem, uint256 amountWldIn, uint256 minTokensOut) external nonReentrant {
-        uint256 tokensOut = previewBuy(totem, amountWldIn);
-        if (tokensOut < minTokensOut) revert SlippageExceeded();
+    // ================= SOLVER =================
+    function _solveBuyEff(uint256 s0Eff, uint256 wldIn) internal pure returns (uint256 s1Eff) {
+        uint256 target = V(s0Eff) + wldIn;
 
-        uint256 influence = _getBoundedInfluence(totem);
+        // Newton inicial
+        s1Eff = s0Eff + (wldIn * 1e18) / dV(s0Eff);
+
+        for (uint256 i = 0; i < 10; i++) {
+            uint256 v1 = V(s1Eff);
+
+            int256 f = int256(v1) - int256(target);
+            int256 df = int256(dV(s1Eff));
+
+            if (df == 0 || f == 0) return s1Eff;
+
+            int256 delta = f / df;
+            if (delta == 0) return s1Eff;
+
+            int256 maxStep = int256(s1Eff) / 4;
+            if (delta > maxStep) delta = maxStep;
+            if (delta < -maxStep) delta = -maxStep;
+
+            if (delta > 0) s1Eff -= uint256(delta);
+            else s1Eff += uint256(-delta);
+        }
+
+        // 🔥 FALLBACK: BISECTION (garantiza convergencia)
+        uint256 low = s0Eff;
+        uint256 high = s1Eff > s0Eff ? s1Eff : s0Eff + 1;
+
+        while (V(high) < target) {
+            high = high * 2;
+        }
+
+        for (uint256 i = 0; i < 32; i++) {
+            uint256 mid = (low + high) / 2;
+            uint256 v = V(mid);
+
+            if (v > target) high = mid;
+            else low = mid;
+        }
+
+        return (low + high) / 2;
+    }
+
+    // ================= PREVIEW =================
+    function previewBuy(address totem, uint256 amountWldIn) external view returns (uint256 tokensOut) {
+        if (!registry.isTotem(totem) || amountWldIn == 0) return 0;
+
+        uint256 score = _g(oracle.getScore(totem));
 
         uint256 fee = (amountWldIn * BUY_FEE_BPS) / FEE_DENOMINATOR;
         uint256 netWld = amountWldIn - fee;
 
+        uint256 s0Eff = _effective(realSupply[totem], score);
+        uint256 s1Eff = _solveBuyEff(s0Eff, netWld);
+
+        tokensOut = ((s1Eff - s0Eff) * SCORE_BASE) / score;
+    }
+
+    function previewSell(address totem, uint256 tokensIn) external view returns (uint256 wldOut) {
+        if (!registry.isTotem(totem) || tokensIn == 0) return 0;
+
+        uint256 score = _g(oracle.getScore(totem));
+
+        uint256 s0Eff = _effective(realSupply[totem], score);
+        uint256 deltaEff = (tokensIn * score) / SCORE_BASE;
+
+        if (deltaEff > s0Eff) return 0;
+
+        uint256 s1Eff = s0Eff - deltaEff;
+
+        uint256 baseValue = V(s0Eff) - V(s1Eff);
+        uint256 fee = (baseValue * SELL_FEE_BPS) / FEE_DENOMINATOR;
+
+        return baseValue - fee;
+    }
+
+    // ================= BUY =================
+    function buy(address totem, uint256 amountWldIn, uint256 minTokensOut) external nonReentrant {
+        if (!registry.isTotem(totem)) revert NotATotem();
+        if (amountWldIn == 0) revert ZeroAmount();
+
+        uint256 score = _g(oracle.getScore(totem));
+
+        uint256 fee = (amountWldIn * BUY_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 netWld = amountWldIn - fee;
+
+        uint256 s0Eff = _effective(realSupply[totem], score);
+        uint256 s1Eff = _solveBuyEff(s0Eff, netWld);
+
+        uint256 tokensOut = ((s1Eff - s0Eff) * SCORE_BASE) / score;
+
+        if (tokensOut < minTokensOut) revert SlippageExceeded();
+
         require(wldToken.transferFrom(msg.sender, address(this), netWld), "WLD transfer failed");
+        require(wldToken.transferFrom(msg.sender, treasury, fee), "Fee transfer failed");
+
+        realSupply[totem] += tokensOut;
+
+        emit Buy(totem, amountWldIn, tokensOut, score);
+    }
+
+    // ================= SELL =================
+    function sell(address totem, uint256 tokensIn, uint256 minWldOut) external nonReentrant {
+        if (!registry.isTotem(totem)) revert NotATotem();
+        if (tokensIn == 0) revert ZeroAmount();
+
+        uint256 s0Real = realSupply[totem];
+        if (tokensIn > s0Real) revert InsufficientSupply();
+
+        uint256 score = _g(oracle.getScore(totem));
+
+        uint256 s0Eff = _effective(s0Real, score);
+        uint256 deltaEff = (tokensIn * score) / SCORE_BASE;
+
+        if (deltaEff > s0Eff) revert InsufficientSupply();
+
+        uint256 s1Eff = s0Eff - deltaEff;
+
+        uint256 baseValue = V(s0Eff) - V(s1Eff);
+        uint256 fee = (baseValue * SELL_FEE_BPS) / FEE_DENOMINATOR;
+        uint256 payout = baseValue - fee;
+
+        if (payout < minWldOut) revert SlippageExceeded();
+
+        realSupply[totem] = s0Real - tokensIn;
+
+        require(wldToken.transfer(msg.sender, payout), "Payout failed");
         require(wldToken.transfer(treasury, fee), "Fee transfer failed");
 
-        uint256 supplyShift = (netWld * influence) / INFLUENCE_BASE;
-        globalSupply[totem] += supplyShift;
-
-        emit Buy(totem, amountWldIn, tokensOut, influence);
+        emit Sell(totem, tokensIn, payout, score);
     }
 
-    function sell(address totem, uint256 tokensIn, uint256 minWldOut) external nonReentrant {
-        uint256 wldOut = previewSell(totem, tokensIn);
-        if (wldOut < minWldOut) revert SlippageExceeded();
-
-        if (globalSupply[totem] < tokensIn) revert InsufficientSupply();
-
-        uint256 influence = _getBoundedInfluence(totem);
-        uint256 s0 = globalSupply[totem];
-        uint256 s1 = s0 - tokensIn;
-        uint256 baseValue = V(s0) - V(s1);
-
-        uint256 influencedWld = (baseValue * influence) / INFLUENCE_BASE;
-        uint256 surplus = baseValue - influencedWld;
-
-        uint256 reserveTake = (surplus * RESERVE_PERCENT) / FEE_DENOMINATOR;   // 5% reserva
-        uint256 treasuryTake = (surplus * TREASURY_PERCENT) / FEE_DENOMINATOR; // 2.5% treasury
-
-        uint256 sellFee = (influencedWld * SELL_FEE_BPS) / FEE_DENOMINATOR;
-        uint256 finalPayout = influencedWld - sellFee;
-
-        require(wldToken.transfer(msg.sender, finalPayout), "Payout failed");
-        require(wldToken.transfer(treasury, sellFee + treasuryTake), "Treasury failed");
-
-        uint256 supplyReduction = (tokensIn * influence) / INFLUENCE_BASE;
-        globalSupply[totem] = globalSupply[totem] > supplyReduction 
-            ? globalSupply[totem] - supplyReduction 
-            : 0;
-
-        emit Sell(totem, tokensIn, finalPayout, influence);
-    }
-
-    function _getBoundedInfluence(address totem) internal view returns (uint256) {
-        uint256 inf = oracle.getInfluence(totem);
-        if (inf < INFLUENCE_MIN) return INFLUENCE_MIN;
-        if (inf > INFLUENCE_MAX) return INFLUENCE_MAX;
-        return inf;
+    // ================= VIEW =================
+    function effectiveSupply(address totem) external view returns (uint256) {
+        uint256 score = _g(oracle.getScore(totem));
+        return _effective(realSupply[totem], score);
     }
 
     function getSupply(address totem) external view returns (uint256) {
-        return globalSupply[totem];
+        return realSupply[totem];
     }
 
     function setTreasury(address _newTreasury) external onlyOwner {
         require(_newTreasury != address(0), "Zero address");
         treasury = _newTreasury;
-        emit TreasuryUpdated(_newTreasury); // Agrega este evento si quieres
+        emit TreasuryUpdated(_newTreasury);
     }
 }
+
+
