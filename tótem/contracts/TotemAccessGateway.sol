@@ -21,39 +21,90 @@ interface IBondingCurve {
     function getPrice(address user) external view returns (uint256);
 }
 
+interface IRateLimiter {
+    function check(address user, bytes32 action) external;
+}
+
 contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
 
+    // -------------------------
+    // 🔗 DEPENDENCIES
+    // -------------------------
     IRegistry public immutable registry;
     IOracle public immutable oracle;
     IBondingCurve public immutable curve;
+    IRateLimiter public limiter;
 
-    address public signer; // primary backend signer
-    address public backupSigner; // EIP-712 backup signer
+    // -------------------------
+    // 🔐 SIGNERS
+    // -------------------------
+    address public signer;
+    address public backupSigner;
 
+    // -------------------------
+    // 🔁 NONCES
+    // -------------------------
     mapping(address => uint256) public nonces;
 
+    // -------------------------
+    // 📜 EIP-712
+    // -------------------------
+    uint256 private INITIAL_CHAIN_ID;
+    bytes32 private INITIAL_DOMAIN_SEPARATOR;
+
     bytes32 private constant QUERY_TYPEHASH =
-        keccak256("Query(address user,uint256 nonce,uint256 deadline)");
+        keccak256("Query(address user,uint256 maxPrice,uint256 nonce,uint256 deadline)");
 
-    bytes32 private DOMAIN_SEPARATOR;
+    bytes32 public constant ACTION_QUERY = keccak256("QUERY");
 
-    event QueryConsumed(address indexed user, uint256 score, uint256 influence);
+    // -------------------------
+    // 📡 EVENTS
+    // -------------------------
+    event QueryConsumed(
+        address indexed user,
+        uint256 score,
+        uint256 influence,
+        uint256 price
+    );
 
+    event Withdraw(address indexed to, uint256 amount);
+
+    // -------------------------
+    // 🏗️ CONSTRUCTOR
+    // -------------------------
     constructor(
         address _registry,
         address _oracle,
         address _curve,
+        address _limiter,
         address _signer,
         address _backupSigner
     ) {
         registry = IRegistry(_registry);
         oracle = IOracle(_oracle);
         curve = IBondingCurve(_curve);
+        limiter = IRateLimiter(_limiter);
 
         signer = _signer;
         backupSigner = _backupSigner;
 
-        DOMAIN_SEPARATOR = keccak256(
+        INITIAL_CHAIN_ID = block.chainid;
+        INITIAL_DOMAIN_SEPARATOR = _buildDomainSeparator();
+    }
+
+    // -------------------------
+    // 🔐 DOMAIN LOGIC
+    // -------------------------
+    function _domainSeparator() internal view returns (bytes32) {
+        if (block.chainid == INITIAL_CHAIN_ID) {
+            return INITIAL_DOMAIN_SEPARATOR;
+        } else {
+            return _buildDomainSeparator();
+        }
+    }
+
+    function _buildDomainSeparator() private view returns (bytes32) {
+        return keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
                 keccak256(bytes("TotemGateway")),
@@ -65,10 +116,11 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
     }
 
     // -------------------------
-    // 🔐 EIP-712 VERIFY
+    // 🔐 SIGNATURE VERIFY
     // -------------------------
     function _verify(
         address user,
+        uint256 maxPrice,
         uint256 nonce,
         uint256 deadline,
         bytes memory signature
@@ -80,13 +132,14 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
             abi.encode(
                 QUERY_TYPEHASH,
                 user,
+                maxPrice,
                 nonce,
                 deadline
             )
         );
 
         bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash)
+            abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
         );
 
         return _recover(digest, signature);
@@ -113,9 +166,10 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
     }
 
     // -------------------------
-    // 💰 MAIN FUNCTION
+    // 💰 MAIN ENTRYPOINT
     // -------------------------
     function query(
+        uint256 maxPrice,
         uint256 deadline,
         bytes calldata signature
     )
@@ -129,32 +183,54 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
 
         require(registry.isTotem(user), "not Totem");
 
+        // 🔒 Rate limit
+        limiter.check(user, ACTION_QUERY);
+
         uint256 nonce = nonces[user]++;
 
-        address recovered = _verify(user, nonce, deadline, signature);
+        address recovered = _verify(user, maxPrice, nonce, deadline, signature);
         require(_isValidSigner(recovered), "invalid sig");
 
-        uint256 price = curve.getPrice(user);
-        require(msg.value >= price, "insufficient fee");
+        uint256 currentPrice = curve.getPrice(user);
+
+        // 🔒 Slippage-safe check
+        require(currentPrice <= maxPrice, "slippage exceeded");
+
+        require(msg.value >= currentPrice, "insufficient fee");
 
         (score, influence,) = oracle.getMetrics(user);
 
-        emit QueryConsumed(user, score, influence);
+        emit QueryConsumed(user, score, influence, currentPrice);
     }
 
     // -------------------------
-    // ADMIN
+    // 💸 WITHDRAW
     // -------------------------
+    function withdraw(address payable to, uint256 amount)
+        external
+        onlyOwner
+        nonReentrant
+    {
+        require(amount <= address(this).balance, "too much");
+
+        (bool ok,) = to.call{value: amount}("");
+        require(ok, "transfer failed");
+
+        emit Withdraw(to, amount);
+    }
+
+    // -------------------------
+    // ⚙️ ADMIN
+    // -------------------------
+    function setLimiter(address _limiter) external onlyOwner {
+        limiter = IRateLimiter(_limiter);
+    }
+
     function setSigners(address _primary, address _backup) external onlyOwner {
         signer = _primary;
         backupSigner = _backup;
     }
 
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
+    function pause() external onlyOwner { _pause(); }
+    function unpause() external onlyOwner { _unpause(); }
 }
