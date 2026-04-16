@@ -4,6 +4,9 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+// ---------------- INTERFACES ----------------
 
 interface ITotem {
     function status(address user) external view returns (
@@ -15,6 +18,8 @@ interface ITotem {
 
 interface ICurve {
     function getSupply(address totem) external view returns (uint256);
+    function getPrice(address totem) external view returns (uint256);
+    function freeze(address totem) external;
 }
 
 interface IMetrics {
@@ -26,28 +31,52 @@ interface IMetrics {
     );
 }
 
+interface IUniswapV2Factory {
+    function createPair(address tokenA, address tokenB) external returns (address pair);
+}
+
+interface IUniswapV2Router {
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint amountA,
+        uint amountB,
+        uint minA,
+        uint minB,
+        address to,
+        uint deadline
+    ) external returns (uint, uint, uint);
+}
+
+// ---------------- CONTRACT ----------------
+
 contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
 
     ITotem public immutable totem;
     ICurve public immutable curve;
     IMetrics public immutable metrics;
 
-    // ---------------- PARAMETERS ----------------
+    address public immutable wldToken;
+    address public router;
+    address public factory;
 
     uint256 public minLevel = 4;
     uint256 public minSupply = 10_000;
     uint256 public minVolume = 15_000 ether;
     uint256 public minAge = 45 days;
 
-    uint256 public staleWindow = 1 days; // fallback safety
+    uint256 public staleWindow = 1 days;
+    uint256 public liquidityBps = 1000; // 10%
 
     mapping(address => bool) public graduated;
+    mapping(address => address) public ammPair;
 
     // ---------------- EVENTS ----------------
 
-    event Graduated(address indexed totem, uint256 timestamp);
+    event Graduated(address indexed totem, address pair);
     event ParamsUpdated();
-    event StaleWindowUpdated(uint256 window);
+    event RouterUpdated(address router);
+    event FactoryUpdated(address factory);
 
     // ---------------- ERRORS ----------------
 
@@ -55,22 +84,31 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
     error NotEligible();
     error FraudLocked();
     error InvalidMarket();
+    error PairExists();
 
     constructor(
         address _totem,
         address _curve,
-        address _metrics
+        address _metrics,
+        address _wld,
+        address _router,
+        address _factory
     ) {
         require(_totem != address(0), "zero");
         require(_curve != address(0), "zero");
         require(_metrics != address(0), "zero");
+        require(_wld != address(0), "zero");
 
         totem = ITotem(_totem);
         curve = ICurve(_curve);
         metrics = IMetrics(_metrics);
+
+        wldToken = _wld;
+        router = _router;
+        factory = _factory;
     }
 
-    // ---------------- CORE LOGIC ----------------
+    // ---------------- INTERNAL LOGIC ----------------
 
     function _getVolume(address user) internal view returns (uint256) {
         (
@@ -80,12 +118,8 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
             uint256 lastTradeAt
         ) = metrics.markets(user);
 
-        // 🔐 prefer verified
-        if (verifiedVolume > 0) {
-            return verifiedVolume;
-        }
+        if (verifiedVolume > 0) return verifiedVolume;
 
-        // ⚠️ fallback only if fresh
         if (block.timestamp - lastTradeAt <= staleWindow) {
             return rawVolume;
         }
@@ -121,6 +155,46 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
         return true;
     }
 
+    // ---------------- AMM CREATION ----------------
+
+    function _createAMM(address user) internal returns (address pair) {
+
+        if (ammPair[user] != address(0)) revert PairExists();
+
+        address token = user; // ⚠️ Ajustar si usas ERC20 separado
+
+        pair = IUniswapV2Factory(factory).createPair(token, wldToken);
+        ammPair[user] = pair;
+
+        uint256 supply = curve.getSupply(user);
+        require(supply > 0, "no supply");
+
+        uint256 price = curve.getPrice(user);
+
+        uint256 amountToken = (supply * liquidityBps) / 10_000;
+        uint256 amountWLD = (amountToken * price) / 1e18;
+
+        // transfer tokens desde owner (treasury)
+        require(IERC20(token).transferFrom(owner(), address(this), amountToken), "token transfer fail");
+        require(IERC20(wldToken).transferFrom(owner(), address(this), amountWLD), "wld transfer fail");
+
+        IERC20(token).approve(router, amountToken);
+        IERC20(wldToken).approve(router, amountWLD);
+
+        IUniswapV2Router(router).addLiquidity(
+            token,
+            wldToken,
+            amountToken,
+            amountWLD,
+            0,
+            0,
+            owner(),
+            block.timestamp
+        );
+    }
+
+    // ---------------- MAIN ----------------
+
     function graduate(address user)
         external
         nonReentrant
@@ -135,18 +209,13 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
 
         graduated[user] = true;
 
-        emit Graduated(user, block.timestamp);
+        // 🔒 CRÍTICO: congelar curva
+        curve.freeze(user);
 
-        // =============================
-        // 🔥 HOOK PARA AMM
-        // =============================
-        // Aquí conectas:
-        // - freeze curve (si quieres)
-        // - crear pool (Uniswap / WorldChain)
-        // - seed liquidity
-        //
-        // Ejemplo futuro:
-        // amm.createPool(user, price, liquidity);
+        // 🚀 crear AMM
+        address pair = _createAMM(user);
+
+        emit Graduated(user, pair);
     }
 
     // ---------------- ADMIN ----------------
@@ -165,9 +234,14 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
         emit ParamsUpdated();
     }
 
-    function setStaleWindow(uint256 _window) external onlyOwner {
-        staleWindow = _window;
-        emit StaleWindowUpdated(_window);
+    function setRouter(address _router) external onlyOwner {
+        router = _router;
+        emit RouterUpdated(_router);
+    }
+
+    function setFactory(address _factory) external onlyOwner {
+        factory = _factory;
+        emit FactoryUpdated(_factory);
     }
 
     function pause() external onlyOwner {
