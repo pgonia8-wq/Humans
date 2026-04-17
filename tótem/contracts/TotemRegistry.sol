@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/**
- * @notice World ID Router v4 interface
- * @dev MUST revert on invalid proof
- */
 interface IWorldIDVerifier {
     function verifyProof(
         uint256 root,
@@ -16,29 +12,20 @@ interface IWorldIDVerifier {
     ) external view;
 }
 
-/**
- * @title TotemRegistry
- * @notice 1 humano = 1 tótem (World ID enforced)
- * @dev Production-grade: anti-sybil, anti-front-running, audit-ready
- */
+interface ITotem {
+    function migrateToken(address oldUser, address newUser) external;
+}
+
 contract TotemRegistry {
 
-    // =========================
-    // CONSTANTS
-    // =========================
-
     address public immutable WORLD_ID_VERIFIER;
+    address public immutable TOTEM;                     // ← nuevo: referencia al SBT
 
     uint256 public constant GROUP_ID = 1;
-    uint256 public immutable EXTERNAL_NULLIFIER;
-
-    // =========================
-    // STORAGE
-    // =========================
+    bytes32 public immutable EXTERNAL_NULLIFIER;
 
     address public admin;
     address public pendingAdmin;
-
     bool public paused;
 
     mapping(address => bool) public hasTotem;
@@ -50,10 +37,21 @@ contract TotemRegistry {
 
     uint256 public totalTotems;
 
-    // =========================
-    // EVENTS
-    // =========================
+    // Migración segura con delay + aprobación admin
+    struct MigrationRequest {
+        address oldUser;
+        uint256 oldNullifierHash;
+        uint256 newNullifierHash;
+        uint256 requestedAt;
+        uint256 root;
+        bool approved;
+    }
 
+    mapping(address => MigrationRequest) public migrationRequests; // keyed by newUser
+
+    uint256 public constant MIGRATION_DELAY = 24 hours;
+
+    // ========================= EVENTS =========================
     event TotemCreated(
         address indexed user,
         uint256 indexed nullifierHash,
@@ -63,18 +61,25 @@ contract TotemRegistry {
         uint256 timestamp
     );
 
+    event MigrationRequested(
+        address indexed oldUser,
+        address indexed newUser,
+        uint256 oldNullifier,
+        uint256 newNullifier,
+        uint256 executeAfter
+    );
+
+    event MigrationApproved(address indexed oldUser, address indexed newUser);
+    event MigrationExecuted(address indexed oldUser, address indexed newUser, uint256 newNullifier);
+
     event TotemBlocked(address indexed user, string reason);
     event TotemUnblocked(address indexed user);
 
     event Paused(bool status);
-
     event AdminTransferStarted(address indexed current, address indexed pending);
     event AdminTransferred(address indexed newAdmin);
 
-    // =========================
-    // ERRORS
-    // =========================
-
+    // ========================= ERRORS =========================
     error NotAdmin();
     error PausedError();
     error TotemAlreadyExists();
@@ -84,10 +89,12 @@ contract TotemRegistry {
     error AlreadyBlocked();
     error NotBlocked();
     error NoPendingAdmin();
-
-    // =========================
-    // MODIFIERS
-    // =========================
+    error ZeroAddress();
+    error MigrationNotRequested();
+    error MigrationDelayNotMet();
+    error MigrationNotApproved();
+    error InvalidMigration();
+    error BlockedUserCannotMigrate();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert NotAdmin();
@@ -99,39 +106,28 @@ contract TotemRegistry {
         _;
     }
 
-    // =========================
-    // CONSTRUCTOR
-    // =========================
-
-    constructor(address _worldIdVerifier) {
-        require(_worldIdVerifier != address(0), "Invalid verifier");
+    constructor(address _worldIdVerifier, address _totem) {
+        if (_worldIdVerifier == address(0) || _totem == address(0)) revert ZeroAddress();
 
         WORLD_ID_VERIFIER = _worldIdVerifier;
+        TOTEM = _totem;
         admin = msg.sender;
+        paused = false;
 
-        paused = false; // explicit
-
-        EXTERNAL_NULLIFIER = uint256(keccak256("create-totem"));
+        EXTERNAL_NULLIFIER = keccak256("create-totem");
     }
 
-    // =========================
-    // CORE
-    // =========================
-
+    // ========================= CREATE =========================
     function createTotem(
         uint256 root,
         uint256 nullifierHash,
         uint256[8] calldata proof
     ) external notPaused {
-
         if (isBlocked[msg.sender]) revert AlreadyBlocked();
         if (hasTotem[msg.sender]) revert TotemAlreadyExists();
-
         if (nullifierHash == 0) revert InvalidNullifier();
         if (usedNullifiers[nullifierHash]) revert NullifierAlreadyUsed();
-        if (nullifierToAddress[nullifierHash] != address(0)) revert NullifierAlreadyUsed();
 
-        // MUST match frontend signal generation
         uint256 signalHash = uint256(keccak256(abi.encodePacked(msg.sender)));
 
         IWorldIDVerifier(WORLD_ID_VERIFIER).verifyProof(
@@ -160,47 +156,116 @@ contract TotemRegistry {
         );
     }
 
-    // =========================
-    // FRAUD CONTROL
-    // =========================
+    // ========================= MIGRACIÓN SEGURA =========================
+    function requestMigration(
+        address oldUser,
+        uint256 newNullifierHash,
+        uint256 root,
+        uint256[8] calldata proof
+    ) external notPaused {
+        if (!hasTotem[oldUser]) revert NotRegistered();
+        if (hasTotem[msg.sender]) revert TotemAlreadyExists();
+        if (usedNullifiers[newNullifierHash]) revert NullifierAlreadyUsed();
+        if (oldUser == msg.sender) revert InvalidMigration();
+        if (isBlocked[oldUser]) revert BlockedUserCannotMigrate();
 
+        // ← Corrección: nunca confiamos en el oldNullifier enviado por el usuario
+        uint256 oldNullifierHash = totemNullifier[oldUser];
+
+        uint256 signalHash = uint256(keccak256(abi.encodePacked(msg.sender)));
+
+        IWorldIDVerifier(WORLD_ID_VERIFIER).verifyProof(
+            root,
+            GROUP_ID,
+            signalHash,
+            newNullifierHash,
+            EXTERNAL_NULLIFIER,
+            proof
+        );
+
+        migrationRequests[msg.sender] = MigrationRequest({
+            oldUser: oldUser,
+            oldNullifierHash: oldNullifierHash,
+            newNullifierHash: newNullifierHash,
+            requestedAt: block.timestamp,
+            root: root,
+            approved: false
+        });
+
+        emit MigrationRequested(
+            oldUser,
+            msg.sender,
+            oldNullifierHash,
+            newNullifierHash,
+            block.timestamp + MIGRATION_DELAY
+        );
+    }
+
+    function approveMigration(address newUser) external onlyAdmin {
+        MigrationRequest storage req = migrationRequests[newUser];
+        if (req.requestedAt == 0) revert MigrationNotRequested();
+        if (req.approved) revert InvalidMigration();
+
+        req.approved = true;
+        emit MigrationApproved(req.oldUser, newUser);
+    }
+
+    function executeMigration(address newUser) external notPaused {
+        MigrationRequest memory req = migrationRequests[newUser];
+        if (req.requestedAt == 0) revert MigrationNotRequested();
+        if (!req.approved) revert MigrationNotApproved();
+        if (block.timestamp < req.requestedAt + MIGRATION_DELAY) revert MigrationDelayNotMet();
+
+        address oldUser = req.oldUser;
+
+        // Transferir el SBT al nuevo dueño (sincronización con Totem.sol)
+        ITotem(TOTEM).migrateToken(oldUser, newUser);
+
+        // Actualizar estado del Registry
+        hasTotem[oldUser] = false;
+        hasTotem[newUser] = true;
+
+        usedNullifiers[req.oldNullifierHash] = false;
+        usedNullifiers[req.newNullifierHash] = true;
+
+        nullifierToAddress[req.oldNullifierHash] = address(0);
+        nullifierToAddress[req.newNullifierHash] = newUser;
+
+        totemNullifier[oldUser] = 0;
+        totemNullifier[newUser] = req.newNullifierHash;
+
+        delete migrationRequests[newUser];
+
+        emit MigrationExecuted(oldUser, newUser, req.newNullifierHash);
+    }
+
+    // ========================= FRAUD CONTROL =========================
     function blockTotem(address user, string calldata reason) external onlyAdmin {
-
         if (!hasTotem[user]) revert NotRegistered();
         if (isBlocked[user]) revert AlreadyBlocked();
 
         isBlocked[user] = true;
-
         emit TotemBlocked(user, reason);
     }
 
     function unblockTotem(address user) external onlyAdmin {
-
         if (!isBlocked[user]) revert NotBlocked();
 
         isBlocked[user] = false;
-
         emit TotemUnblocked(user);
     }
 
-    // =========================
-    // ADMIN (2-step)
-    // =========================
-
+    // ========================= ADMIN =========================
     function startAdminTransfer(address newAdmin) external onlyAdmin {
-        require(newAdmin != address(0), "Zero address");
-
+        if (newAdmin == address(0)) revert ZeroAddress();
         pendingAdmin = newAdmin;
-
         emit AdminTransferStarted(admin, newAdmin);
     }
 
     function acceptAdmin() external {
         if (msg.sender != pendingAdmin) revert NoPendingAdmin();
-
         admin = pendingAdmin;
         pendingAdmin = address(0);
-
         emit AdminTransferred(admin);
     }
 
@@ -209,23 +274,12 @@ contract TotemRegistry {
         emit Paused(_paused);
     }
 
-    // =========================
-    // VIEWS
-    // =========================
-
+    // ========================= VIEWS =========================
     function isTotem(address user) external view returns (bool) {
         return hasTotem[user] && !isBlocked[user];
     }
 
     function getNullifier(address user) external view returns (uint256) {
         return totemNullifier[user];
-    }
-
-    function isNullifierUsed(uint256 nullifierHash) external view returns (bool) {
-        return usedNullifiers[nullifierHash];
-    }
-
-    function getOwnerByNullifier(uint256 nullifierHash) external view returns (address) {
-        return nullifierToAddress[nullifierHash];
     }
 }
