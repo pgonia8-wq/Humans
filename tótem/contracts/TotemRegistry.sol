@@ -16,10 +16,17 @@ interface ITotem {
     function migrateToken(address oldUser, address newUser) external;
 }
 
+/**
+ * @title TotemRegistry
+ * @dev FIX ALTO-5: Old nullifiers after migration are moved to a dedicated
+ *      `migratedNullifiers` mapping instead of being set back to false.
+ *      This prevents a compromised or re-used nullifier from registering a
+ *      second identity after a migration completes.
+ */
 contract TotemRegistry {
 
     address public immutable WORLD_ID_VERIFIER;
-    address public immutable TOTEM;                     // ← nuevo: referencia al SBT
+    address public immutable TOTEM;
 
     uint256 public constant GROUP_ID = 1;
     bytes32 public immutable EXTERNAL_NULLIFIER;
@@ -35,9 +42,12 @@ contract TotemRegistry {
     mapping(uint256 => address) public nullifierToAddress;
     mapping(address => uint256) public totemNullifier;
 
+    // FIX ALTO-5: Permanently marks nullifiers that have been migrated away.
+    // These can never be reused for a new identity, even after migration.
+    mapping(uint256 => bool) public migratedNullifiers;
+
     uint256 public totalTotems;
 
-    // Migración segura con delay + aprobación admin
     struct MigrationRequest {
         address oldUser;
         uint256 oldNullifierHash;
@@ -47,7 +57,7 @@ contract TotemRegistry {
         bool approved;
     }
 
-    mapping(address => MigrationRequest) public migrationRequests; // keyed by newUser
+    mapping(address => MigrationRequest) public migrationRequests;
 
     uint256 public constant MIGRATION_DELAY = 24 hours;
 
@@ -95,6 +105,8 @@ contract TotemRegistry {
     error MigrationNotApproved();
     error InvalidMigration();
     error BlockedUserCannotMigrate();
+    // FIX ALTO-5: Explicit error for re-use of a migrated nullifier
+    error NullifierWasMigrated();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert NotAdmin();
@@ -127,6 +139,8 @@ contract TotemRegistry {
         if (hasTotem[msg.sender]) revert TotemAlreadyExists();
         if (nullifierHash == 0) revert InvalidNullifier();
         if (usedNullifiers[nullifierHash]) revert NullifierAlreadyUsed();
+        // FIX ALTO-5: Also block migrated nullifiers from being re-registered
+        if (migratedNullifiers[nullifierHash]) revert NullifierWasMigrated();
 
         uint256 signalHash = uint256(keccak256(abi.encodePacked(msg.sender)));
 
@@ -166,10 +180,11 @@ contract TotemRegistry {
         if (!hasTotem[oldUser]) revert NotRegistered();
         if (hasTotem[msg.sender]) revert TotemAlreadyExists();
         if (usedNullifiers[newNullifierHash]) revert NullifierAlreadyUsed();
+        // FIX ALTO-5: New nullifier must not be a previously migrated one either
+        if (migratedNullifiers[newNullifierHash]) revert NullifierWasMigrated();
         if (oldUser == msg.sender) revert InvalidMigration();
         if (isBlocked[oldUser]) revert BlockedUserCannotMigrate();
 
-        // ← Corrección: nunca confiamos en el oldNullifier enviado por el usuario
         uint256 oldNullifierHash = totemNullifier[oldUser];
 
         uint256 signalHash = uint256(keccak256(abi.encodePacked(msg.sender)));
@@ -218,17 +233,18 @@ contract TotemRegistry {
 
         address oldUser = req.oldUser;
 
-        // Transferir el SBT al nuevo dueño (sincronización con Totem.sol)
         ITotem(TOTEM).migrateToken(oldUser, newUser);
 
-        // Actualizar estado del Registry
         hasTotem[oldUser] = false;
         hasTotem[newUser] = true;
 
-        usedNullifiers[req.oldNullifierHash] = false;
-        usedNullifiers[req.newNullifierHash] = true;
+        // FIX ALTO-5: Mark old nullifier as permanently migrated — never reusable.
+        // Do NOT set usedNullifiers[oldNullifier] = false. That would allow Sybil re-registration.
+        usedNullifiers[req.oldNullifierHash] = true;          // keep it "used"
+        migratedNullifiers[req.oldNullifierHash] = true;       // mark as migrated (permanent)
+        nullifierToAddress[req.oldNullifierHash] = address(0); // unlink from old address only
 
-        nullifierToAddress[req.oldNullifierHash] = address(0);
+        usedNullifiers[req.newNullifierHash] = true;
         nullifierToAddress[req.newNullifierHash] = newUser;
 
         totemNullifier[oldUser] = 0;
