@@ -11,7 +11,11 @@ interface IRegistry {
 
 interface IOracle {
     function getScore(address user) external view returns (uint256);
-    function getInfluence(address user) external view returns (uint256);
+}
+
+interface IMetrics {
+    function recordBuy(address totem, uint256 amount) external;
+    function recordSell(address totem, uint256 amount) external;
 }
 
 contract TotemBondingCurve is ReentrancyGuard, Ownable {
@@ -19,11 +23,13 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
     IERC20 public immutable wldToken;
     IRegistry public immutable registry;
     IOracle public immutable oracle;
+    IMetrics public metrics;
 
     address public treasury;
 
     mapping(address => uint256) public realSupply;
     mapping(address => mapping(address => uint256)) public balances;
+    mapping(address => bool) public frozen;
 
     struct SellWindow {
         uint256 sold;
@@ -33,12 +39,11 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
     mapping(address => mapping(address => SellWindow)) public sellWindows;
 
     uint256 public constant SELL_WINDOW = 1 days;
-    uint256 public maxSellBps = 4500; // 45%
+    uint256 public maxSellBps = 4500;
 
-    uint256 public constant OWNER_MAX_BPS = 2500; // 25%
-    uint256 public constant USER_MAX_BPS = 1000;  // 10%
+    uint256 public constant OWNER_MAX_BPS = 2500;
+    uint256 public constant USER_MAX_BPS = 1000;
 
-    // CURVA (NO TOCADA)
     uint256 public constant INITIAL_PRICE_WLD = 55 * 10**7;
     uint256 public constant SCALE = 1e20;
     uint256 public constant CURVE_K = 235;
@@ -47,28 +52,32 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
     uint256 public constant SELL_FEE_BPS = 300;
     uint256 public constant FEE_DENOMINATOR = 10_000;
 
-    uint256 public constant SCORE_MIN = 925;
-    uint256 public constant SCORE_MAX = 1075;
+    // 🔥 FIX FINAL: score alineado a fees
+    uint256 public constant SCORE_MIN = 975;
+    uint256 public constant SCORE_MAX = 1025;
     uint256 public constant SCORE_BASE = 1000;
 
     event Buy(address indexed totem, address indexed user, uint256 wldIn, uint256 tokensOut);
     event Sell(address indexed totem, address indexed user, uint256 tokensIn, uint256 wldOut);
+    event Frozen(address indexed totem);
     event TreasuryUpdated(address treasury);
+    event MetricsUpdated(address metrics);
 
     error NotATotem();
     error ZeroAmount();
     error InsufficientBalance();
     error SlippageExceeded();
-    error OracleAnomaly();
     error MaxPositionExceeded();
     error SellLimitExceeded();
+    error FrozenError();
     error ZeroAddress();
 
     constructor(
         address _wld,
         address _registry,
         address _oracle,
-        address _treasury
+        address _treasury,
+        address _metrics
     ) Ownable(msg.sender) {
         if (_wld == address(0) || _registry == address(0) || _oracle == address(0) || _treasury == address(0)) 
             revert ZeroAddress();
@@ -77,14 +86,25 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         registry = IRegistry(_registry);
         oracle = IOracle(_oracle);
         treasury = _treasury;
+        metrics = IMetrics(_metrics);
     }
 
-    // ================= MATH =================
-
-    function _g(uint256 score) internal pure returns (uint256) {
-        if (score < SCORE_MIN || score > SCORE_MAX) revert OracleAnomaly();
-        return score;
+    modifier notFrozen(address totem) {
+        if (frozen[totem]) revert FrozenError();
+        _;
     }
+
+    // ================= SAFE SCORE =================
+    function _safeScore(address totem) internal view returns (uint256) {
+        try oracle.getScore(totem) returns (uint256 s) {
+            if (s < SCORE_MIN || s > SCORE_MAX) return SCORE_BASE;
+            return s;
+        } catch {
+            return SCORE_BASE;
+        }
+    }
+
+    // ================= CURVE =================
 
     function V(uint256 s) public pure returns (uint256) {
         uint256 linear = INITIAL_PRICE_WLD * s;
@@ -103,14 +123,14 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         return (real * score) / SCORE_BASE;
     }
 
-    // ================= SOLVER FIXED =================
     function _solveBuyEff(uint256 s0Eff, uint256 wldIn) internal pure returns (uint256 s1Eff) {
         uint256 target = V(s0Eff) + wldIn;
 
-        // ✅ FIX CRÍTICO (sin 1e18)
-        s1Eff = s0Eff + (wldIn / dV(s0Eff));
+        uint256 dv0 = dV(s0Eff);
+        if (dv0 == 0) return s0Eff;
 
-        // Newton
+        s1Eff = s0Eff + (wldIn / dv0);
+
         for (uint256 i = 0; i < 10; i++) {
             uint256 v1 = V(s1Eff);
 
@@ -130,12 +150,12 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
             else s1Eff += uint256(-delta);
         }
 
-        // 🔥 FALLBACK (seguridad total)
         uint256 low = s0Eff;
         uint256 high = s1Eff > s0Eff ? s1Eff : s0Eff + 1;
 
         while (V(high) < target) {
-            high = high * 2;
+            if (high > type(uint256).max / 2) break;
+            high *= 2;
         }
 
         for (uint256 i = 0; i < 32; i++) {
@@ -150,11 +170,15 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
     }
 
     // ================= BUY =================
-    function buy(address totem, uint256 amountWldIn, uint256 minTokensOut) external nonReentrant {
+    function buy(address totem, uint256 amountWldIn, uint256 minTokensOut)
+        external
+        nonReentrant
+        notFrozen(totem)
+    {
         if (!registry.isTotem(totem)) revert NotATotem();
         if (amountWldIn == 0) revert ZeroAmount();
 
-        uint256 score = _g(oracle.getScore(totem));
+        uint256 score = _safeScore(totem);
 
         uint256 fee = (amountWldIn * BUY_FEE_BPS) / FEE_DENOMINATOR;
         uint256 netWld = amountWldIn - fee;
@@ -180,11 +204,17 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         balances[totem][msg.sender] = newBalance;
         realSupply[totem] += tokensOut;
 
+        metrics.recordBuy(totem, amountWldIn);
+
         emit Buy(totem, msg.sender, amountWldIn, tokensOut);
     }
 
     // ================= SELL =================
-    function sell(address totem, uint256 tokensIn, uint256 minWldOut) external nonReentrant {
+    function sell(address totem, uint256 tokensIn, uint256 minWldOut)
+        external
+        nonReentrant
+        notFrozen(totem)
+    {
         if (!registry.isTotem(totem)) revert NotATotem();
         if (tokensIn == 0) revert ZeroAmount();
 
@@ -202,10 +232,13 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
             revert SellLimitExceeded();
         }
 
-        uint256 score = _g(oracle.getScore(totem));
+        uint256 score = _safeScore(totem);
 
         uint256 s0Eff = _effective(realSupply[totem], score);
         uint256 deltaEff = (tokensIn * score) / SCORE_BASE;
+
+        if (deltaEff > s0Eff) revert InsufficientBalance();
+
         uint256 s1Eff = s0Eff - deltaEff;
 
         uint256 baseValue = V(s0Eff) - V(s1Eff);
@@ -221,7 +254,15 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         require(wldToken.transfer(msg.sender, payout), "payout fail");
         require(wldToken.transfer(treasury, fee), "fee fail");
 
+        metrics.recordSell(totem, payout);
+
         emit Sell(totem, msg.sender, tokensIn, payout);
+    }
+
+    // ================= FREEZE =================
+    function freeze(address totem) external onlyOwner {
+        frozen[totem] = true;
+        emit Frozen(totem);
     }
 
     // ================= ADMIN =================
@@ -229,6 +270,11 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         if (_treasury == address(0)) revert ZeroAddress();
         treasury = _treasury;
         emit TreasuryUpdated(_treasury);
+    }
+
+    function setMetrics(address _metrics) external onlyOwner {
+        metrics = IMetrics(_metrics);
+        emit MetricsUpdated(_metrics);
     }
 
     function setMaxSellBps(uint256 _bps) external onlyOwner {
