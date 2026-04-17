@@ -1,20 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 interface IRegistry {
     function isTotem(address user) external view returns (bool);
-}
-
-interface IOracle {
-    function getMetrics(address user) external view returns (
-        uint256 score,
-        uint256 influence,
-        uint256 timestamp
-    );
 }
 
 interface IBondingCurve {
@@ -26,20 +19,19 @@ interface IRateLimiter {
 }
 
 contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
+    using ECDSA for bytes32;
 
     // -------------------------
     // 🔗 DEPENDENCIES
     // -------------------------
     IRegistry public immutable registry;
-    IOracle public immutable oracle;
-    IBondingCurve public immutable curve;
+    IBondingCurve public curve;
     IRateLimiter public limiter;
 
     // -------------------------
     // 🔐 SIGNERS
     // -------------------------
-    address public signer;
-    address public backupSigner;
+    mapping(address => bool) public authorizedSigners;
 
     // -------------------------
     // 🔁 NONCES
@@ -47,13 +39,21 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
     mapping(address => uint256) public nonces;
 
     // -------------------------
+    // ⚙️ CONFIG
+    // -------------------------
+    uint256 public constant MAX_DATA_AGE = 2 minutes;
+    uint256 public priceToleranceBps = 200; // 2%
+
+    // -------------------------
     // 📜 EIP-712
     // -------------------------
-    uint256 private INITIAL_CHAIN_ID;
-    bytes32 private INITIAL_DOMAIN_SEPARATOR;
+    uint256 private immutable INITIAL_CHAIN_ID;
+    bytes32 private immutable INITIAL_DOMAIN_SEPARATOR;
 
     bytes32 private constant QUERY_TYPEHASH =
-        keccak256("Query(address user,uint256 maxPrice,uint256 nonce,uint256 deadline)");
+        keccak256(
+            "Query(address user,uint256 price,uint256 score,uint256 influence,uint256 nonce,uint256 deadline,uint256 signedAt)"
+        );
 
     bytes32 public constant ACTION_QUERY = keccak256("QUERY");
 
@@ -62,45 +62,57 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
     // -------------------------
     event QueryConsumed(
         address indexed user,
+        uint256 price,
         uint256 score,
-        uint256 influence,
-        uint256 price
+        uint256 influence
     );
 
+    event SignerUpdated(address indexed signer, bool allowed);
     event Withdraw(address indexed to, uint256 amount);
+
+    // -------------------------
+    // ❌ ERRORS
+    // -------------------------
+    error NotTotem();
+    error Expired();
+    error InvalidSignature();
+    error InvalidNonce();
+    error StaleData();
+    error SlippageExceeded();
+    error ScoreTooLow();
+    error InsufficientFee();
+    error ZeroAddress();
+    error TransferFailed();
 
     // -------------------------
     // 🏗️ CONSTRUCTOR
     // -------------------------
     constructor(
         address _registry,
-        address _oracle,
         address _curve,
         address _limiter,
-        address _signer,
-        address _backupSigner
-    ) {
+        address _signer
+    ) Ownable(msg.sender) {
+        if (_registry == address(0) || _curve == address(0) || _signer == address(0))
+            revert ZeroAddress();
+
         registry = IRegistry(_registry);
-        oracle = IOracle(_oracle);
         curve = IBondingCurve(_curve);
         limiter = IRateLimiter(_limiter);
 
-        signer = _signer;
-        backupSigner = _backupSigner;
+        authorizedSigners[_signer] = true;
 
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = _buildDomainSeparator();
     }
 
     // -------------------------
-    // 🔐 DOMAIN LOGIC
+    // 🔐 DOMAIN
     // -------------------------
     function _domainSeparator() internal view returns (bytes32) {
-        if (block.chainid == INITIAL_CHAIN_ID) {
-            return INITIAL_DOMAIN_SEPARATOR;
-        } else {
-            return _buildDomainSeparator();
-        }
+        return block.chainid == INITIAL_CHAIN_ID
+            ? INITIAL_DOMAIN_SEPARATOR
+            : _buildDomainSeparator();
     }
 
     function _buildDomainSeparator() private view returns (bytes32) {
@@ -116,61 +128,16 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
     }
 
     // -------------------------
-    // 🔐 SIGNATURE VERIFY
-    // -------------------------
-    function _verify(
-        address user,
-        uint256 maxPrice,
-        uint256 nonce,
-        uint256 deadline,
-        bytes memory signature
-    ) internal view returns (address) {
-
-        require(block.timestamp <= deadline, "expired");
-
-        bytes32 structHash = keccak256(
-            abi.encode(
-                QUERY_TYPEHASH,
-                user,
-                maxPrice,
-                nonce,
-                deadline
-            )
-        );
-
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
-        );
-
-        return _recover(digest, signature);
-    }
-
-    function _recover(bytes32 digest, bytes memory sig) internal pure returns (address) {
-        require(sig.length == 65, "bad sig");
-
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-
-        assembly {
-            r := mload(add(sig, 32))
-            s := mload(add(sig, 64))
-            v := byte(0, mload(add(sig, 96)))
-        }
-
-        return ecrecover(digest, v, r, s);
-    }
-
-    function _isValidSigner(address recovered) internal view returns (bool) {
-        return recovered == signer || recovered == backupSigner;
-    }
-
-    // -------------------------
-    // 💰 MAIN ENTRYPOINT
+    // 💰 MAIN
     // -------------------------
     function query(
-        uint256 maxPrice,
+        uint256 signedPrice,
+        uint256 signedScore,
+        uint256 signedInfluence,
+        uint256 minScore,        // UX protection
+        uint256 nonce,
         uint256 deadline,
+        uint256 signedAt,
         bytes calldata signature
     )
         external
@@ -181,26 +148,50 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
     {
         address user = msg.sender;
 
-        require(registry.isTotem(user), "not Totem");
+        if (!registry.isTotem(user)) revert NotTotem();
 
-        // 🔒 Rate limit
         limiter.check(user, ACTION_QUERY);
 
-        uint256 nonce = nonces[user]++;
+        if (nonce != nonces[user]) revert InvalidNonce();
+        if (block.timestamp > deadline) revert Expired();
+        if (block.timestamp > signedAt + MAX_DATA_AGE) revert StaleData();
 
-        address recovered = _verify(user, maxPrice, nonce, deadline, signature);
-        require(_isValidSigner(recovered), "invalid sig");
+        bytes32 structHash = keccak256(
+            abi.encode(
+                QUERY_TYPEHASH,
+                user,
+                signedPrice,
+                signedScore,
+                signedInfluence,
+                nonce,
+                deadline,
+                signedAt
+            )
+        );
 
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
+        );
+
+        address recovered = digest.recover(signature);
+        if (!authorizedSigners[recovered]) revert InvalidSignature();
+
+        nonces[user] = nonce + 1;
+
+        // 🔥 PRICE PROTECTION (ANTI-UNDERPRICING)
         uint256 currentPrice = curve.getPrice(user);
 
-        // 🔒 Slippage-safe check
-        require(currentPrice <= maxPrice, "slippage exceeded");
+        uint256 maxAllowed = (signedPrice * (10_000 + priceToleranceBps)) / 10_000;
+        if (currentPrice > maxAllowed) revert SlippageExceeded();
 
-        require(msg.value >= currentPrice, "insufficient fee");
+        if (msg.value < signedPrice) revert InsufficientFee();
 
-        (score, influence,) = oracle.getMetrics(user);
+        // 🔥 SCORE UX PROTECTION
+        if (signedScore < minScore) revert ScoreTooLow();
 
-        emit QueryConsumed(user, score, influence, currentPrice);
+        emit QueryConsumed(user, signedPrice, signedScore, signedInfluence);
+
+        return (signedScore, signedInfluence);
     }
 
     // -------------------------
@@ -211,10 +202,11 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
         onlyOwner
         nonReentrant
     {
-        require(amount <= address(this).balance, "too much");
+        if (to == address(0)) revert ZeroAddress();
+        if (amount > address(this).balance) revert InsufficientFee();
 
         (bool ok,) = to.call{value: amount}("");
-        require(ok, "transfer failed");
+        if (!ok) revert TransferFailed();
 
         emit Withdraw(to, amount);
     }
@@ -222,13 +214,19 @@ contract TotemAccessGateway is ReentrancyGuard, Pausable, Ownable2Step {
     // -------------------------
     // ⚙️ ADMIN
     // -------------------------
-    function setLimiter(address _limiter) external onlyOwner {
-        limiter = IRateLimiter(_limiter);
+    function authorizeSigner(address signer, bool allowed) external onlyOwner {
+        if (signer == address(0)) revert ZeroAddress();
+        authorizedSigners[signer] = allowed;
+        emit SignerUpdated(signer, allowed);
     }
 
-    function setSigners(address _primary, address _backup) external onlyOwner {
-        signer = _primary;
-        backupSigner = _backup;
+    function setTolerance(uint256 bps) external onlyOwner {
+        require(bps <= 1000, "too high"); // max 10%
+        priceToleranceBps = bps;
+    }
+
+    function setLimiter(address _limiter) external onlyOwner {
+        limiter = IRateLimiter(_limiter);
     }
 
     function pause() external onlyOwner { _pause(); }
