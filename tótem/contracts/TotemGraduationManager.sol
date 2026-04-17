@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";   // FIX ALTO-1: OZ v5 path
-import "@openzeppelin/contracts/utils/Pausable.sol";          // FIX ALTO-1: OZ v5 path
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./HumanTotem.sol";
 
@@ -58,15 +58,18 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
     IMetrics public immutable metrics;
 
     address public immutable wldToken;
+
     address public router;
     address public factory;
+
+    // 🔥 NUEVO
+    address public liquidityProvider;
 
     uint256 public minLevel = 4;
     uint256 public minSupply = 10_000;
     uint256 public minVolume = 15_000 ether;
     uint256 public minAge = 45 days;
 
-    uint256 public staleWindow = 1 days;
     uint256 public liquidityBps = 1000; // 10%
 
     mapping(address => bool) public graduated;
@@ -79,14 +82,15 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
     event ParamsUpdated();
     event RouterUpdated(address router);
     event FactoryUpdated(address factory);
+    event LiquidityProviderUpdated(address provider);
 
     // ---------------- ERRORS ----------------
 
     error AlreadyGraduated();
     error NotEligible();
     error FraudLocked();
-    error InvalidMarket();
     error PairExists();
+    error InsufficientLiquidity();
 
     constructor(
         address _totem,
@@ -94,12 +98,14 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
         address _metrics,
         address _wld,
         address _router,
-        address _factory
+        address _factory,
+        address _liquidityProvider
     ) Ownable(msg.sender) {
         require(_totem != address(0), "zero");
         require(_curve != address(0), "zero");
         require(_metrics != address(0), "zero");
         require(_wld != address(0), "zero");
+        require(_liquidityProvider != address(0), "zero");
 
         totem = ITotem(_totem);
         curve = ICurve(_curve);
@@ -108,25 +114,18 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
         wldToken = _wld;
         router = _router;
         factory = _factory;
+        liquidityProvider = _liquidityProvider;
     }
 
-    // ---------------- INTERNAL LOGIC ----------------
+    // ---------------- VOLUME ----------------
 
     function _getVolume(address user) internal view returns (uint256) {
-        (
-            uint256 rawVolume,
-            uint256 verifiedVolume,
-            ,
-            uint256 lastTradeAt
-        ) = metrics.markets(user);
+        (, uint256 verifiedVolume,,) = metrics.markets(user);
 
-        if (verifiedVolume > 0) return verifiedVolume;
+        // 🔥 FIX CRÍTICO: solo volumen verificado
+        if (verifiedVolume == 0) return 0;
 
-        if (block.timestamp - lastTradeAt <= staleWindow) {
-            return rawVolume;
-        }
-
-        return 0;
+        return verifiedVolume;
     }
 
     function canGraduate(address user) public view returns (bool) {
@@ -138,12 +137,7 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
 
         uint256 supply = curve.getSupply(user);
 
-        (
-            ,
-            ,
-            uint256 createdAt,
-
-        ) = metrics.markets(user);
+        (, , uint256 createdAt,) = metrics.markets(user);
 
         if (createdAt == 0) return false;
 
@@ -157,7 +151,7 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
         return true;
     }
 
-    // ---------------- AMM CREATION ----------------
+    // ---------------- AMM ----------------
 
     function _createAMM(address user, string memory name, string memory symbol) internal returns (address pair) {
 
@@ -169,6 +163,7 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
             user,
             address(totem)
         );
+
         address token = address(newTotem);
         totemAsset[user] = token;
 
@@ -181,24 +176,34 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
         uint256 price = curve.getPrice(user);
 
         uint256 amountToken = (supply * liquidityBps) / 10_000;
-        uint256 amountWLD = (amountToken * price) / 1e18;
 
-        newTotem.mint(address(this), amountToken);
+        // 🔥 FIX CRÍTICO UNIDADES
+        uint256 amountTokenWei = amountToken * 1e18;
+        uint256 amountWLD = (amountTokenWei * price) / 1e18;
 
-        // FIX CRIT-1: A single transferFrom call — the duplicate was draining 2x WLD on every graduation.
-        require(IERC20(wldToken).transferFrom(owner(), address(this), amountWLD), "wld transfer fail");
+        newTotem.mint(address(this), amountTokenWei);
 
-        IERC20(token).approve(router, amountToken);
+        // 🔥 VALIDACIÓN FUERTE (NO SILENCIOSA)
+        if (IERC20(wldToken).balanceOf(liquidityProvider) < amountWLD) {
+            revert InsufficientLiquidity();
+        }
+
+        require(
+            IERC20(wldToken).transferFrom(liquidityProvider, address(this), amountWLD),
+            "wld transfer fail"
+        );
+
+        IERC20(token).approve(router, amountTokenWei);
         IERC20(wldToken).approve(router, amountWLD);
 
         IUniswapV2Router(router).addLiquidity(
             token,
             wldToken,
-            amountToken,
+            amountTokenWei,
             amountWLD,
             0,
             0,
-            owner(),
+            user, // 🔥 liquidez pertenece al creador
             block.timestamp
         );
     }
@@ -227,6 +232,12 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     // ---------------- ADMIN ----------------
+
+    function setLiquidityProvider(address _provider) external onlyOwner {
+        require(_provider != address(0), "zero");
+        liquidityProvider = _provider;
+        emit LiquidityProviderUpdated(_provider);
+    }
 
     function setParams(
         uint256 _level,
