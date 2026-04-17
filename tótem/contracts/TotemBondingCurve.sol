@@ -29,6 +29,7 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         uint256 sold;
         uint256 lastReset;
     }
+
     mapping(address => mapping(address => SellWindow)) public sellWindows;
 
     uint256 public constant SELL_WINDOW = 1 days;
@@ -37,7 +38,7 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
     uint256 public constant OWNER_MAX_BPS = 2500; // 25%
     uint256 public constant USER_MAX_BPS = 1000;  // 10%
 
-    // Curva cuadrática intacta (exacta a tu JS)
+    // CURVA (NO TOCADA)
     uint256 public constant INITIAL_PRICE_WLD = 55 * 10**7;
     uint256 public constant SCALE = 1e20;
     uint256 public constant CURVE_K = 235;
@@ -78,7 +79,8 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         treasury = _treasury;
     }
 
-    // ================= MATH (Curva intacta) =================
+    // ================= MATH =================
+
     function _g(uint256 score) internal pure returns (uint256) {
         if (score < SCORE_MIN || score > SCORE_MAX) revert OracleAnomaly();
         return score;
@@ -101,18 +103,24 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         return (real * score) / SCORE_BASE;
     }
 
+    // ================= SOLVER FIXED =================
     function _solveBuyEff(uint256 s0Eff, uint256 wldIn) internal pure returns (uint256 s1Eff) {
         uint256 target = V(s0Eff) + wldIn;
-        s1Eff = s0Eff + (wldIn * 1e18) / dV(s0Eff);
 
-        for (uint256 i = 0; i < 12; i++) {
+        // ✅ FIX CRÍTICO (sin 1e18)
+        s1Eff = s0Eff + (wldIn / dV(s0Eff));
+
+        // Newton
+        for (uint256 i = 0; i < 10; i++) {
             uint256 v1 = V(s1Eff);
+
             int256 f = int256(v1) - int256(target);
             int256 df = int256(dV(s1Eff));
-            if (df == 0 || f == 0) break;
+
+            if (df == 0 || f == 0) return s1Eff;
 
             int256 delta = f / df;
-            if (delta == 0) break;
+            if (delta == 0) return s1Eff;
 
             int256 maxStep = int256(s1Eff) / 4;
             if (delta > maxStep) delta = maxStep;
@@ -121,10 +129,27 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
             if (delta > 0) s1Eff -= uint256(delta);
             else s1Eff += uint256(-delta);
         }
-        return s1Eff;
+
+        // 🔥 FALLBACK (seguridad total)
+        uint256 low = s0Eff;
+        uint256 high = s1Eff > s0Eff ? s1Eff : s0Eff + 1;
+
+        while (V(high) < target) {
+            high = high * 2;
+        }
+
+        for (uint256 i = 0; i < 32; i++) {
+            uint256 mid = (low + high) / 2;
+            uint256 v = V(mid);
+
+            if (v > target) high = mid;
+            else low = mid;
+        }
+
+        return (low + high) / 2;
     }
 
-    // ================= BUY (Genesis fix) =================
+    // ================= BUY =================
     function buy(address totem, uint256 amountWldIn, uint256 minTokensOut) external nonReentrant {
         if (!registry.isTotem(totem)) revert NotATotem();
         if (amountWldIn == 0) revert ZeroAmount();
@@ -137,15 +162,13 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         uint256 s0Eff = _effective(realSupply[totem], score);
         uint256 s1Eff = _solveBuyEff(s0Eff, netWld);
 
-        uint256 deltaEff = s1Eff - s0Eff;
-        uint256 tokensOut = (deltaEff * SCORE_BASE) / score;
+        uint256 tokensOut = ((s1Eff - s0Eff) * SCORE_BASE) / score;
 
         if (tokensOut < minTokensOut) revert SlippageExceeded();
 
         uint256 newBalance = balances[totem][msg.sender] + tokensOut;
         uint256 supplyAfter = realSupply[totem] + tokensOut;
 
-        // GENESIS BUY: exento de límite de posición (el primer comprador siempre puede inicializar)
         if (realSupply[totem] != 0) {
             uint256 maxBps = (msg.sender == totem) ? OWNER_MAX_BPS : USER_MAX_BPS;
             if (newBalance > (supplyAfter * maxBps) / 10000) revert MaxPositionExceeded();
@@ -169,16 +192,19 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         if (tokensIn > userBalance) revert InsufficientBalance();
 
         SellWindow storage w = sellWindows[totem][msg.sender];
+
         if (block.timestamp > w.lastReset + SELL_WINDOW) {
             w.sold = 0;
             w.lastReset = block.timestamp;
         }
-        if (w.sold + tokensIn > (userBalance * maxSellBps) / 10000) revert SellLimitExceeded();
+
+        if (w.sold + tokensIn > (userBalance * maxSellBps) / 10000) {
+            revert SellLimitExceeded();
+        }
 
         uint256 score = _g(oracle.getScore(totem));
 
-        uint256 s0Real = realSupply[totem];
-        uint256 s0Eff = _effective(s0Real, score);
+        uint256 s0Eff = _effective(realSupply[totem], score);
         uint256 deltaEff = (tokensIn * score) / SCORE_BASE;
         uint256 s1Eff = s0Eff - deltaEff;
 
@@ -196,39 +222,6 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         require(wldToken.transfer(treasury, fee), "fee fail");
 
         emit Sell(totem, msg.sender, tokensIn, payout);
-    }
-
-    // ================= PREVIEW =================
-    function previewBuy(address totem, uint256 amountWldIn) external view returns (uint256 tokensOut) {
-        if (amountWldIn == 0) return 0;
-
-        uint256 score = oracle.getScore(totem);
-        if (score < SCORE_MIN || score > SCORE_MAX) return 0;
-
-        uint256 fee = (amountWldIn * BUY_FEE_BPS) / FEE_DENOMINATOR;
-        uint256 netWld = amountWldIn - fee;
-
-        uint256 s0Eff = _effective(realSupply[totem], score);
-        uint256 s1Eff = _solveBuyEff(s0Eff, netWld);
-        uint256 deltaEff = s1Eff - s0Eff;
-
-        return (deltaEff * SCORE_BASE) / score;
-    }
-
-    function previewSell(address totem, uint256 tokensIn) external view returns (uint256 wldOut) {
-        if (tokensIn == 0) return 0;
-
-        uint256 score = oracle.getScore(totem);
-        if (score < SCORE_MIN || score > SCORE_MAX) return 0;
-
-        uint256 s0Eff = _effective(realSupply[totem], score);
-        uint256 deltaEff = (tokensIn * score) / SCORE_BASE;
-        uint256 s1Eff = s0Eff - deltaEff;
-
-        uint256 baseValue = V(s0Eff) - V(s1Eff);
-        uint256 fee = (baseValue * SELL_FEE_BPS) / FEE_DENOMINATOR;
-
-        return baseValue - fee;
     }
 
     // ================= ADMIN =================
