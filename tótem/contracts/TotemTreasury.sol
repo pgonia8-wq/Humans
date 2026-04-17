@@ -1,61 +1,132 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-// FIX ALTO-6: Added Ownable2Step (safe ownership transfer), ReentrancyGuard,
-// events for full auditability, and a per-period withdrawal rate limit.
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract TotemTreasury is Ownable2Step, ReentrancyGuard {
+contract TotemTreasury is Ownable2Step, ReentrancyGuard, Pausable {
 
-    // Rate limit: maximum ETH that can be withdrawn in a single period
-    uint256 public maxWithdrawPerPeriod;
+    // ================= ROLES =================
+    address public operator;
+
+    // ================= RATE LIMIT POR ASSET =================
+    struct RateLimit {
+        uint256 maxPerPeriod;
+        uint256 withdrawn;
+        uint256 periodStart;
+    }
+
     uint256 public withdrawPeriod;
-    uint256 public withdrawnInPeriod;
-    uint256 public periodStart;
 
+    // token => rate limit (address(0) = ETH)
+    mapping(address => RateLimit) public rateLimits;
+
+    // ================= EVENTS =================
     event Received(address indexed from, uint256 amount);
-    event Withdrawn(address indexed to, uint256 amount);
-    event RateLimitUpdated(uint256 maxAmount, uint256 period);
+    event ERC20Withdrawn(address indexed token, address indexed to, uint256 amount);
+    event ETHWithdrawn(address indexed to, uint256 amount);
+    event OperatorUpdated(address operator);
+    event RateLimitUpdated(address indexed token, uint256 maxAmount);
 
+    // ================= ERRORS =================
     error InsufficientBalance();
     error RateLimitExceeded();
     error ZeroAddress();
     error TransferFailed();
+    error NotAuthorized();
 
-    constructor(uint256 _maxWithdrawPerPeriod, uint256 _withdrawPeriod) Ownable(msg.sender) {
-        maxWithdrawPerPeriod = _maxWithdrawPerPeriod;
-        withdrawPeriod = _withdrawPeriod;
-        periodStart = block.timestamp;
+    // ================= MODIFIERS =================
+    modifier onlyAuthorized() {
+        if (msg.sender != owner() && msg.sender != operator) revert NotAuthorized();
+        _;
     }
 
+    constructor(uint256 _withdrawPeriod) Ownable(msg.sender) {
+        withdrawPeriod = _withdrawPeriod;
+    }
+
+    // ================= RECEIVE =================
     receive() external payable {
         emit Received(msg.sender, msg.value);
     }
 
-    function withdraw(address payable to, uint256 amount) external onlyOwner nonReentrant {
+    // ================= INTERNAL =================
+    function _updateRateLimit(address token, uint256 amount) internal {
+        RateLimit storage r = rateLimits[token];
+
+        if (block.timestamp >= r.periodStart + withdrawPeriod) {
+            r.withdrawn = 0;
+            r.periodStart = block.timestamp;
+        }
+
+        if (r.withdrawn + amount > r.maxPerPeriod) {
+            revert RateLimitExceeded();
+        }
+
+        r.withdrawn += amount;
+    }
+
+    // ================= WITHDRAW ETH =================
+    function withdrawETH(address payable to, uint256 amount)
+        external
+        onlyAuthorized
+        nonReentrant
+        whenNotPaused
+    {
         if (to == address(0)) revert ZeroAddress();
         if (address(this).balance < amount) revert InsufficientBalance();
 
-        // Reset period if enough time has passed
-        if (block.timestamp >= periodStart + withdrawPeriod) {
-            withdrawnInPeriod = 0;
-            periodStart = block.timestamp;
-        }
-
-        if (withdrawnInPeriod + amount > maxWithdrawPerPeriod) revert RateLimitExceeded();
-
-        withdrawnInPeriod += amount;
+        _updateRateLimit(address(0), amount);
 
         (bool ok,) = to.call{value: amount}("");
         if (!ok) revert TransferFailed();
 
-        emit Withdrawn(to, amount);
+        emit ETHWithdrawn(to, amount);
     }
 
-    function setRateLimit(uint256 _maxAmount, uint256 _period) external onlyOwner {
-        maxWithdrawPerPeriod = _maxAmount;
+    // ================= WITHDRAW ERC20 =================
+    function withdrawERC20(address token, address to, uint256 amount)
+        external
+        onlyAuthorized
+        nonReentrant
+        whenNotPaused
+    {
+        if (to == address(0) || token == address(0)) revert ZeroAddress();
+
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        if (balance < amount) revert InsufficientBalance();
+
+        _updateRateLimit(token, amount);
+
+        bool ok = IERC20(token).transfer(to, amount);
+        if (!ok) revert TransferFailed();
+
+        emit ERC20Withdrawn(token, to, amount);
+    }
+
+    // ================= ADMIN =================
+    function setOperator(address _operator) external onlyOwner {
+        if (_operator == address(0)) revert ZeroAddress();
+        operator = _operator;
+        emit OperatorUpdated(_operator);
+    }
+
+    function setRateLimit(address token, uint256 maxAmount) external onlyOwner {
+        rateLimits[token].maxPerPeriod = maxAmount;
+        emit RateLimitUpdated(token, maxAmount);
+    }
+
+    function setWithdrawPeriod(uint256 _period) external onlyOwner {
         withdrawPeriod = _period;
-        emit RateLimitUpdated(_maxAmount, _period);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
