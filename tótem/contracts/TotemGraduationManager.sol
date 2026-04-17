@@ -2,10 +2,10 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";   // FIX ALTO-1: OZ v5 path
+import "@openzeppelin/contracts/utils/Pausable.sol";          // FIX ALTO-1: OZ v5 path
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./HumanTotem.sol"; // El guardián de la historia ética
+import "./HumanTotem.sol";
 
 // ---------------- INTERFACES ----------------
 
@@ -71,7 +71,7 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
 
     mapping(address => bool) public graduated;
     mapping(address => address) public ammPair;
-    mapping(address => address) public totemAsset; // El registro del nuevo Tótem
+    mapping(address => address) public totemAsset;
 
     // ---------------- EVENTS ----------------
 
@@ -95,7 +95,7 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
         address _wld,
         address _router,
         address _factory
-    ) {
+    ) Ownable(msg.sender) {
         require(_totem != address(0), "zero");
         require(_curve != address(0), "zero");
         require(_metrics != address(0), "zero");
@@ -142,7 +142,7 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
             ,
             ,
             uint256 createdAt,
-            
+
         ) = metrics.markets(user);
 
         if (createdAt == 0) return false;
@@ -163,7 +163,6 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
 
         if (ammPair[user] != address(0)) revert PairExists();
 
-        // 🛡️ AQUÍ NACE EL TÓTEM: Manteniendo la historia y sumando la nueva ley
         HumanTotem newTotem = new HumanTotem(
             name,
             symbol,
@@ -184,11 +183,9 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
         uint256 amountToken = (supply * liquidityBps) / 10_000;
         uint256 amountWLD = (amountToken * price) / 1e18;
 
-        // El Manager mintea los tótems para la liquidez inicial
         newTotem.mint(address(this), amountToken);
 
-        // El WLD se toma de la tesorería según tu lógica original
-        require(IERC20(wldToken).transferFrom(owner(), address(this), amountWLD), "token transfer fail");
+        // FIX CRIT-1: A single transferFrom call — the duplicate was draining 2x WLD on every graduation.
         require(IERC20(wldToken).transferFrom(owner(), address(this), amountWLD), "wld transfer fail");
 
         IERC20(token).approve(router, amountToken);
@@ -222,10 +219,8 @@ contract TotemGraduationManager is Ownable2Step, ReentrancyGuard, Pausable {
 
         graduated[user] = true;
 
-        // 🔒 CRÍTICO: congelar curva
         curve.freeze(user);
 
-        // 🚀 Crear AMM desplegando el nuevo contrato HumanTotem
         address pair = _createAMM(user, name, symbol);
 
         emit Graduated(user, pair);
