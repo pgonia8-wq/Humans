@@ -74,7 +74,6 @@ contract Totem is IERC721Minimal {
     mapping(address => Status) public status;
     mapping(address => FraudRequest) public pendingFraud;
 
-    // EVENTS
     event Mint(address indexed user, uint256 tokenId);
     event HistoryInitialized(address indexed user, uint256 score, uint256 influence);
     event Sync(address indexed user, uint256 score, uint256 influence, uint256 level, uint256 badge);
@@ -84,13 +83,11 @@ contract Totem is IERC721Minimal {
     event FraudLockRequested(address indexed user, bool lock, string reason, bytes evidence, uint256 executeAfter);
     event FraudLockExecuted(address indexed user, bool locked);
 
-    event CurveReadFailed(address indexed user);
-
     event Paused(address indexed admin, bool status);
     event AdminTransferStarted(address indexed current, address indexed pending);
     event AdminTransferred(address indexed newAdmin);
+    event CurveReadFailed(address indexed user);
 
-    // ERRORS
     error NotAdmin();
     error NotRegistered();
     error AlreadyMinted();
@@ -124,10 +121,7 @@ contract Totem is IERC721Minimal {
         admin = msg.sender;
     }
 
-    // -------------------------
-    // ERC721 MINIMAL
-    // -------------------------
-
+    // ====================== ERC721 MINIMAL ======================
     function balanceOf(address owner) external view returns (uint256) {
         return tokenOf[owner] == 0 ? 0 : 1;
     }
@@ -138,10 +132,7 @@ contract Totem is IERC721Minimal {
         return owner;
     }
 
-    // -------------------------
-    // MINT
-    // -------------------------
-
+    // ====================== MINT ======================
     function mint() external notPaused {
         if (!registry.isTotem(msg.sender)) revert NotRegistered();
         if (tokenOf[msg.sender] != 0) revert AlreadyMinted();
@@ -157,17 +148,14 @@ contract Totem is IERC721Minimal {
         emit Mint(msg.sender, tokenId);
     }
 
-    // Soulbound
+    // ====================== SOULBOUND ======================
     function transferFrom(address, address, uint256) external pure { revert Soulbound(); }
     function safeTransferFrom(address, address, uint256) external pure { revert Soulbound(); }
     function safeTransferFrom(address, address, uint256, bytes calldata) external pure { revert Soulbound(); }
     function approve(address, uint256) external pure { revert Soulbound(); }
     function setApprovalForAll(address, bool) external pure { revert Soulbound(); }
 
-    // -------------------------
-    // SYNC
-    // -------------------------
-
+    // ====================== SYNC ======================
     function sync(address user) external notPaused {
         if (tokenOf[user] == 0) revert TokenNotExists();
         if (!registry.isTotem(user)) revert NotRegistered();
@@ -181,8 +169,9 @@ contract Totem is IERC721Minimal {
 
         (uint256 score, uint256 influence, uint256 timestamp) = oracle.getMetrics(user);
 
-        if (timestamp > block.timestamp + MAX_FUTURE_DRIFT) revert InvalidTimestamp();
-        if (block.timestamp - timestamp > MAX_STALE_TIME) revert InvalidTimestamp();
+        if (timestamp > block.timestamp + MAX_FUTURE_DRIFT || block.timestamp - timestamp > MAX_STALE_TIME) {
+            revert InvalidTimestamp();
+        }
 
         if (!h.initialized) {
             h.lastScore = score;
@@ -196,18 +185,13 @@ contract Totem is IERC721Minimal {
 
         if (timestamp <= h.lastUpdate) revert InvalidTimestamp();
 
-        uint256 elapsed = block.timestamp - h.lastUpdate;
-
+        // Decay
         if (h.totalScoreAccumulated > 0) {
-            uint256 decay = (h.totalScoreAccumulated * elapsed) / 1 days / 100;
-
-            if (decay >= h.totalScoreAccumulated) {
-                h.totalScoreAccumulated = 0;
-            } else {
-                h.totalScoreAccumulated -= decay;
-            }
+            uint256 decay = (h.totalScoreAccumulated * (block.timestamp - h.lastUpdate)) / 1 days / 100;
+            h.totalScoreAccumulated = decay >= h.totalScoreAccumulated ? 0 : h.totalScoreAccumulated - decay;
         }
 
+        // Delta + penalización
         if (score > h.lastScore) {
             h.totalScoreAccumulated += (score - h.lastScore);
         } else if (score < h.lastScore) {
@@ -216,14 +200,9 @@ contract Totem is IERC721Minimal {
 
             uint256 penalty = (h.lastScore - score) / 3;
             uint256 maxPenalty = h.totalScoreAccumulated / 2;
-
             if (penalty > maxPenalty) penalty = maxPenalty;
 
-            if (penalty >= h.totalScoreAccumulated) {
-                h.totalScoreAccumulated = 0;
-            } else {
-                h.totalScoreAccumulated -= penalty;
-            }
+            h.totalScoreAccumulated = penalty >= h.totalScoreAccumulated ? 0 : h.totalScoreAccumulated - penalty;
         }
 
         if (h.totalScoreAccumulated > MAX_ACCUMULATED_SCORE) {
@@ -244,39 +223,19 @@ contract Totem is IERC721Minimal {
         emit ScoreAccumulated(user, h.totalScoreAccumulated);
     }
 
-    // -------------------------
-    // HYBRID FRAUD DELAY (SAFE)
-    // -------------------------
-
+    // ====================== FRAUD ======================
     function getFraudDelay(address user) public view returns (uint256) {
-        return _getFraudDelay(user, false);
-    }
-
-    function _getFraudDelaySafe(address user) internal returns (uint256) {
-        return _getFraudDelay(user, true);
-    }
-
-    function _getFraudDelay(address user, bool emitOnFail) internal returns (uint256) {
-
         if (manualFraudDelay != 0) return manualFraudDelay;
 
         uint256 level = status[user].level;
-        uint256 levelDelay;
+        uint256 levelDelay = level >= 5 ? 6 hours : level >= 4 ? 3 hours : level >= 3 ? 1 hours : 5 minutes;
 
-        if (level >= 5) levelDelay = 6 hours;
-        else if (level >= 4) levelDelay = 3 hours;
-        else if (level >= 3) levelDelay = 1 hours;
-        else levelDelay = 5 minutes;
-
-        uint256 valueDelay = 0;
-
+        uint256 valueDelay = 5 minutes;
         if (address(curve) != address(0)) {
             try curve.getPrice(user) returns (uint256 price) {
-                if (price >= 1 ether) valueDelay = 6 hours;
-                else if (price >= 0.1 ether) valueDelay = 1 hours;
-                else valueDelay = 5 minutes;
+                valueDelay = price >= 1 ether ? 6 hours : price >= 0.1 ether ? 1 hours : 5 minutes;
             } catch {
-                if (emitOnFail) emit CurveReadFailed(user);
+                emit CurveReadFailed(user);
             }
         }
 
@@ -289,10 +248,9 @@ contract Totem is IERC721Minimal {
         string calldata reason,
         bytes calldata evidence
     ) external onlyAdmin {
-
         if (tokenOf[user] == 0) revert TokenNotExists();
 
-        uint256 delay = _getFraudDelaySafe(user);
+        uint256 delay = getFraudDelay(user);
         uint256 executeAfter = block.timestamp + delay;
 
         pendingFraud[user] = FraudRequest({
@@ -307,20 +265,15 @@ contract Totem is IERC721Minimal {
 
     function executeFraudLock(address user) external onlyAdmin {
         FraudRequest memory req = pendingFraud[user];
-
         if (block.timestamp < req.executeAfter) revert FraudDelayNotMet();
 
         status[user].fraudLocked = req.lock;
-
         delete pendingFraud[user];
 
         emit FraudLockExecuted(user, req.lock);
     }
 
-    // -------------------------
-    // ADMIN
-    // -------------------------
-
+    // ====================== ADMIN ======================
     function setPaused(bool _paused) external onlyAdmin {
         paused = _paused;
         emit Paused(msg.sender, _paused);
@@ -331,12 +284,12 @@ contract Totem is IERC721Minimal {
     }
 
     function setCurve(address _curve) external onlyAdmin {
-        if (_curve == address(0)) revert ZeroAddress();
+        require(_curve != address(0), "Zero address");
         curve = IBondingCurve(_curve);
     }
 
     function startAdminTransfer(address newAdmin) external onlyAdmin {
-        if (newAdmin == address(0)) revert ZeroAddress();
+        require(newAdmin != address(0), "Zero address");
         pendingAdmin = newAdmin;
         emit AdminTransferStarted(admin, newAdmin);
     }
@@ -348,10 +301,7 @@ contract Totem is IERC721Minimal {
         emit AdminTransferred(admin);
     }
 
-    // -------------------------
-    // VIEW
-    // -------------------------
-
+    // ====================== VIEW ======================
     function calculateLevel(uint256 total) public pure returns (uint256) {
         if (total > 1_000_000) return 5;
         if (total > 500_000) return 4;
