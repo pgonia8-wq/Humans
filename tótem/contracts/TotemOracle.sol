@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 interface IRegistry {
     function isTotem(address user) external view returns (bool);
@@ -10,16 +11,18 @@ interface IRegistry {
 /**
  * @title TotemOracle
  * @notice Oracle oficial del protocolo HTP - Alimenta score e influence
- * @dev Versión 2.2 - Correcciones críticas de auditoría: default mínimo, caller estricto, rate limit movido a consumidor
+ * @dev FIX CRIT-3: Admin functions now use Ownable2Step (owner != PRIMARY_SIGNER).
+ *      PRIMARY_SIGNER is the hot-wallet signing key only.
+ *      Owner is the cold-wallet/multisig that controls protocol config.
  */
-contract TotemOracle is ReentrancyGuard {
+contract TotemOracle is ReentrancyGuard, Ownable2Step {
 
     // ========================= CONFIG =========================
     address public immutable PRIMARY_SIGNER;
     IRegistry public immutable registry;
 
-    uint256 public constant UPDATE_FEE = 0.01 ether;        // WLD
-    uint256 public constant MIN_INTERVAL = 1 hours;         // mantenido pero soft (solo recomendación)
+    uint256 public constant UPDATE_FEE = 0.01 ether;
+    uint256 public constant MIN_INTERVAL = 1 hours;
 
     bool public paused;
 
@@ -28,8 +31,8 @@ contract TotemOracle is ReentrancyGuard {
 
     // ========================= STATE =========================
     struct Metrics {
-        uint256 score;      // 0 = no inicializado
-        uint256 influence;  // 0 = no inicializado
+        uint256 score;
+        uint256 influence;
         uint256 timestamp;
     }
 
@@ -54,7 +57,7 @@ contract TotemOracle is ReentrancyGuard {
     );
 
     event SignerUpdated(address indexed signer, bool allowed);
-    event Paused(bool status);
+    event Paused(address indexed by, bool status);
     event FeeWithdrawn(address indexed to, uint256 amount);
 
     // ========================= ERRORS =========================
@@ -67,14 +70,16 @@ contract TotemOracle is ReentrancyGuard {
     error InvalidRange();
     error FeeNotPaid();
     error ZeroAddress();
-    error CallerMismatch();           // nuevo: caller estricto
+    error CallerMismatch();
 
     modifier whenNotPaused() {
         if (paused) revert OraclePaused();
         _;
     }
 
-    constructor(address _primarySigner, address _registry) {
+    // FIX CRIT-3: constructor calls Ownable(msg.sender) so deployer is owner.
+    // PRIMARY_SIGNER is set separately as the signing-only hot wallet.
+    constructor(address _primarySigner, address _registry) Ownable(msg.sender) {
         if (_primarySigner == address(0) || _registry == address(0)) revert ZeroAddress();
 
         PRIMARY_SIGNER = _primarySigner;
@@ -93,7 +98,7 @@ contract TotemOracle is ReentrancyGuard {
         );
     }
 
-    // ========================= UPDATE (CORREGIDO) =========================
+    // ========================= UPDATE =========================
     function update(
         address totem,
         address caller,
@@ -107,16 +112,13 @@ contract TotemOracle is ReentrancyGuard {
         if (!registry.isTotem(totem)) revert NotATotem();
         if (msg.value < UPDATE_FEE) revert FeeNotPaid();
 
-        // Validaciones estrictas
         if (score == 0 || score > 10000) revert InvalidRange();
         if (influence < 925 || influence > 1075) revert InvalidRange();
         if (block.timestamp > deadline) revert Expired();
         if (nonce != nonces[totem]) revert InvalidNonce();
 
-        // CORRECCIÓN CRÍTICA: Caller estricto - solo el caller firmado puede actualizar
         if (caller != msg.sender) revert CallerMismatch();
 
-        // EIP-712
         bytes32 structHash = keccak256(
             abi.encode(
                 UPDATE_TYPEHASH,
@@ -136,7 +138,6 @@ contract TotemOracle is ReentrancyGuard {
         address recovered = _recover(digest, signature);
         if (!authorizedSigners[recovered]) revert NotAuthorizedSigner();
 
-        // Update state
         nonces[totem] = nonce + 1;
 
         metrics[totem] = Metrics({
@@ -148,15 +149,15 @@ contract TotemOracle is ReentrancyGuard {
         emit MetricsUpdated(totem, score, influence, block.timestamp, nonce);
     }
 
-    // ========================= VIEWS (CORREGIDAS) =========================
+    // ========================= VIEWS =========================
     function getInfluence(address user) external view returns (uint256) {
         uint256 inf = metrics[user].influence;
-        return inf == 0 ? 925 : inf;        // mínimo posible hasta primera actualización real
+        return inf == 0 ? 925 : inf;
     }
 
     function getScore(address user) external view returns (uint256) {
         uint256 s = metrics[user].score;
-        return s == 0 ? 1 : s;              // reputación se gana, no se regala
+        return s == 0 ? 1 : s;
     }
 
     function getMetrics(address user) external view returns (
@@ -165,27 +166,28 @@ contract TotemOracle is ReentrancyGuard {
         uint256 timestamp
     ) {
         Metrics memory m = metrics[user];
-        score     = m.score     == 0 ? 1    : m.score;
-        influence = m.influence == 0 ? 925  : m.influence;
+        score     = m.score     == 0 ? 1   : m.score;
+        influence = m.influence == 0 ? 925 : m.influence;
         timestamp = m.timestamp;
     }
 
-    // ========================= ADMIN =========================
-    function setPaused(bool _paused) external {
-        if (msg.sender != PRIMARY_SIGNER) revert NotAuthorizedSigner();
+    // ========================= ADMIN (FIX CRIT-3: onlyOwner) =========================
+
+    /// @notice Pause/unpause the Oracle. Only the protocol owner (cold wallet / multisig).
+    function setPaused(bool _paused) external onlyOwner {
         paused = _paused;
-        emit Paused(_paused);
+        emit Paused(msg.sender, _paused);
     }
 
-    function authorizeSigner(address signer, bool allowed) external {
-        if (msg.sender != PRIMARY_SIGNER) revert NotAuthorizedSigner();
+    /// @notice Add or remove an authorized signer. Only the protocol owner.
+    function authorizeSigner(address signer, bool allowed) external onlyOwner {
         if (signer == address(0)) revert ZeroAddress();
         authorizedSigners[signer] = allowed;
         emit SignerUpdated(signer, allowed);
     }
 
-    function withdrawFees(address to) external {
-        if (msg.sender != PRIMARY_SIGNER) revert NotAuthorizedSigner();
+    /// @notice Withdraw accumulated ETH fees. Only the protocol owner.
+    function withdrawFees(address to) external onlyOwner {
         if (to == address(0)) revert ZeroAddress();
 
         uint256 amount = address(this).balance;
