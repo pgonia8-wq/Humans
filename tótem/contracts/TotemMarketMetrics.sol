@@ -3,12 +3,15 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 interface IRegistry {
     function isTotem(address user) external view returns (bool);
 }
 
 contract TotemMarketMetrics is Ownable2Step, ReentrancyGuard {
+
+    using ECDSA for bytes32;
 
     IRegistry public immutable registry;
 
@@ -35,6 +38,7 @@ contract TotemMarketMetrics is Ownable2Step, ReentrancyGuard {
     event TradeRecorded(address indexed totem, uint256 amount);
     event VolumeVerified(address indexed totem, uint256 volume);
     event CurveUpdated(address curve);
+    event SignersUpdated(address primary, address backup);
 
     error NotCurve();
     error NotTotem();
@@ -123,29 +127,14 @@ contract TotemMarketMetrics is Ownable2Step, ReentrancyGuard {
             abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash)
         );
 
-        address recovered = _recover(digest, sig);
+        // 🔥 FIX CRÍTICO: ECDSA estándar (anti-malleability)
+        address recovered = digest.recover(sig);
 
         if (recovered != signer && recovered != backupSigner) revert InvalidSig();
 
         markets[totem].verifiedVolume = volume;
 
         emit VolumeVerified(totem, volume);
-    }
-
-    function _recover(bytes32 digest, bytes memory sig) internal pure returns (address) {
-        require(sig.length == 65, "bad sig");
-
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-
-        assembly {
-            r := mload(add(sig, 32))
-            s := mload(add(sig, 64))
-            v := byte(0, mload(add(sig, 96)))
-        }
-
-        return ecrecover(digest, v, r, s);
     }
 
     // ================= VIEW =================
@@ -165,5 +154,6 @@ contract TotemMarketMetrics is Ownable2Step, ReentrancyGuard {
     function setSigners(address _primary, address _backup) external onlyOwner {
         signer = _primary;
         backupSigner = _backup;
+        emit SignersUpdated(_primary, _backup);
     }
 }
