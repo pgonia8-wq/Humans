@@ -687,17 +687,20 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const isDark = theme === "dark";
 
+  // ── Blocked state ──────────────────────────────────────────────────
   if (blocked) return (
-    <div className={`w-full max-w-full px-4 py-3 border-b flex items-center justify-between gap-3 text-sm ${isDark ? "bg-black border-gray-800" : "bg-white border-gray-100"}`}>
-      <span className={isDark ? "text-gray-600" : "text-gray-400"}>
+    <div className={`w-full px-6 py-3.5 border-b flex items-center justify-between gap-3 text-sm ${
+      isDark ? "bg-[#0a0a0a] border-white/[0.06]" : "bg-[#f8f9fa] border-gray-100"
+    }`}>
+      <span className={isDark ? "text-gray-700" : "text-gray-400"}>
         Has bloqueado a este usuario.
       </span>
       <button
         onClick={handleUnblock}
-        className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${
+        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:scale-105 active:scale-95 ${
           isDark
-            ? "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
-            : "border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700"
+            ? "border-white/10 text-gray-500 hover:border-indigo-500/40 hover:text-indigo-400"
+            : "border-gray-200 text-gray-400 hover:border-indigo-300 hover:text-indigo-500"
         }`}
       >
         Desbloquear
@@ -712,36 +715,39 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     <div
       ref={postRef}
       className={`
-        relative w-full max-w-full overflow-hidden px-4 pt-5 pb-6 mb-0
-        border-b transition-colors
+        relative w-full overflow-hidden px-6 pt-5 pb-5
+        border-b transition-colors duration-200
         ${isBoosted
           ? isDark
-            ? "bg-gradient-to-r from-orange-950/20 via-black to-black border-orange-800/40"
-            : "bg-gradient-to-r from-orange-50 via-white to-white border-orange-200/60"
+            ? "bg-gradient-to-b from-orange-950/15 via-[#0a0a0a] to-[#0a0a0a] border-orange-800/25"
+            : "bg-gradient-to-b from-orange-50/80 via-white to-white border-orange-100"
           : isDark
-            ? "bg-black border-gray-800 hover:bg-gray-950"
-            : "bg-white border-gray-100 hover:bg-gray-50"
+            ? "bg-[#0a0a0a] border-white/[0.06] hover:bg-white/[0.015]"
+            : "bg-white border-gray-100 hover:bg-gray-50/50"
         }
       `}
       onClick={isAd ? handleAdClick : undefined}
     >
 
+      {/* Boosted indicator */}
       {isBoosted && (
-        <div className="flex items-center gap-1.5 mb-2 ml-10">
-          <svg className="w-3.5 h-3.5 text-orange-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-          </svg>
-          <span className="text-xs font-semibold text-orange-400">Boosted</span>
+        <div className="flex items-center gap-1.5 mb-3 ml-11">
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: "linear-gradient(135deg, rgba(251,146,60,0.15), rgba(245,158,11,0.15))", border: "1px solid rgba(251,146,60,0.25)" }}>
+            <svg className="w-3 h-3 text-orange-400" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+            </svg>
+            <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wide">Boosted</span>
+          </div>
         </div>
       )}
 
       {/* Repost banner */}
       {post.reposted_post_id && (
-        <div className="flex items-center gap-2 mb-3 ml-10 text-xs text-gray-500 font-medium">
+        <div className={`flex items-center gap-2 mb-3 ml-11 text-xs font-medium ${isDark ? "text-gray-600" : "text-gray-400"}`}>
           <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
             <path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z" />
           </svg>
-          <span className="truncate">Reposteado por <b>@{postProfile?.username}</b></span>
+          <span className="truncate">Reposteado por <b className="font-semibold">@{postProfile?.username}</b></span>
         </div>
       )}
 
@@ -749,8 +755,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       <div className="flex items-start gap-3 min-w-0">
         {/* Avatar */}
         <div
-          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 cursor-pointer ring-2 ring-transparent hover:ring-purple-500 transition"
-          style={{ background: isDark ? "#1f2937" : "#e5e7eb" }}
+          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-offset-1 hover:scale-105"
+          style={{
+            background: isDark ? "#1f2937" : "#e5e7eb",
+            ringOffsetColor: isDark ? "#0a0a0a" : "#ffffff",
+          }}
           onClick={openUserProfile}
         >
           {postProfile?.avatar_url ? (
@@ -760,7 +769,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-white text-sm font-bold bg-purple-600">
+            <div
+              className="w-full h-full flex items-center justify-center text-white text-sm font-bold"
+              style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}
+            >
               {postProfile?.username?.[0]?.toUpperCase() || "?"}
             </div>
           )}
@@ -777,115 +789,118 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               >
                 {postProfile?.username}
                 {currentUserId === post.user_id && (
-                  <span className="ml-1 text-xs font-normal text-gray-500">(Tú)</span>
+                  <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isDark ? "bg-indigo-500/15 text-indigo-400" : "bg-indigo-50 text-indigo-500"}`}>
+                    Tú
+                  </span>
                 )}
               </span>
-              <span className="text-gray-500 text-sm truncate">@{postProfile?.username}</span>
-              <span className="text-gray-500 text-xs">·</span>
-              <span className="text-gray-500 text-xs flex-shrink-0">{getRelativeTime(post.timestamp)}</span>
+              <span className={`text-sm truncate ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+                @{postProfile?.username}
+              </span>
+              <span className={`text-xs ${isDark ? "text-gray-700" : "text-gray-300"}`}>·</span>
+              <span className={`text-xs flex-shrink-0 ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+                {getRelativeTime(post.timestamp)}
+              </span>
             </div>
 
             {currentUserId && currentUserId !== post.user_id && (
               <button
                 onClick={toggleFollow}
                 className={`
-                  ml-auto flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all
+                  ml-auto flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 hover:scale-105 active:scale-95
                   ${isFollowing
                     ? isDark
-                      ? "border-gray-600 text-gray-300 hover:border-red-500 hover:text-red-400 hover:bg-red-500/10"
-                      : "border-gray-300 text-gray-700 hover:border-red-400 hover:text-red-500"
+                      ? "border-white/10 text-gray-400 hover:border-red-500/40 hover:text-red-400 hover:bg-red-500/[0.08]"
+                      : "border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500"
                     : isDark
-                      ? "border-purple-500 text-purple-400 hover:bg-purple-500/10"
-                      : "border-purple-400 text-purple-600 hover:bg-purple-50"
+                      ? "border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/[0.12]"
+                      : "border-indigo-300 text-indigo-500 hover:bg-indigo-50"
                   }
                 `}
               >
-                {loadingAction === "follow"
-                  ? "..."
-                  : isFollowing
-                    ? t("following")
-                    : t("follow")}
+                {loadingAction === "follow" ? "..." : isFollowing ? t("following") : t("follow")}
               </button>
             )}
           </div>
 
           {/* Post content */}
-          <p className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words ${isDark ? "text-gray-100" : "text-gray-800"}`}>
+          <p className={`mt-2.5 text-sm leading-[1.65] whitespace-pre-wrap break-words ${isDark ? "text-gray-100" : "text-gray-800"}`}>
             {post.content}
           </p>
 
           {/* Post image */}
           {post.image_url && (
             <div
-              className="mt-3 rounded-2xl overflow-hidden border border-gray-100/10 cursor-zoom-in"
+              className={`mt-3 rounded-2xl overflow-hidden cursor-zoom-in border ${isDark ? "border-white/[0.06]" : "border-gray-100"}`}
               onClick={(e) => { e.stopPropagation(); setFullscreenImage(true); }}
             >
               <img
                 src={post.image_url}
                 alt="post"
-                className="w-full object-cover max-h-96"
+                className="w-full object-cover max-h-96 hover:opacity-95 transition-opacity"
               />
             </div>
           )}
 
           {/* Original post preview (repost) */}
           {originalPost && (
-            <div className={`mt-3 p-3 rounded-xl border text-sm ${isDark ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`}>
-              <p className={`font-semibold text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+            <div className={`mt-3 p-4 rounded-2xl border text-sm ${
+              isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-gray-50 border-gray-100"
+            }`}>
+              <p className={`font-semibold text-xs mb-1.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
                 @{originalPost.username || "usuario"}
               </p>
-              <p className={`break-words ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              <p className={`break-words leading-relaxed ${isDark ? "text-gray-300" : "text-gray-700"}`}>
                 {originalPost.content}
               </p>
             </div>
           )}
 
+          {/* Earnings badge */}
           {estimatedEarnings > 0 && (
             <div className={`flex items-center gap-2 mt-3 px-3 py-1.5 rounded-xl w-fit ${
-              isDark ? "bg-emerald-950/30 border border-emerald-800/30" : "bg-emerald-50 border border-emerald-100"
+              isDark ? "bg-emerald-500/[0.08] border border-emerald-500/20" : "bg-emerald-50 border border-emerald-100"
             }`}>
               <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="text-xs font-semibold text-emerald-500">
-                {estimatedEarnings.toFixed(4)} WLD
+                +{estimatedEarnings.toFixed(4)} WLD
               </span>
             </div>
           )}
 
-          {/* Action bar */}
-          <div className="flex items-center flex-wrap gap-1 mt-3 -ml-1">
+          {/* ── Action bar ─────────────────────────────────────── */}
+          <div className="flex items-center flex-wrap gap-0.5 mt-3.5 -ml-2">
             {/* Like */}
             <div className="relative">
               <button
                 onClick={handleLike}
                 disabled={loadingAction === "like"}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 hover:scale-105 active:scale-95 ${
                   liked
-                    ? "text-red-500 bg-red-500/10"
+                    ? "text-pink-500 bg-pink-500/10"
                     : isDark
-                      ? "text-gray-500 hover:text-red-400 hover:bg-red-500/10"
-                      : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+                      ? "text-gray-600 hover:text-pink-400 hover:bg-pink-500/[0.08]"
+                      : "text-gray-400 hover:text-pink-500 hover:bg-pink-50"
                 }`}
               >
                 <svg className="w-4 h-4" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
                 </svg>
-                {likes > 0 && <span>{likes}</span>}
+                {likes > 0 && <span className="tabular-nums">{likes}</span>}
               </button>
               {showWldAnimation && LIKE_VALUE_WLD > 0 && (
                 <span
                   className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-bold text-emerald-400 pointer-events-none whitespace-nowrap"
-                  style={{
-                    animation: "wldFloat 1.2s ease-out forwards",
-                  }}
+                  style={{ animation: "wldFloat 1.2s ease-out forwards" }}
                 >
                   +{LIKE_VALUE_WLD} WLD
                 </span>
               )}
               {showLikeTooltip && (
-                <div className={`absolute bottom-full left-0 mb-2 w-48 px-3 py-2 rounded-xl text-xs shadow-lg z-30 ${
-                  isDark ? "bg-gray-800 text-gray-200 border border-gray-700" : "bg-white text-gray-700 border border-gray-200"
+                <div className={`absolute bottom-full left-0 mb-2 w-52 px-3 py-2.5 rounded-2xl text-xs shadow-xl z-30 ${
+                  isDark ? "bg-[#1a1a1d] text-gray-200 border border-white/[0.08]" : "bg-white text-gray-700 border border-gray-100 shadow-lg"
                 }`}>
                   Cada like suma valor. Publica y gana WLD con el engagement de tu contenido.
                 </div>
@@ -898,32 +913,32 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 setShowCommentInput((v) => !v);
                 setShowComments((v) => !v);
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 hover:scale-105 active:scale-95 ${
                 isDark
-                  ? "text-gray-500 hover:text-blue-400 hover:bg-blue-500/10"
+                  ? "text-gray-600 hover:text-blue-400 hover:bg-blue-500/[0.08]"
                   : "text-gray-400 hover:text-blue-500 hover:bg-blue-50"
               }`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
               </svg>
-              {comments > 0 && <span>{comments}</span>}
+              {comments > 0 && <span className="tabular-nums">{comments}</span>}
             </button>
 
             {/* Repost */}
             <button
               onClick={handleRepost}
               disabled={loadingAction === "repost"}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 hover:scale-105 active:scale-95 ${
                 isDark
-                  ? "text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                  ? "text-gray-600 hover:text-emerald-400 hover:bg-emerald-500/[0.08]"
                   : "text-gray-400 hover:text-emerald-500 hover:bg-emerald-50"
               }`}
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z" />
               </svg>
-              {reposts > 0 && <span>{reposts}</span>}
+              {reposts > 0 && <span className="tabular-nums">{reposts}</span>}
             </button>
 
             {/* Tip */}
@@ -933,23 +948,23 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 min={1}
                 value={tipAmount}
                 onChange={(e) => setTipAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                className={`w-12 text-xs text-center rounded-lg border px-1 py-1 focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+                className={`w-11 text-xs text-center rounded-lg border px-1 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition ${
                   isDark
-                    ? "bg-gray-900 border-gray-700 text-white"
+                    ? "bg-white/[0.04] border-white/[0.08] text-white"
                     : "bg-gray-50 border-gray-200 text-gray-800"
                 }`}
               />
               <button
                 onClick={handleTip}
                 disabled={loadingAction === "tip"}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 hover:scale-105 active:scale-95 ${
                   isDark
-                    ? "text-yellow-500 hover:bg-yellow-500/10"
+                    ? "text-yellow-500 hover:bg-yellow-500/[0.08]"
                     : "text-yellow-600 hover:bg-yellow-50"
                 }`}
               >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 {t("tip")}
               </button>
@@ -959,13 +974,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             <button
               onClick={handleBoost}
               disabled={loadingAction === "boost"}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 hover:scale-105 active:scale-95 ${
                 isDark
-                  ? "text-orange-400 hover:bg-orange-500/10"
+                  ? "text-orange-400 hover:bg-orange-500/[0.08]"
                   : "text-orange-500 hover:bg-orange-50"
               }`}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
               </svg>
               Boost
@@ -975,13 +990,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             <button
               onClick={handleChatCreadores}
               disabled={loadingAction === "subscription" || checkingAccess}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 hover:scale-105 active:scale-95 ${
                 isDark
-                  ? "text-violet-400 hover:bg-violet-500/10"
+                  ? "text-violet-400 hover:bg-violet-500/[0.08]"
                   : "text-violet-600 hover:bg-violet-50"
               }`}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
               </svg>
               {hasChatAccess ? t("chat") : t("chat_exclusivo")}
@@ -993,7 +1008,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 <button
                   onClick={() => setShowOptionsMenu((v) => !v)}
                   className={`p-1.5 rounded-full transition-colors ${
-                    isDark ? "text-gray-600 hover:text-gray-400 hover:bg-gray-800" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                    isDark ? "text-gray-700 hover:text-gray-400 hover:bg-white/[0.05]" : "text-gray-300 hover:text-gray-500 hover:bg-gray-100"
                   }`}
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -1002,18 +1017,24 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 </button>
 
                 {showOptionsMenu && (
-                  <div className={`absolute right-0 top-7 z-20 rounded-xl border shadow-xl overflow-hidden w-40 ${isDark ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"}`}>
+                  <div className={`absolute right-0 top-8 z-20 rounded-2xl border shadow-2xl overflow-hidden w-40 ${
+                    isDark ? "bg-[#141416] border-white/[0.08]" : "bg-white border-gray-100 shadow-xl"
+                  }`}>
                     {currentUserId !== post.user_id && (
                       <>
                         <button
                           onClick={() => { setShowOptionsMenu(false); setShowReportModal(true); }}
-                          className={`w-full text-left px-4 py-2.5 text-sm transition ${isDark ? "text-orange-400 hover:bg-gray-800" : "text-orange-500 hover:bg-gray-50"}`}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition ${
+                            isDark ? "text-orange-400 hover:bg-white/[0.04]" : "text-orange-500 hover:bg-gray-50"
+                          }`}
                         >
                           Reportar
                         </button>
                         <button
                           onClick={handleBlock}
-                          className={`w-full text-left px-4 py-2.5 text-sm transition ${isDark ? "text-red-400 hover:bg-gray-800" : "text-red-500 hover:bg-gray-50"}`}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition ${
+                            isDark ? "text-red-400 hover:bg-white/[0.04]" : "text-red-500 hover:bg-gray-50"
+                          }`}
                         >
                           Bloquear
                         </button>
@@ -1021,7 +1042,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                     )}
                     <button
                       onClick={() => setShowOptionsMenu(false)}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition ${isDark ? "text-gray-400 hover:bg-gray-800" : "text-gray-500 hover:bg-gray-50"}`}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition ${
+                        isDark ? "text-gray-500 hover:bg-white/[0.04]" : "text-gray-400 hover:bg-gray-50"
+                      }`}
                     >
                       Cerrar
                     </button>
@@ -1033,23 +1056,24 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
           {/* Comment input */}
           {showCommentInput && (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3.5 flex gap-2">
               <input
                 type="text"
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleComment(); }}
                 placeholder={t("escribe_comentario")}
-                className={`flex-1 min-w-0 text-sm px-3 py-2 rounded-xl border focus:outline-none focus:ring-1 focus:ring-purple-500 transition ${
+                className={`flex-1 min-w-0 text-sm px-4 py-2.5 rounded-2xl border focus:outline-none focus:ring-1 focus:ring-indigo-500 transition ${
                   isDark
-                    ? "bg-gray-900 border-gray-700 text-white placeholder-gray-600"
+                    ? "bg-white/[0.04] border-white/[0.08] text-white placeholder-gray-600"
                     : "bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400"
                 }`}
               />
               <button
                 onClick={handleComment}
                 disabled={loadingAction === "comment" || !commentInput.trim()}
-                className="flex-shrink-0 px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold rounded-xl transition"
+                className="flex-shrink-0 px-4 py-2.5 text-white text-xs font-semibold rounded-2xl transition hover:opacity-90 disabled:opacity-40 active:scale-95"
+                style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}
               >
                 {loadingAction === "comment" ? "..." : t("send") || "Enviar"}
               </button>
@@ -1060,13 +1084,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           {showComments && (
             <div className="mt-3 space-y-2">
               {loadingComments ? (
-                <p className="text-xs text-gray-500">Cargando...</p>
+                <p className={`text-xs ${isDark ? "text-gray-600" : "text-gray-400"}`}>Cargando...</p>
               ) : commentsList.length === 0 ? (
-                <p className="text-xs text-gray-500">Sin comentarios aún.</p>
+                <p className={`text-xs ${isDark ? "text-gray-600" : "text-gray-400"}`}>Sin comentarios aún.</p>
               ) : (
                 commentsList.map((c: any) => (
-                  <div key={c.id} className={`flex gap-2 p-2 rounded-xl ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
-                    <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-purple-600 flex items-center justify-center">
+                  <div key={c.id} className={`flex gap-2.5 p-3 rounded-2xl ${
+                    isDark ? "bg-white/[0.03] border border-white/[0.05]" : "bg-gray-50 border border-gray-100"
+                  }`}>
+                    <div
+                      className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+                      style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}
+                    >
                       {c.profiles?.avatar_url ? (
                         <img src={c.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
                       ) : (
@@ -1074,8 +1103,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className={`text-xs font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>{c.profiles?.username || "Usuario"}</span>
-                      <p className={`text-xs mt-0.5 break-words ${isDark ? "text-gray-400" : "text-gray-600"}`}>{c.content}</p>
+                      <span className={`text-xs font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                        {c.profiles?.username || "Usuario"}
+                      </span>
+                      <p className={`text-xs mt-0.5 break-words leading-relaxed ${isDark ? "text-gray-500" : "text-gray-600"}`}>
+                        {c.content}
+                      </p>
                     </div>
                   </div>
                 ))
@@ -1088,12 +1121,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {/* Fullscreen image overlay */}
       {fullscreenImage && post.image_url && (
         <div
-          className="fixed inset-0 z-[99999] bg-black/95 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[99999] bg-black/97 flex items-center justify-center p-4"
+          style={{ backdropFilter: "blur(20px)" }}
           onClick={() => setFullscreenImage(false)}
         >
           <button
             onClick={() => setFullscreenImage(false)}
-            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-900/80 text-white hover:bg-gray-800 transition backdrop-blur-sm border border-gray-700"
+            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition border border-white/10"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1102,7 +1136,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           <img
             src={post.image_url}
             alt="post fullscreen"
-            className="max-w-full max-h-full object-contain rounded-2xl"
+            className="max-w-full max-h-full object-contain rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
@@ -1110,11 +1144,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       {/* Report modal */}
       {showReportModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className={`relative w-full max-w-sm rounded-3xl p-5 shadow-2xl border ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/75" style={{ backdropFilter: "blur(16px)" }}>
+          <div className={`relative w-full max-w-sm rounded-3xl p-6 shadow-2xl border ${
+            isDark ? "bg-[#111113] border-white/[0.08]" : "bg-white border-gray-100"
+          }`}>
             <button
               onClick={() => { setShowReportModal(false); setReportReason(""); }}
-              className={`absolute top-4 right-4 p-1 rounded-full transition ${isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}
+              className={`absolute top-4 right-4 p-1.5 rounded-full transition ${
+                isDark ? "text-gray-600 hover:text-gray-300 hover:bg-white/[0.06]" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              }`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1124,22 +1162,22 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             <h3 className={`text-base font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>
               Reportar contenido
             </h3>
-            <p className={`text-xs mb-4 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+            <p className={`text-xs mb-5 ${isDark ? "text-gray-600" : "text-gray-400"}`}>
               Cuéntanos qué está pasando con este post o usuario.
             </p>
 
             {reportSent ? (
-              <div className="text-center py-4">
-                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <div className="text-center py-6">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.15))", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
                 </div>
-                <p className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-800"}`}>Reporte enviado</p>
-                <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Gracias por ayudarnos a mejorar.</p>
+                <p className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-800"}`}>Reporte enviado</p>
+                <p className={`text-xs mt-1 ${isDark ? "text-gray-600" : "text-gray-400"}`}>Gracias por ayudarnos a mejorar.</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 {[
                   "Contenido inapropiado",
                   "Spam o publicidad",
@@ -1150,12 +1188,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                   <button
                     key={reason}
                     onClick={() => setReportReason(reason)}
-                    className={`w-full text-left px-4 py-2.5 rounded-xl text-sm border transition ${
+                    className={`w-full text-left px-4 py-2.5 rounded-2xl text-sm border transition-all ${
                       reportReason === reason
-                        ? "border-purple-500 bg-purple-500/10 text-purple-400"
+                        ? "border-indigo-500 bg-indigo-500/10 text-indigo-400"
                         : isDark
-                          ? "border-gray-700 text-gray-300 hover:bg-gray-800"
-                          : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                          ? "border-white/[0.07] text-gray-400 hover:bg-white/[0.03]"
+                          : "border-gray-100 text-gray-600 hover:bg-gray-50"
                     }`}
                   >
                     {reason}
@@ -1167,20 +1205,20 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                   onChange={(e) => setReportReason(e.target.value)}
                   placeholder="Describe el problema (opcional)..."
                   rows={2}
-                  className={`w-full px-3 py-2 rounded-xl text-sm border focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none transition ${
+                  className={`w-full mt-1 px-4 py-3 rounded-2xl text-sm border focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none transition ${
                     isDark
-                      ? "bg-gray-800 border-gray-700 text-white placeholder-gray-600"
-                      : "bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400"
+                      ? "bg-white/[0.03] border-white/[0.07] text-white placeholder-gray-600"
+                      : "bg-gray-50 border-gray-100 text-gray-800 placeholder-gray-400"
                   }`}
                 />
 
                 <div className="flex gap-2 mt-1">
                   <button
                     onClick={() => { setShowReportModal(false); setReportReason(""); }}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition ${
+                    className={`flex-1 py-2.5 rounded-2xl text-sm font-medium border transition ${
                       isDark
-                        ? "border-gray-700 text-gray-400 hover:bg-gray-800"
-                        : "border-gray-200 text-gray-500 hover:bg-gray-100"
+                        ? "border-white/[0.07] text-gray-500 hover:bg-white/[0.03]"
+                        : "border-gray-100 text-gray-400 hover:bg-gray-50"
                     }`}
                   >
                     Cancelar
@@ -1188,7 +1226,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                   <button
                     onClick={handleReport}
                     disabled={!reportReason.trim()}
-                    className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold rounded-xl transition disabled:opacity-40"
+                    className="flex-1 py-2.5 text-white text-sm font-semibold rounded-2xl transition disabled:opacity-40 hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg, #ea580c, #f97316)" }}
                   >
                     Enviar reporte
                   </button>
@@ -1201,12 +1240,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       {/* Error modal */}
       {error && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50 px-4">
-          <div className={`rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl border ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-            <p className={`text-sm mb-5 ${isDark ? "text-white" : "text-gray-800"}`}>{error}</p>
+        <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50 px-4" style={{ backdropFilter: "blur(12px)" }}>
+          <div className={`rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl border ${
+            isDark ? "bg-[#111113] border-white/[0.08]" : "bg-white border-gray-100"
+          }`}>
+            <p className={`text-sm mb-5 leading-relaxed ${isDark ? "text-gray-300" : "text-gray-700"}`}>{error}</p>
             <button
               onClick={() => setError(null)}
-              className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition"
+              className="px-6 py-2.5 text-white text-sm font-semibold rounded-2xl transition hover:opacity-90 active:scale-95"
+              style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}
             >
               OK
             </button>
@@ -1216,40 +1258,49 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       {/* Repost modal */}
       {showRepostModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className={`rounded-2xl p-5 w-full max-w-sm shadow-2xl border ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-            <h3 className={`text-base font-bold mb-4 text-center ${isDark ? "text-white" : "text-gray-900"}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4" style={{ backdropFilter: "blur(12px)" }}>
+          <div className={`rounded-3xl p-6 w-full max-w-sm shadow-2xl border ${
+            isDark ? "bg-[#111113] border-white/[0.08]" : "bg-white border-gray-100"
+          }`}>
+            <h3 className={`text-base font-bold mb-5 text-center ${isDark ? "text-white" : "text-gray-900"}`}>
               {t("repost")}
             </h3>
 
             <div className="flex flex-col gap-3">
               <button
                 onClick={confirmRepost}
-                className="py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-xl transition"
+                className="py-3 text-white text-sm font-bold rounded-2xl transition hover:opacity-90 active:scale-95"
+                style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)", boxShadow: "0 4px 16px rgba(99,102,241,0.35)" }}
               >
                 {t("repost")}
               </button>
 
-              <div className={`flex gap-2 p-2.5 rounded-xl border ${isDark ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-200"}`}>
+              <div className={`flex gap-2 p-3 rounded-2xl border ${
+                isDark ? "bg-white/[0.03] border-white/[0.07]" : "bg-gray-50 border-gray-100"
+              }`}>
                 <input
                   type="text"
                   value={quoteInput}
                   onChange={(e) => setQuoteInput(e.target.value)}
                   placeholder={t("escribe_para_citar")}
-                  className={`flex-1 bg-transparent text-sm focus:outline-none ${isDark ? "text-white placeholder-gray-600" : "text-gray-800 placeholder-gray-400"}`}
+                  className={`flex-1 bg-transparent text-sm focus:outline-none ${
+                    isDark ? "text-white placeholder-gray-600" : "text-gray-800 placeholder-gray-400"
+                  }`}
                 />
               </div>
 
               <button
                 onClick={confirmQuote}
-                className={`py-2.5 text-sm font-semibold rounded-xl transition border ${isDark ? "border-gray-700 text-gray-200 hover:bg-gray-800" : "border-gray-200 text-gray-700 hover:bg-gray-100"}`}
+                className={`py-3 text-sm font-semibold rounded-2xl transition border hover:scale-[1.02] active:scale-95 ${
+                  isDark ? "border-white/[0.08] text-gray-300 hover:bg-white/[0.04]" : "border-gray-100 text-gray-700 hover:bg-gray-50"
+                }`}
               >
                 {t("citar_post")}
               </button>
 
               <button
                 onClick={() => setShowRepostModal(false)}
-                className="py-2 text-sm text-gray-500 hover:text-gray-400 transition"
+                className={`py-2 text-sm transition ${isDark ? "text-gray-600 hover:text-gray-400" : "text-gray-400 hover:text-gray-500"}`}
               >
                 {t("cancelar")}
               </button>
@@ -1258,7 +1309,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      {/* ProfileModal — CORRECCIÓN F4 */}
+      {/* ProfileModal */}
       {profileModalUserId && (
         <ProfileModal
           id={profileModalUserId}
@@ -1269,10 +1320,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       {/* Global Chat overlay */}
       {showGlobalChat && currentUserId && (
-        <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
+        <div className="fixed inset-0 z-[99999] flex flex-col" style={{ background: "rgba(10,10,10,0.97)", backdropFilter: "blur(20px)" }}>
           <button
             onClick={() => setShowGlobalChat(false)}
-            className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-gray-900/90 text-white px-4 py-2 rounded-full backdrop-blur-md border border-gray-700 shadow-xl text-sm font-medium hover:bg-gray-800 transition"
+            className="absolute top-4 right-4 z-20 flex items-center gap-2 px-4 py-2 rounded-full text-white text-sm font-medium transition hover:opacity-80"
+            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.10)" }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
