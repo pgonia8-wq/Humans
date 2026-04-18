@@ -1,8 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── CSS Variables premium ─────────────────────────────────── */
+:root {
+  --color-indigo:   #6366f1;
+  --color-violet:   #a855f7;
+  --color-emerald:  #10b981;
+  --color-bg-dark:  #0a0a0a;
+  --color-bg-light: #f8f9fa;
+  --color-surface-dark: #111113;
+  --color-border-dark: rgba(255,255,255,0.08);
+  --color-border-light: rgba(0,0,0,0.07);
+  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --gradient-premium: linear-gradient(135deg, #b45309 0%, #d97706 40%, #fbbf24 80%);
+  --shadow-glow-indigo: 0 0 24px rgba(99,102,241,0.40);
+  --shadow-glow-violet: 0 0 24px rgba(168,85,247,0.35);
+  --radius-card: 20px;
+  --radius-card-lg: 24px;
+}
+
+/* ── Base ──────────────────────────────────────────────────── */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+/* ── Scrollbar premium ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.35); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.55); }
+
+/* ── Keyframes ─────────────────────────────────────────────── */
 @keyframes wldFloat {
-  0% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, -20px); }
+  0%   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  60%  { opacity: 0.9; transform: translate(-50%, -14px) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -26px) scale(0.9); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(99,102,241,0.3); }
+  50%       { box-shadow: 0 0 28px rgba(168,85,247,0.55); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+
+/* ── Utility classes ───────────────────────────────────────── */
+.animate-fade-in {
+  animation: fadeIn 0.35s ease-out both;
+}
+
+.glow-indigo {
+  box-shadow: var(--shadow-glow-indigo);
+}
+
+.glow-violet {
+  box-shadow: var(--shadow-glow-violet);
+}
+
+.glass-dark {
+  background: rgba(17,17,19,0.80);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.glass-light {
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0,0,0,0.07);
+}
+
+.gradient-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Micro-interacciones globales ──────────────────────────── */
+button {
+  touch-action: manipulation;
+}
+
+/* ── Input focus ring premium ─────────────────────────────── */
+textarea:focus, input:focus {
+  outline: none;
 }
