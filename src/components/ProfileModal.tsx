@@ -25,6 +25,7 @@ interface ProfileModalProps {
   currentUserId: string | null;
   showUpgradeButton?: boolean;
   onOpenChat?: (otherUserId: string) => void;
+  onOpenTokenApp?: () => void;
 }
 
 interface UserProfile {
@@ -77,8 +78,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   currentUserId,
   showUpgradeButton,
   onOpenChat,
+  onOpenTokenApp,
 }) => {
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -798,6 +800,39 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                           {t("suscribirse_chat_premium", { amount: 5 })}
                         </button>
                       )}
+
+                      {/* ── Idioma + Token Market ── */}
+                      <div className="flex gap-3">
+                        {/* Toggle de idioma */}
+                        <button
+                          onClick={() => setLanguage(language === "es" ? "en" : "es")}
+                          className={`flex-1 py-3 rounded-2xl text-sm font-semibold transition flex items-center justify-center gap-2 border ${
+                            isDark
+                              ? "bg-white/[0.04] hover:bg-white/[0.07] border-white/[0.08] text-gray-300 hover:text-white"
+                              : "bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600 hover:text-gray-900"
+                          }`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 21l5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 016-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 01-3.827-5.802" />
+                          </svg>
+                          {language === "es" ? "Español" : "English"}
+                        </button>
+
+                        {/* Token Market */}
+                        {onOpenTokenApp && (
+                          <button
+                            onClick={() => { onOpenTokenApp(); onClose(); }}
+                            className={`flex-1 py-3 rounded-2xl text-sm font-semibold transition flex items-center justify-center gap-2 border ${
+                              isDark
+                                ? "bg-white/[0.04] hover:bg-white/[0.07] border-white/[0.08] text-amber-400 hover:text-amber-300"
+                                : "bg-amber-50 hover:bg-amber-100 border-amber-100 text-amber-600 hover:text-amber-700"
+                            }`}
+                          >
+                            <span className="text-base leading-none">🪙</span>
+                            Tokens
+                          </button>
+                        )}
+                      </div>
 
                       <button
                         onClick={() => setShowComplaintModal(true)}
