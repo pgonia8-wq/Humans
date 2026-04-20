@@ -67,10 +67,10 @@ body {
   100% { background-position: 200% center; }
 }
 
-/* ── Banner carrusel (derecha→izquierda) ───────────────────── */
+/* ── Banner carrusel (izquierda→derecha, estilo graff) ─────── */
 @keyframes carouselScroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-33.333%); }
+  0%   { transform: translateX(-33.333%); }
+  100% { transform: translateX(0%); }
 }
 
 /* ── Tip button: destello plata izq→der ───────────────────── */

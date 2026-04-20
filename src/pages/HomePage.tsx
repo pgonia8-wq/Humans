@@ -830,41 +830,23 @@ const HomePage: React.FC<HomePageProps> = ({
 
       {/* ── BANNER CARRUSEL: Gana WLD ── */}
       <div
-        className={`fixed left-0 right-0 z-[28] overflow-hidden flex items-center ${
-          isDark
-            ? "bg-[#070710]/90 border-b border-white/[0.05]"
-            : "bg-white/90 border-b border-black/[0.05]"
-        }`}
-        style={{
-          top: "72px",
-          height: "26px",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-        }}
+        className="fixed left-0 right-0 z-[28] overflow-hidden flex items-center"
+        style={{ top: "72px", height: "26px" }}
       >
         <div
           className="flex items-center whitespace-nowrap"
-          style={{ animation: "carouselScroll 24s linear infinite" }}
+          style={{ animation: "carouselScroll 22s linear infinite" }}
         >
           {[0, 1, 2].map((i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-8 px-8 text-[11px] font-bold tracking-wide"
+              className="inline-flex items-center gap-10 px-10 text-[11.5px] font-black tracking-widest uppercase"
               style={isDark ? {
-                background: "linear-gradient(90deg, #00ffc8 0%, #00e5ff 28%, #00ff94 55%, #00cfff 80%, #00ffc8 100%)",
-                backgroundSize: "200% auto",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                animation: "metalShimmer 4s linear infinite",
-                filter: "drop-shadow(0 0 5px rgba(0,229,255,0.50))",
+                color: "#00e5ff",
+                textShadow: "0 0 10px rgba(0,229,255,0.70), 0 0 22px rgba(0,255,200,0.35)",
               } : {
-                background: "linear-gradient(90deg, #1a1a1a 0%, #3a3a3a 25%, #111111 50%, #4a4a4a 75%, #1a1a1a 100%)",
-                backgroundSize: "200% auto",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                animation: "metalShimmer 5s linear infinite",
+                color: "#111111",
+                textShadow: "0 1px 0 rgba(255,255,255,0.6)",
               }}
             >
               <span>✦ Gana WLD publicando y conectando con humanos reales</span>
