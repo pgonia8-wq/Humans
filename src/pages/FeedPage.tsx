@@ -465,12 +465,14 @@ const FeedPage: React.FC<FeedPageProps> = ({
                 activeTab === key
                   ? "text-white shadow-md"
                   : isDark
-                    ? "text-gray-500 hover:text-gray-300"
+                    ? "text-gray-600 hover:text-gray-400"
                     : "text-gray-400 hover:text-gray-600"
               }`}
               style={
                 activeTab === key
-                  ? { background: "linear-gradient(135deg, #6366f1, #a855f7)", boxShadow: "0 2px 12px rgba(99,102,241,0.40)" }
+                  ? isDark
+                    ? { background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", boxShadow: "0 2px 14px rgba(99,102,241,0.45)" }
+                    : { background: "linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)", boxShadow: "0 2px 12px rgba(0,0,0,0.32)", border: "1px solid rgba(161,161,170,0.18)" }
                   : undefined
               }
             >

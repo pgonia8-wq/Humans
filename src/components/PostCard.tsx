@@ -720,13 +720,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         ${isBoosted
           ? isDark
             ? "bg-gradient-to-b from-orange-950/20 via-zinc-950/85 to-zinc-950/85 border-orange-800/25"
-            : "bg-gradient-to-b from-orange-50/80 via-white to-white border-orange-100"
+            : "bg-gradient-to-b from-orange-50/60 via-white to-white border-orange-200/60"
           : isDark
-            ? "border-white/[0.08] hover:bg-white/[0.02]"
-            : "bg-white/95 border-gray-100/80 hover:bg-gray-50/50"
+            ? "bg-zinc-950/60 border-white/[0.07] hover:bg-white/[0.025]"
+            : "bg-white border-gray-200/70 hover:bg-gray-50/60"
         }
       `}
-      style={isDark ? { backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" } : undefined}
+      style={{
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        boxShadow: isDark
+          ? "inset 0 1px 0 rgba(255,255,255,0.03)"
+          : "0 1px 8px rgba(0,0,0,0.04), 0 0px 1px rgba(0,0,0,0.06)",
+      }}
       onClick={isAd ? handleAdClick : undefined}
     >
 
