@@ -381,28 +381,58 @@
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                className={cx(
-                  "relative flex flex-col w-full h-full overflow-hidden",
-                  isGold
-                    ? "bg-gradient-to-b from-amber-950 via-yellow-950/95 to-black"
-                    : "bg-gradient-to-b from-[#0d0518] via-[#0a0312] to-black"
-                )}
+                className="relative flex flex-col w-full h-full overflow-hidden"
+                style={isGold ? {
+                  background: [
+                    "radial-gradient(ellipse at 20% 15%, rgba(180,120,0,0.22) 0%, transparent 52%)",
+                    "radial-gradient(ellipse at 80% 80%, rgba(120,80,0,0.18) 0%, transparent 52%)",
+                    "#07050a",
+                  ].join(","),
+                } : {
+                  background: [
+                    "radial-gradient(ellipse at 15% 20%, rgba(99,102,241,0.22) 0%, transparent 52%)",
+                    "radial-gradient(ellipse at 85% 78%, rgba(168,85,247,0.18) 0%, transparent 52%)",
+                    "radial-gradient(ellipse at 60% 8%, rgba(6,182,212,0.13) 0%, transparent 44%)",
+                    "#06060d",
+                  ].join(","),
+                }}
               >
                 {/* ═══ HEADER ═══ */}
-                <div className={cx("flex items-center gap-2 px-3 pt-[env(safe-area-inset-top,12px)] pb-2 border-b flex-shrink-0",
-                  isGold ? "border-amber-500/10 bg-amber-950/50" : "border-white/5 bg-black/40 backdrop-blur-sm")}>
-
-                  <div className="flex gap-1">
+                <div
+                  className="flex items-center gap-1.5 px-2 pt-[env(safe-area-inset-top,8px)] pb-2 flex-shrink-0"
+                  style={{
+                    backdropFilter: "blur(36px)",
+                    WebkitBackdropFilter: "blur(36px)",
+                    background: "rgba(6,6,13,0.82)",
+                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  }}
+                >
+                  {/* Tabs tipo: Clásico / Gold */}
+                  <div className="flex gap-1 flex-shrink-0">
                     {(["classic", "gold"] as RoomType[]).map((t) => {
                       const active = roomType === t;
                       return (
-                        <button key={t} onClick={() => handleSwitchType(t)}
-                          className={cx("flex items-center gap-1.5 px-4 py-2 rounded-2xl text-[11px] font-black tracking-wide transition-all duration-300 cursor-pointer",
-                            active
-                              ? t === "gold"
-                                ? "bg-gradient-to-r from-amber-500/30 to-yellow-600/15 text-amber-200 border border-amber-400/20 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
-                                : "bg-gradient-to-r from-violet-500/30 to-fuchsia-500/15 text-violet-200 border border-violet-400/20 shadow-[0_0_20px_rgba(139,92,246,0.2)]"
-                              : "text-white/35 hover:text-white/60 hover:bg-white/[0.06] border border-transparent")}>
+                        <button
+                          key={t}
+                          onClick={() => handleSwitchType(t)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black tracking-wide transition-all duration-200 cursor-pointer"
+                          style={active ? {
+                            background: t === "gold"
+                              ? "linear-gradient(160deg, #2a1900 0%, #1a1000 45%, #100900 100%)"
+                              : "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
+                            border: t === "gold"
+                              ? "1px solid rgba(245,158,11,0.28)"
+                              : "1px solid rgba(255,255,255,0.14)",
+                            boxShadow: t === "gold"
+                              ? "0 4px 14px rgba(0,0,0,0.65), inset 0 1px 0 rgba(245,158,11,0.22)"
+                              : "0 4px 14px rgba(0,0,0,0.70), inset 0 1px 0 rgba(255,255,255,0.22)",
+                            color: t === "gold" ? "#fbbf24" : "#ffffff",
+                          } : {
+                            color: "rgba(255,255,255,0.30)",
+                            border: "1px solid transparent",
+                          }}
+                        >
                           {t === "gold" ? <Crown className="h-3 w-3" /> : <Hash className="h-3 w-3" />}
                           {t === "classic" ? "Clásico" : "Gold"}
                         </button>
@@ -410,81 +440,146 @@
                     })}
                   </div>
 
-                  <div className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-none min-w-0 mx-1">
+                  {/* Tabs de sala */}
+                  <div className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-none min-w-0 mx-0.5">
                     {filteredRooms.map((r) => (
-                      <button key={r.id} onClick={() => switchRoom(r.id)} title={r.name}
-                        className={cx("flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all duration-200 cursor-pointer whitespace-nowrap",
-                          r.id === selectedRoomId
-                            ? isGold
-                              ? "bg-amber-400/15 text-amber-200 border border-amber-400/15 shadow-[0_0_12px_rgba(245,158,11,0.12)]"
-                              : "bg-violet-400/15 text-violet-200 border border-violet-400/15 shadow-[0_0_12px_rgba(139,92,246,0.12)]"
-                            : "text-white/30 hover:text-white/55 hover:bg-white/[0.05] border border-transparent")}>
+                      <button
+                        key={r.id}
+                        onClick={() => switchRoom(r.id)}
+                        title={r.name}
+                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all duration-200 cursor-pointer whitespace-nowrap"
+                        style={r.id === selectedRoomId ? {
+                          background: isGold
+                            ? "linear-gradient(160deg, #2a1900 0%, #1a1000 45%, #100900 100%)"
+                            : "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
+                          border: isGold
+                            ? "1px solid rgba(245,158,11,0.24)"
+                            : "1px solid rgba(255,255,255,0.14)",
+                          boxShadow: "0 2px 10px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.18)",
+                          color: isGold ? "#fbbf24" : "#ffffff",
+                        } : {
+                          color: "rgba(255,255,255,0.30)",
+                          border: "1px solid transparent",
+                        }}
+                      >
                         {r.isPrivate && <Lock className="h-2.5 w-2.5 flex-shrink-0" />}
                         {r.name.length > 12 ? r.name.slice(0, 12) + "…" : r.name}
                       </button>
                     ))}
                   </div>
 
+                  {/* Botones icono */}
                   <div className="flex items-center gap-0.5 flex-shrink-0">
-                    <button onClick={() => setShowSearch(s => !s)}
-                      className={cx("p-1.5 rounded-xl transition-all cursor-pointer",
-                        showSearch ? "text-violet-300 bg-violet-400/15" : "text-white/40 hover:text-white/70 hover:bg-white/8")}>
+                    <button
+                      onClick={() => setShowSearch(s => !s)}
+                      className="p-1.5 rounded-xl transition-all cursor-pointer"
+                      style={showSearch ? {
+                        background: "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
+                        color: "#ffffff", border: "1px solid rgba(255,255,255,0.14)",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.18)",
+                      } : { color: "rgba(255,255,255,0.40)" }}
+                    >
                       <Search className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => { if (!hasClassicAccess && !hasGoldAccess) { showError("Necesitas suscripción"); return; } setShowCreateRoom(true); }}
-                      className={cx("p-1.5 rounded-xl transition-all cursor-pointer",
-                        isGold ? "text-amber-400/40 hover:text-amber-300 hover:bg-amber-400/10" : "text-white/40 hover:text-white/70 hover:bg-white/8")}>
+                    <button
+                      onClick={() => { if (!hasClassicAccess && !hasGoldAccess) { showError("Necesitas suscripción"); return; } setShowCreateRoom(true); }}
+                      className="p-1.5 rounded-xl transition-all cursor-pointer"
+                      style={{ color: "rgba(255,255,255,0.40)" }}
+                    >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => setShowConnectedPanel(p => !p)}
-                      className="relative p-1.5 rounded-xl text-white/40 hover:text-white/70 hover:bg-white/8 transition-all cursor-pointer">
+                    <button
+                      onClick={() => setShowConnectedPanel(p => !p)}
+                      className="relative p-1.5 rounded-xl transition-all cursor-pointer"
+                      style={showConnectedPanel ? {
+                        background: "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
+                        color: "#ffffff", border: "1px solid rgba(255,255,255,0.14)",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.18)",
+                      } : { color: "rgba(255,255,255,0.40)" }}
+                    >
                       <Users className="h-3.5 w-3.5" />
                       {connected.length > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-emerald-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center font-black shadow-lg shadow-emerald-500/50">
+                        <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-emerald-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center font-black shadow-lg">
                           {connected.length}
                         </span>
                       )}
                     </button>
-                    <button onClick={() => setShowTokenApp(true)}
-                      className="p-1.5 rounded-xl text-white/40 hover:text-white/70 hover:bg-white/8 transition-all cursor-pointer text-sm leading-none"
-                      title="Token Market">🪙</button>
-                    <button onClick={onClose}
-                      className="p-1.5 rounded-xl text-white/40 hover:text-white/70 hover:bg-white/8 transition-all cursor-pointer">
+                    <button
+                      onClick={() => setShowTokenApp(true)}
+                      className="p-1.5 rounded-xl transition-all cursor-pointer text-sm leading-none"
+                      style={{ color: "rgba(255,255,255,0.40)" }}
+                      title="Token Market"
+                    >🪙</button>
+                    <button
+                      onClick={onClose}
+                      className="p-1.5 rounded-xl transition-all cursor-pointer"
+                      style={{ color: "rgba(255,255,255,0.50)" }}
+                    >
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
 
-                {/* Connected panel */}
+                {/* Panel de conectados */}
                 <AnimatePresence>
                   {showConnectedPanel && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                      className={cx("relative z-10 px-5 py-3 border-b flex-shrink-0 overflow-hidden",
-                        isGold ? "border-amber-400/10 bg-amber-950/30" : "border-white/[0.06] bg-white/[0.04]")}>
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      className="relative z-10 px-4 py-3 flex-shrink-0 overflow-hidden"
+                      style={{
+                        background: "rgba(10,10,18,0.72)",
+                        backdropFilter: "blur(24px)",
+                        WebkitBackdropFilter: "blur(24px)",
+                        borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-lg shadow-emerald-400/50" />
-                        <span className="text-[11px] font-bold text-white/60">{connected.length + 1} en esta sala</span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[11px] font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
+                          {connected.length + 1} en esta sala
+                        </span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        <span className="px-2.5 py-1 rounded-xl bg-violet-500/15 text-violet-300 text-[10px] font-bold border border-violet-500/10">Tú</span>
+                        <span
+                          className="px-2.5 py-1 rounded-xl text-[10px] font-bold"
+                          style={{
+                            background: "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
+                            color: "#ffffff", border: "1px solid rgba(255,255,255,0.14)",
+                          }}
+                        >Tú</span>
                         {connected.map((u) => (
-                          <span key={u.userId} className="px-2.5 py-1 rounded-xl bg-white/5 text-white/55 text-[10px] font-medium border border-white/5">
+                          <span
+                            key={u.userId}
+                            className="px-2.5 py-1 rounded-xl text-[10px] font-medium"
+                            style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.50)", border: "1px solid rgba(255,255,255,0.06)" }}
+                          >
                             {u.username || `@${u.userId.slice(0, 6)}`}
                           </span>
                         ))}
-                        {connected.length === 0 && <span className="text-[10px] text-white/30 italic">Solo tú en esta sala</span>}
+                        {connected.length === 0 && (
+                          <span className="text-[10px] italic" style={{ color: "rgba(255,255,255,0.25)" }}>Solo tú en esta sala</span>
+                        )}
                       </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                {/* Search */}
+                {/* Buscador */}
                 <AnimatePresence>
                   {showSearch && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                      className="relative z-10 px-4 py-2.5 border-b border-white/[0.04] flex-shrink-0">
-                      <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar mensajes…"
-                        className="w-full bg-white/[0.06] border border-white/[0.08] rounded-2xl px-5 py-3 text-sm text-white placeholder-white/15 outline-none focus:border-violet-400/25 focus:bg-white/[0.05] focus:shadow-[0_0_20px_rgba(139,92,246,0.06)] transition-all duration-300 font-medium" autoFocus />
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      className="relative z-10 px-4 py-2.5 flex-shrink-0"
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                    >
+                      <input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Buscar mensajes…"
+                        className="w-full rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 font-medium"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", caretColor: "#a855f7" }}
+                        autoFocus
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -593,10 +688,26 @@
                 {/* Error toast */}
                 <AnimatePresence>
                   {errorToast && (
-                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-                      className="absolute bottom-20 left-4 right-4 z-50 px-5 py-3.5 rounded-2xl bg-gray-950/98 border border-amber-400/30 text-[13px] text-white shadow-[0_4px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl flex items-center justify-between gap-3 font-semibold">
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                      className="absolute bottom-20 left-4 right-4 z-50 flex items-center justify-between gap-3"
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "16px",
+                        background: "rgba(10,10,18,0.92)",
+                        backdropFilter: "blur(24px)",
+                        WebkitBackdropFilter: "blur(24px)",
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        boxShadow: "0 8px 32px rgba(0,0,0,0.70), inset 0 1px 0 rgba(255,255,255,0.07)",
+                        color: "#ffffff",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                      }}
+                    >
                       <span>{errorToast}</span>
-                      <button onClick={() => setErrorToast(null)} className="text-white/40 hover:text-white/70 flex-shrink-0 cursor-pointer"><X className="h-3 w-3" /></button>
+                      <button onClick={() => setErrorToast(null)} className="flex-shrink-0 cursor-pointer" style={{ color: "rgba(255,255,255,0.45)" }}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -634,10 +745,22 @@
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-black">
               <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 28, stiffness: 300 }} className="w-full h-full flex flex-col">
-                <div className="flex items-center justify-between px-4 pt-[env(safe-area-inset-top,12px)] pb-2 bg-black border-b border-white/5">
-                  <span className="text-sm font-black text-white/80 tracking-wide">Token Market</span>
-                  <button onClick={() => setShowTokenApp(false)}
-                    className="p-1.5 rounded-xl text-white/30 hover:text-white/60 hover:bg-white/8 cursor-pointer transition-all">
+                <div
+                  className="flex items-center justify-between px-3 pt-[env(safe-area-inset-top,8px)] pb-2 flex-shrink-0"
+                  style={{
+                    backdropFilter: "blur(36px)",
+                    WebkitBackdropFilter: "blur(36px)",
+                    background: "rgba(6,6,13,0.92)",
+                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
+                  }}
+                >
+                  <span className="text-sm font-black tracking-wide" style={{ color: "rgba(255,255,255,0.80)" }}>Token Market</span>
+                  <button
+                    onClick={() => setShowTokenApp(false)}
+                    className="p-1.5 rounded-xl cursor-pointer transition-all"
+                    style={{ color: "rgba(255,255,255,0.40)" }}
+                  >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
