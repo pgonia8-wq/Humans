@@ -30,6 +30,7 @@ import {
   AtSign,
   Repeat2,
   CheckCircle2,
+  BarChart2,
 } from "lucide-react";
 
 
@@ -39,6 +40,7 @@ const Inbox = lazy(() => import("./chat/Inbox"));
 const GlobalChatRoom = lazy(() => import("./chat/GlobalChatRoom"));
 const AutonomousGrowthBrain = lazy(() => import("../components/AutonomousGrowthBrain"));
 const ScannerBrain = lazy(() => import("../components/ScannerBrain"));
+const TradeCenterPage = lazy(() => import("./trade/TradeCenterPage"));
 
 // ─────────────────────────────────────────────
 // TIPOS
@@ -127,6 +129,7 @@ const HomePage: React.FC<HomePageProps> = ({
   // ── Notificaciones ──
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showTradeCenter, setShowTradeCenter] = useState(false);
 
   // Memoizado: no recalcula en cada render
   const unreadNotifCount = useMemo(
@@ -672,7 +675,23 @@ const HomePage: React.FC<HomePageProps> = ({
           <MessageCircle size={17} />
         </motion.button>
 
-        {/* ── AVATAR (mismo tamaño y forma) ── */}
+        {/* ── BOTÓN Trade Center ── */}
+          <motion.button
+            onClick={() => setShowTradeCenter(true)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex-1 h-10 flex items-center justify-center rounded-xl"
+            style={{
+              background: "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              boxShadow: "0 4px 14px rgba(0,0,0,0.70), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.45)",
+              color: "#ffffff",
+            }}
+          >
+            <BarChart2 size={17} />
+          </motion.button>
+
+          {/* ── AVATAR (mismo tamaño y forma) ── */}
         <motion.div
           className="relative flex-1 h-10 cursor-pointer"
           onClick={() => setShowProfileModal(true)}
@@ -1133,8 +1152,17 @@ const HomePage: React.FC<HomePageProps> = ({
           </div>
         </div>
       )}
-    </div>
-  );
-};
+        {/* ── TRADE CENTER OVERLAY ── */}
+        <Suspense fallback={null}>
+          <TradeCenterPage
+            isOpen={showTradeCenter}
+            onClose={() => setShowTradeCenter(false)}
+            userId={userId ?? ""}
+            walletAddress={wallet}
+          />
+        </Suspense>
+      </div>
+    );
+  };
 
 export default HomePage;
