@@ -715,7 +715,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     <div
       ref={postRef}
       className={`
-        relative w-full overflow-hidden px-4 pt-5 pb-4
+        relative w-full px-4 pt-5 pb-4
         border-b transition-colors duration-200
         ${isBoosted
           ? isDark
@@ -878,10 +878,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           )}
 
           {/* ── Action bar ─────────────────────────────────────── */}
-          <div className="flex items-center mt-4 gap-1 min-w-0">
+          <div className="flex items-center mt-4 gap-1">
 
             {/* ── Izquierda: Like · Comment · Repost ── */}
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 flex-shrink-0">
 
               {/* Like */}
               <div className="relative">
@@ -1019,7 +1019,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                   </button>
 
                   {showOptionsMenu && (
-                    <div className={`absolute right-0 top-8 z-20 rounded-2xl border shadow-2xl overflow-hidden w-40 ${
+                    <div className={`absolute right-0 top-8 z-[9999] rounded-2xl border shadow-2xl overflow-hidden w-40 ${
                       isDark ? "bg-[#141416] border-white/[0.08]" : "bg-white border-gray-100 shadow-xl"
                     }`}>
                       {currentUserId !== post.user_id && (
