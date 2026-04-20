@@ -275,10 +275,9 @@ const FeedPage: React.FC<FeedPageProps> = ({
     if (activeTab === "global") onLoadMoreGlobal?.();
   }, [activeTab, currentUserId]);
 
-  // ── Infinite scroll por tab ───────────────────────────────────────────
+  // ── Infinite scroll por tab (window-level) ───────────────────────────
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    if (activeTab === "global") return;
 
     let throttle: ReturnType<typeof setTimeout> | null = null;
 
@@ -286,17 +285,18 @@ const FeedPage: React.FC<FeedPageProps> = ({
       if (throttle) return;
       throttle = setTimeout(() => {
         throttle = null;
-        const { scrollTop, scrollHeight, clientHeight } = el;
-        if (scrollTop + clientHeight >= scrollHeight - 250) {
+        const scrolled = window.scrollY + window.innerHeight;
+        const total = document.documentElement.scrollHeight;
+        if (scrolled >= total - 300) {
           if (activeTab === "following") fetchFollowing();
           if (activeTab === "mine") fetchMine();
         }
       }, 150);
     };
 
-    el.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
-      el.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("scroll", handleScroll);
       if (throttle) clearTimeout(throttle);
     };
   }, [activeTab, fetchFollowing, fetchMine]);
@@ -308,14 +308,13 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const first = entries[0];
-        if (first.isIntersecting) {
+        if (entries[0].isIntersecting) {
           onLoadMoreGlobal();
         }
       },
       {
-        root: scrollRef.current,
-        rootMargin: "200px",
+        root: null,
+        rootMargin: "300px",
         threshold: 0,
       }
     );
