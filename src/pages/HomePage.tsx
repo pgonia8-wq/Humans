@@ -1325,6 +1325,7 @@ const HomePage: React.FC<HomePageProps> = ({
               </div>
             }>
               <GlobalChatRoom
+                isOpen={true}
                 currentUserId={userId}
                 onClose={() => setShowGlobalChatHeader(false)}
               />
