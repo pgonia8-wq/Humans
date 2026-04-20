@@ -731,7 +731,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       {/* Boosted indicator */}
       {isBoosted && (
-        <div className="flex items-center gap-1.5 mb-3 ml-11">
+        <div className="flex items-center gap-1.5 mb-3 ml-16">
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: "linear-gradient(135deg, rgba(251,146,60,0.15), rgba(245,158,11,0.15))", border: "1px solid rgba(251,146,60,0.25)" }}>
             <svg className="w-3 h-3 text-orange-400" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
@@ -743,7 +743,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
       {/* Repost banner */}
       {post.reposted_post_id && (
-        <div className={`flex items-center gap-2 mb-3 ml-11 text-xs font-medium ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+        <div className={`flex items-center gap-2 mb-3 ml-16 text-xs font-medium ${isDark ? "text-gray-600" : "text-gray-400"}`}>
           <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
             <path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z" />
           </svg>
