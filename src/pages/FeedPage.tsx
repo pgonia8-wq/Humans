@@ -462,17 +462,13 @@ const FeedPage: React.FC<FeedPageProps> = ({
               key={key}
               onClick={() => setActiveTab(key)}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
-                activeTab === key
-                  ? "text-white shadow-md"
-                  : isDark
-                    ? "text-gray-600 hover:text-gray-400"
-                    : "text-gray-400 hover:text-gray-600"
+                activeTab === key ? "" : isDark ? "text-gray-600 hover:text-gray-400" : "text-gray-400 hover:text-gray-600"
               }`}
               style={
                 activeTab === key
                   ? isDark
-                    ? { background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", boxShadow: "0 2px 14px rgba(99,102,241,0.45)" }
-                    : { background: "linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)", boxShadow: "0 2px 12px rgba(0,0,0,0.32)", border: "1px solid rgba(161,161,170,0.18)" }
+                    ? { background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)", boxShadow: "0 2px 16px rgba(99,102,241,0.40), inset 0 1px 0 rgba(255,255,255,0.15)", border: "1px solid rgba(139,92,246,0.50)", color: "#fff" }
+                    : { background: "linear-gradient(160deg, #ffffff 0%, #f0f0f5 55%, #e4e4ef 100%)", boxShadow: "0 2px 10px rgba(0,0,0,0.13), inset 0 1px 0 rgba(255,255,255,1)", border: "1px solid rgba(0,0,0,0.10)", color: "#18181b" }
                   : undefined
               }
             >

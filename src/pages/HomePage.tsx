@@ -699,15 +699,17 @@ const HomePage: React.FC<HomePageProps> = ({
             onClick={() => setShowNewPostModal(true)}
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
-            className="flex items-center gap-1 px-3 py-2 rounded-full text-xs font-bold text-white relative overflow-hidden"
-            style={{
-              background: isDark
-                ? "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)"
-                : "linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%)",
-              boxShadow: isDark
-                ? "0 0 14px rgba(168,85,247,0.35)"
-                : "0 2px 8px rgba(0,0,0,0.28)",
-              border: isDark ? "none" : "1px solid rgba(161,161,170,0.22)",
+            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-semibold relative overflow-hidden"
+            style={isDark ? {
+              background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)",
+              boxShadow: "0 2px 16px rgba(99,102,241,0.40), inset 0 1px 0 rgba(255,255,255,0.15)",
+              border: "1px solid rgba(139,92,246,0.50)",
+              color: "#fff",
+            } : {
+              background: "linear-gradient(160deg, #ffffff 0%, #f0f0f5 55%, #e4e4ef 100%)",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.13), inset 0 1px 0 rgba(255,255,255,1)",
+              border: "1px solid rgba(0,0,0,0.10)",
+              color: "#18181b",
             }}
           >
             <Plus size={12} className="relative z-10" />
@@ -718,16 +720,22 @@ const HomePage: React.FC<HomePageProps> = ({
           <div className="relative">
             <motion.button
               onClick={() => { setShowInbox(true); setUnreadMessages(0); }}
-              whileHover={{ scale: 1.06 }}
+              whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.94 }}
-              className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
-              style={{
-                background: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
-                color: isDark ? "#a1a1aa" : "#52525b",
-                border: isDark ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(0,0,0,0.08)",
+              className="w-8 h-8 flex items-center justify-center rounded-xl"
+              style={isDark ? {
+                background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)",
+                boxShadow: "0 2px 16px rgba(99,102,241,0.40), inset 0 1px 0 rgba(255,255,255,0.15)",
+                border: "1px solid rgba(139,92,246,0.50)",
+                color: "#fff",
+              } : {
+                background: "linear-gradient(160deg, #ffffff 0%, #f0f0f5 55%, #e4e4ef 100%)",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.13), inset 0 1px 0 rgba(255,255,255,1)",
+                border: "1px solid rgba(0,0,0,0.10)",
+                color: "#18181b",
               }}
             >
-              <Mail size={15} />
+              <Mail size={14} />
             </motion.button>
             <AnimatePresence>
               {unreadTotal > 0 && (
@@ -746,25 +754,6 @@ const HomePage: React.FC<HomePageProps> = ({
           </div>
         </div>
 
-        {/* ── CENTRO: Logo real de la app ── */}
-        <motion.div
-          className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer"
-          onClick={() => setShowProfileModal(true)}
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.94 }}
-          style={{
-            filter: isDark
-              ? "drop-shadow(0 0 10px rgba(168,85,247,0.45))"
-              : "drop-shadow(0 2px 6px rgba(0,0,0,0.30))",
-          }}
-        >
-          <img
-            src="/logo-carbono.png"
-            alt="H by Humans"
-            className="w-10 h-10 object-contain rounded-xl"
-          />
-        </motion.div>
-
         {/* ── ZONA DERECHA: Bell + Chat + Avatar ── */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
 
@@ -772,13 +761,19 @@ const HomePage: React.FC<HomePageProps> = ({
           <div className="relative">
             <motion.button
               onClick={() => setShowNotifications(true)}
-              whileHover={{ scale: 1.06 }}
+              whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.94 }}
-              className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
-              style={{
-                background: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
-                color: isDark ? "#a1a1aa" : "#52525b",
-                border: isDark ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(0,0,0,0.08)",
+              className="w-8 h-8 flex items-center justify-center rounded-xl"
+              style={isDark ? {
+                background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)",
+                boxShadow: "0 2px 16px rgba(99,102,241,0.40), inset 0 1px 0 rgba(255,255,255,0.15)",
+                border: "1px solid rgba(139,92,246,0.50)",
+                color: "#fff",
+              } : {
+                background: "linear-gradient(160deg, #ffffff 0%, #f0f0f5 55%, #e4e4ef 100%)",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.13), inset 0 1px 0 rgba(255,255,255,1)",
+                border: "1px solid rgba(0,0,0,0.10)",
+                color: "#18181b",
               }}
             >
               <motion.div
@@ -804,34 +799,26 @@ const HomePage: React.FC<HomePageProps> = ({
             </AnimatePresence>
           </div>
 
-          {/* Chat — botón con texto + destello metálico */}
+          {/* Chat */}
           <motion.button
             onClick={handleHeaderChat}
             disabled={headerChatLoading || checkingAccessHeader}
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
-            className="flex items-center gap-1 px-3 py-2 rounded-full text-xs font-bold text-white relative overflow-hidden disabled:opacity-60"
-            style={{
-              background: isDark
-                ? "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)"
-                : "linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%)",
-              boxShadow: isDark
-                ? "0 0 14px rgba(168,85,247,0.35)"
-                : "0 2px 8px rgba(0,0,0,0.28)",
-              border: isDark ? "none" : "1px solid rgba(161,161,170,0.22)",
+            className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-semibold relative overflow-hidden disabled:opacity-50"
+            style={isDark ? {
+              background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)",
+              boxShadow: "0 2px 16px rgba(99,102,241,0.40), inset 0 1px 0 rgba(255,255,255,0.15)",
+              border: "1px solid rgba(139,92,246,0.50)",
+              color: "#fff",
+            } : {
+              background: "linear-gradient(160deg, #ffffff 0%, #f0f0f5 55%, #e4e4ef 100%)",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.13), inset 0 1px 0 rgba(255,255,255,1)",
+              border: "1px solid rgba(0,0,0,0.10)",
+              color: "#18181b",
             }}
           >
-            <span
-              aria-hidden="true"
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: "linear-gradient(90deg, transparent 20%, rgba(161,161,170,0.18) 50%, transparent 80%)",
-                animation: "tipShimmer 2.5s linear infinite",
-              }}
-            />
-            <svg className="w-3.5 h-3.5 relative z-10 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
-            </svg>
+            <MessageCircle size={13} className="relative z-10 flex-shrink-0" />
             <span className="relative z-10">Chat</span>
           </motion.button>
 
@@ -890,9 +877,15 @@ const HomePage: React.FC<HomePageProps> = ({
           {[0, 1, 2].map((i) => (
             <span
               key={i}
-              className={`inline-flex items-center gap-8 px-8 text-[10px] font-semibold tracking-wide ${
-                isDark ? "text-violet-400/65" : "text-indigo-600/60"
-              }`}
+              className="inline-flex items-center gap-8 px-8 text-[10px] font-bold tracking-wide"
+              style={{
+                background: "linear-gradient(90deg, #10b981 0%, #06b6d4 30%, #34d399 55%, #0891b2 80%, #10b981 100%)",
+                backgroundSize: "200% auto",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                animation: "metalShimmer 5s linear infinite",
+              }}
             >
               <span>✦ Gana WLD publicando y conectando con humanos reales</span>
               <span>✦ Posts que inspiran generan recompensas automáticas en WLD</span>

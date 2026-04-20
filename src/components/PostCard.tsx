@@ -719,19 +719,31 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         border-b transition-colors duration-200
         ${isBoosted
           ? isDark
-            ? "bg-gradient-to-b from-orange-950/20 via-zinc-950/85 to-zinc-950/85 border-orange-800/25"
-            : "bg-gradient-to-b from-orange-50/60 via-white to-white border-orange-200/60"
+            ? "border-orange-800/25"
+            : "border-orange-200/50"
           : isDark
-            ? "bg-zinc-950/60 border-white/[0.07] hover:bg-white/[0.025]"
-            : "bg-white border-gray-200/70 hover:bg-gray-50/60"
+            ? "border-white/[0.07]"
+            : "border-black/[0.06]"
         }
       `}
-      style={{
+      style={isBoosted ? {
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
+        background: isDark
+          ? "linear-gradient(180deg, rgba(120,53,15,0.18) 0%, rgba(17,17,19,0.95) 100%)"
+          : "linear-gradient(180deg, rgba(255,237,213,0.60) 0%, #ffffff 100%)",
         boxShadow: isDark
-          ? "inset 0 1px 0 rgba(255,255,255,0.03)"
-          : "0 1px 8px rgba(0,0,0,0.04), 0 0px 1px rgba(0,0,0,0.06)",
+          ? "0 4px 24px rgba(0,0,0,0.55), inset 0 1px 0 rgba(251,146,60,0.08)"
+          : "0 4px 20px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,1)",
+      } : {
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        background: isDark
+          ? "linear-gradient(180deg, #1a1a1d 0%, #111113 100%)"
+          : "linear-gradient(180deg, #ffffff 0%, #fafafa 60%, #f4f4f8 100%)",
+        boxShadow: isDark
+          ? "0 4px 24px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05)"
+          : "0 4px 20px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1)",
       }}
       onClick={isAd ? handleAdClick : undefined}
     >
