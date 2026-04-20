@@ -482,41 +482,55 @@ const FeedPage: React.FC<FeedPageProps> = ({
         </div>
 
         {/* ── WHY STAY BANNER ──────────────────────────────────────── */}
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl mb-4 ${
-          isDark
-            ? "bg-gradient-to-r from-emerald-950/50 to-emerald-900/20 border border-emerald-800/25"
-            : "bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100"
-        }`}>
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            isDark ? "bg-emerald-500/20" : "bg-emerald-100"
-          }`}>
-            <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <p className={`text-xs font-medium leading-snug ${isDark ? "text-emerald-300/80" : "text-emerald-700"}`}>
-            {(() => { const txt = t ? t("earn_wld_banner") : null; return (txt && txt !== "earn_wld_banner") ? txt : "Gana WLD publicando y conectando con humanos reales"; })()}
-          </p>
-        </div>
-
-        {/* ── UPGRADE BUTTON ───────────────────────────────────────── */}
-        <div className="mb-5">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={handleUpgrade}
-            className="relative w-full py-3.5 rounded-2xl font-bold text-white tracking-wide text-sm overflow-hidden"
+          <div
+            className="flex items-center gap-3 px-4 py-3.5 rounded-2xl mb-4 relative overflow-hidden"
             style={{
-              background: "linear-gradient(135deg, #6366f1 0%, #7c3aed 50%, #a855f7 100%)",
-              boxShadow: "0 6px 28px rgba(99,102,241,0.40)",
+              background: isDark
+                ? "linear-gradient(135deg, rgba(99,102,241,0.13) 0%, rgba(168,85,247,0.10) 100%)"
+                : "linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(168,85,247,0.07) 100%)",
+              border: isDark ? "1px solid rgba(99,102,241,0.24)" : "1px solid rgba(99,102,241,0.18)",
+              boxShadow: isDark ? "0 2px 16px rgba(99,102,241,0.08)" : "none",
             }}
           >
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              <Sparkles size={15} />
-              {t ? t("upgrade") : "Upgrade Premium"}
-            </span>
-          </motion.button>
-        </div>
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.28), rgba(168,85,247,0.22))", border: "1px solid rgba(168,85,247,0.20)" }}
+            >
+              <svg className="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className={`text-xs font-medium leading-snug ${isDark ? "text-violet-300/90" : "text-indigo-700"}`}>
+              {(() => { const txt = t ? t("earn_wld_banner") : null; return (txt && txt !== "earn_wld_banner") ? txt : "Gana WLD publicando y conectando con humanos reales"; })()}
+            </p>
+          </div>
+
+        {/* ── UPGRADE BUTTON ───────────────────────────────────────── */}
+          <div className="mb-5">
+            <motion.button
+              whileHover={{ scale: 1.02, boxShadow: "0 12px 40px rgba(168,85,247,0.55)" }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleUpgrade}
+              className="relative w-full py-4 rounded-2xl font-bold text-white tracking-wide text-sm overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 45%, #a855f7 75%, #c084fc 100%)",
+                boxShadow: "0 6px 28px rgba(99,102,241,0.45), inset 0 0 0 1px rgba(255,255,255,0.10)",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: "linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.13) 50%, transparent 65%)",
+                  animation: "shimmerSlide 2.6s linear infinite",
+                }}
+              />
+              <span className="relative z-10 flex items-center justify-center gap-2 drop-shadow-sm">
+                <Sparkles size={15} className="opacity-95" />
+                <span>✦ {t ? t("upgrade") : "Upgrade Premium"}</span>
+              </span>
+            </motion.button>
+          </div>
 
         {/* ── UPGRADE OPTIONS ───────────────────────────────────────── */}
         <AnimatePresence>
