@@ -99,9 +99,37 @@ export interface SystemMetrics {
 // ════════════════════════════════════════════════════════
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}`, init);
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? `Error ${res.status}`);
+  const url = `${API}${path}`;
+  const res = await fetch(url, init);
+
+  // Lectura defensiva: text() primero (nunca rompe en body vacío)
+  const text = await res.text();
+
+  // Logging temporal — útil para diagnosticar 404 / HTML / JSON inválido
+  if (typeof console !== "undefined") {
+    console.log(`[API ${res.status}] ${path}:`, text ? text.slice(0, 240) : "(empty)");
+  }
+
+  if (!text) {
+    throw new Error(
+      !res.ok ? `Error ${res.status} (sin body)` : "Respuesta vacía del servidor",
+    );
+  }
+
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(
+      !res.ok
+        ? `Error ${res.status}: respuesta no-JSON (${text.slice(0, 80)})`
+        : "Respuesta no es JSON válido",
+    );
+  }
+
+  if (!res.ok) {
+    throw new Error(json?.error ?? `Error ${res.status}`);
+  }
   return json as T;
 }
 

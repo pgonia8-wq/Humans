@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { X, Sparkles, Plus, ArrowRight, Store, Settings2 } from "lucide-react";
+import { X, Sparkles, Plus, ArrowRight, Store } from "lucide-react";
 import { useTheme } from "../../lib/ThemeContext";
 import MarketPage from "./MarketPage";
 
@@ -171,19 +171,8 @@ export default function TradeCenterPage({ isOpen, onClose, userId, walletAddress
             </span>
           </div>
 
-          {/* DERECHA: settings reservado (no vacío visualmente) */}
-          <button
-            aria-label="Ajustes"
-            disabled
-            style={{
-              ...glassButtonStyle(isDark),
-              width: 38, height: 38, borderRadius: 12,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              opacity: 0.45, cursor: "not-allowed",
-            }}
-          >
-            <Settings2 size={17} strokeWidth={2.2} color={txt} />
-          </button>
+          {/* DERECHA: spacer para mantener título centrado (38px = ancho del botón close) */}
+          <div style={{ width: 38, height: 38 }} aria-hidden="true" />
         </header>
 
         {/* ─── TABS PILL (FIX 4 — wrapper glass real) ─────────────────── */}
