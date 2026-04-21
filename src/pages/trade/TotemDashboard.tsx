@@ -34,6 +34,12 @@ interface Props {
   walletAddress?:  string | null;
   userBalanceWld?: number;
   onBack:          () => void;
+  onProfileRefreshed?: (p: TotemProfile) => void;
+  /** "owner" → muestra "Tu Totem", banner "tuyo"; "viewer" → vista pública. */
+  mode?:           "owner" | "viewer";
+  /** Gate Orb: false → TradePanel en modo lectura con CTA de verificación. */
+  canTrade?:        boolean;
+  onRequestVerify?: () => void;
 }
 
 type Health   = "healthy" | "volatile" | "stress";
@@ -100,7 +106,14 @@ function useDesktop(breakpoint = 920): boolean {
 // ════════════════════════════════════════════════════════════════════════════
 export default function TotemDashboard({
   totemAddress, isDark, userId, walletAddress, userBalanceWld, onBack,
+  mode,
+  onProfileRefreshed,
+  canTrade = true,
+  onRequestVerify,
 }: Props) {
+  // Ownership prioriza la prop explícita (creator path); si no, lo deriva del backend (profile.isOwner).
+  // NUNCA se confía en estado en memoria del cliente — la fuente de verdad es el server.
+  const explicitMode = mode;
   const [profile,   setProfile]   = useState<TotemProfile | null>(null);
   const [history,   setHistory]   = useState<TotemHistory[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -118,24 +131,28 @@ export default function TotemDashboard({
     else        setLoading(true);
     try {
       const [p, h] = await Promise.all([
-        getTotemProfile(totemAddress),
+        getTotemProfile(totemAddress, userId),     // userId → backend resuelve isOwner
         getTotemHistory(totemAddress, 96).catch(() => [] as TotemHistory[]),
       ]);
       if (id !== reqIdRef.current) return;
       setProfile(p);
       setHistory(Array.isArray(h) ? h : []);
+      onProfileRefreshed?.(p);                      // notifica al padre (header del modal, etc.)
     } catch {
       if (id !== reqIdRef.current) return;
       setError(true);
     } finally {
       if (id === reqIdRef.current) { setLoading(false); setUpdating(false); }
     }
-  }, [totemAddress]);
+  }, [totemAddress, userId, onProfileRefreshed]);
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Refresco silencioso al ejecutar trade ─────────────────────────────
+  // ── Refresco silencioso post-trade: precio/supply/historial al instante ─
   const onTradeSuccess = useCallback(() => { load(true); }, [load]);
+
+  // ── Derivación de ownership: prop explícita > server (profile.isOwner) ──
+  const isOwner = explicitMode === "owner" || (!explicitMode && profile?.isOwner === true);
 
   // ── Derivados ────────────────────────────────────────────────────────
   const series: PricePoint[] = useMemo(
@@ -183,17 +200,30 @@ export default function TotemDashboard({
       <style>{TD_KEYFRAMES}</style>
 
       {/* ─── BACK BAR ─────────────────────────────────────────────────── */}
-      <button
-        onClick={onBack}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          background: "transparent", border: "none", color: txtSub,
-          fontSize: 12, fontWeight: 700, letterSpacing: -0.1,
-          cursor: "pointer", padding: "6px 8px 6px 0", marginBottom: 10,
-        }}
-      >
-        <ArrowLeft size={14} strokeWidth={2.6} /> Mercado
-      </button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <button
+          onClick={onBack}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            background: "transparent", border: "none", color: txtSub,
+            fontSize: 12, fontWeight: 700, letterSpacing: -0.1,
+            cursor: "pointer", padding: "6px 8px 6px 0",
+          }}
+        >
+          <ArrowLeft size={14} strokeWidth={2.6} /> {isOwner ? "Atrás" : "Mercado"}
+        </button>
+        {/* Mode badge — owner vs viewer */}
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "4px 10px", borderRadius: 999,
+          background: isOwner ? "rgba(99,102,241,0.16)" : isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+          border: `1px solid ${isOwner ? "rgba(99,102,241,0.36)" : isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`,
+          color: isOwner ? "#a78bfa" : txtSub,
+          fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase",
+        }}>
+          {isOwner ? "Tu Totem" : "Vista pública"}
+        </div>
+      </div>
 
       {/* ─── HEADER PREMIUM ───────────────────────────────────────────── */}
       <div style={{
@@ -429,6 +459,11 @@ export default function TotemDashboard({
             walletAddress={walletAddress}
             userBalanceWld={userBalanceWld}
             onTradeSuccess={onTradeSuccess}
+            canTrade={canTrade}
+            onRequestVerify={onRequestVerify}
+            currentPriceWld={profile.price}
+            // prevEmaWei + lastUpdateUnix se cablean cuando ANTI_MANIP_ADDRESS
+            // esté deployado (lectura RPC). Por ahora "0" → cold-start advisory.
           />
         </div>
       </div>
