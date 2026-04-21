@@ -21,6 +21,7 @@ import { BondingCurve, Oracle, Stability, AntiManip, PROTOCOL_VERSION } from "./
 import { SCORE_UNIT_ORACLE, INFLUENCE_UNIT_ORACLE, mapEngineToOracleScore } from "./units.mjs";
 import { calculateStress, getBuybackRate, repRisk } from "./stability.mjs";
 import { updateEma } from "./antiManipulation.mjs";
+import { resolveConfig, check, FLAG_SCALE, DEFAULT_CONFIGS } from "./rateLimiter.mjs";
 
 // ════════════════════════════════════════════════════════════════════════════
 // INVARIANT #1: Curve monotonicity
@@ -242,6 +243,67 @@ export function antiManipAlphaSanity() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #11: RateLimiter capacity respected — refill nunca excede capacity.
+// ════════════════════════════════════════════════════════════════════════════
+
+export function rateLimiterCapacityRespected() {
+  // Bucket vacío + tiempo enorme → tokens debe quedar capped en capacity.
+  const cap = 5n;
+  const refill = 1n;
+  const { newBucket } = check({
+    bucket: { tokens: 0n, lastRefill: 1000n },
+    capacity: cap, refill, now: 10n ** 9n,  // ~31 años después
+  });
+  // tras refill (capped) consumimos 1 → debe quedar cap-1
+  if (newBucket.tokens !== cap - 1n) {
+    return { ok: false, invariant: "rateLimiterCapacityRespected",
+             detail: `tokens=${newBucket.tokens} expected ${cap - 1n}` };
+  }
+  return { ok: true, invariant: "rateLimiterCapacityRespected" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #12: Asimetría intencional UPDATE vs QUERY — UPDATE más restrictivo,
+// QUERY escala con level. Si esto se rompe, el modelo de abuso del protocolo
+// se invalida.
+// ════════════════════════════════════════════════════════════════════════════
+
+export function rateLimiterActionAsymmetry() {
+  const Q = DEFAULT_CONFIGS.QUERY;
+  const U = DEFAULT_CONFIGS.UPDATE;
+  // QUERY DEBE tener FLAG_SCALE
+  if ((Q.flags & FLAG_SCALE) === 0n) {
+    return { ok: false, invariant: "rateLimiterActionAsymmetry",
+             detail: "QUERY no tiene FLAG_SCALE (debería escalar con level)" };
+  }
+  // UPDATE NO debe tener FLAG_SCALE (anti-abuso fijo)
+  if ((U.flags & FLAG_SCALE) !== 0n) {
+    return { ok: false, invariant: "rateLimiterActionAsymmetry",
+             detail: "UPDATE tiene FLAG_SCALE (debería ser fijo, anti-abuso)" };
+  }
+  // UPDATE.cap debe ser MENOR que QUERY.cap (más restrictivo)
+  if (U.baseCapacity >= Q.baseCapacity) {
+    return { ok: false, invariant: "rateLimiterActionAsymmetry",
+             detail: `UPDATE.cap=${U.baseCapacity} >= QUERY.cap=${Q.baseCapacity} (debería ser <)` };
+  }
+  // Verificar scaling simétrico de QUERY (cap y refill ambos * level)
+  const r1 = resolveConfig({ action: "QUERY", level: 1n, locked: false });
+  const r5 = resolveConfig({ action: "QUERY", level: 5n, locked: false });
+  if (r5.capacity !== r1.capacity * 5n || r5.refill !== r1.refill * 5n) {
+    return { ok: false, invariant: "rateLimiterActionAsymmetry",
+             detail: `scaling no simétrico: lvl1={${r1.capacity},${r1.refill}} lvl5={${r5.capacity},${r5.refill}}` };
+  }
+  // UPDATE no debe escalar (mismo a nivel 1 y 5)
+  const u1 = resolveConfig({ action: "UPDATE", level: 1n, locked: false });
+  const u5 = resolveConfig({ action: "UPDATE", level: 5n, locked: false });
+  if (u1.capacity !== u5.capacity || u1.refill !== u5.refill) {
+    return { ok: false, invariant: "rateLimiterActionAsymmetry",
+             detail: "UPDATE escaló con level (debería ser fijo)" };
+  }
+  return { ok: true, invariant: "rateLimiterActionAsymmetry" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // RUNNER — corre todos los invariants y reporta
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -257,6 +319,8 @@ export function runAllInvariants() {
     stressBounded(),
     emaBounded(),
     antiManipAlphaSanity(),
+    rateLimiterCapacityRespected(),
+    rateLimiterActionAsymmetry(),
   ];
   const failures = results.filter(r => !r.ok);
   return {

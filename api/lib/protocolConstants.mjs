@@ -77,6 +77,36 @@ export const Oracle = Object.freeze({
 export const OracleInfluence = INFLUENCE_UNIT_ORACLE;
 
 // ════════════════════════════════════════════════════════════════════════════
+// RateLimiter — TotemRateLimiter.sol
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Token bucket por (user, action). Defaults inicializados en el constructor:
+//   ACTION_QUERY  → cap=5, refill=1, flags=FLAG_SCALE   (escala con level)
+//   ACTION_UPDATE → cap=2, refill=1, flags=0            (anti-abuso, NO escala)
+//
+// Asimetría intencional: UPDATE más restrictivo, QUERY escala con reputación.
+// NO hacerlos simétricos "por UX" — rompe el modelo de abuso del protocolo.
+//
+export const RateLimiter = Object.freeze({
+  // Bitmask flags
+  FLAG_SCALE:           1n,                  // bit 0: si activo, cap y refill escalan con level
+
+  // Action labels (off-chain mirror — el contrato usa keccak256(<name>))
+  ACTION_QUERY:         "QUERY",
+  ACTION_UPDATE:        "UPDATE",
+
+  // Default configs del constructor
+  DEFAULT_CONFIGS: Object.freeze({
+    QUERY:  Object.freeze({ baseCapacity: 5n, baseRefill: 1n, flags: 1n }),  // FLAG_SCALE
+    UPDATE: Object.freeze({ baseCapacity: 2n, baseRefill: 1n, flags: 0n }),
+  }),
+
+  // Level clamp del Registry (status devuelve [1, 5])
+  LEVEL_MIN:            1n,
+  LEVEL_MAX:            5n,
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // AntiManipulation — TotemAntiManipulationLayer.sol
 // ════════════════════════════════════════════════════════════════════════════
 //
