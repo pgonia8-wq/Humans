@@ -427,6 +427,53 @@ const E2E_ENDPOINT_RULES = [
       /=\s*REP_RISK_HIGH/i,  // no recalcular repRisk inline
     ],
   },
+  {
+    // F11 ext: create.mjs usa spotPrice() del mirror para precio inicial
+    file: "../totem/create.mjs",
+    mustImport: ["lib/curve.mjs"],
+    mustNotMatch: [
+      /INITIAL_PRICE_WEI\s*=/,
+      /\bCURVE_K\s*=\s*\d/,
+      /\b5\.5e8\b/,
+      /initialPrice\s*=\s*\d/,  // no asignar precio inicial constante inline
+    ],
+  },
+  {
+    // F11 ext: adapter Engine→Oracle. UPDATE_FEE y rangos vienen del mirror.
+    // updateTotem.mjs vive EN lib/, así que importa con './units.mjs' etc.
+    file: "../lib/updateTotem.mjs",
+    mustImport: ["./units.mjs", "./protocolConstants.mjs"],
+    mustNotMatch: [
+      /UPDATE_FEE\s*=\s*0\.01/,        // no hardcodear 0.01 ether
+      /UPDATE_FEE_WEI\s*=\s*10n/,      // no recalcular wei inline
+      /oracleScore\s*=\s*97[5-9]\b/,   // no bypassear mapEngineToOracleScore
+      /oracleScore\s*=\s*102[0-5]\b/,
+    ],
+  },
+  {
+    // F9: graduate-preview usa graduationPreview + calcLiquidityAmounts del mirror
+    file: "../totem/graduate-preview.mjs",
+    mustImport: ["lib/graduation.mjs", "lib/protocolConstants.mjs"],
+    mustNotMatch: [
+      /MIN_LEVEL\s*=\s*4n/,
+      /MIN_SUPPLY\s*=\s*10_?000n/,
+      /MIN_AGE_SEC\s*=\s*45\b/,
+      /LIQUIDITY_BPS\s*=\s*1_?000n/,
+      /15_?000n\s*\*/,                 // no recalcular MIN_VOLUME_WEI inline
+    ],
+  },
+  {
+    // F9: graduate-execute aplica graduateGuard + calcLiquidityAmounts del mirror
+    file: "../totem/graduate-execute.mjs",
+    mustImport: ["lib/graduation.mjs"],
+    mustNotMatch: [
+      /MIN_LEVEL\s*=\s*4n/,
+      /MIN_SUPPLY\s*=\s*10_?000n/,
+      /MIN_AGE_SEC\s*=\s*45\b/,
+      /LIQUIDITY_BPS\s*=\s*1_?000n/,
+      /15_?000n\s*\*/,
+    ],
+  },
 ];
 
 function stripCommentLines(src) {
