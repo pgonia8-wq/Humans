@@ -17,13 +17,16 @@
  */
 
 import * as Curve from "./curve.mjs";
-import { BondingCurve, Oracle, Stability, AntiManip, PROTOCOL_VERSION } from "./protocolConstants.mjs";
+import { BondingCurve, Oracle, Stability, AntiManip, HumanTotem as HT_CONST, TotemSync as TS_CONST, FeeRouter as FR_CONST, PROTOCOL_VERSION } from "./protocolConstants.mjs";
 import { SCORE_UNIT_ORACLE, INFLUENCE_UNIT_ORACLE, mapEngineToOracleScore } from "./units.mjs";
 import { calculateStress, getBuybackRate, repRisk } from "./stability.mjs";
 import { updateEma } from "./antiManipulation.mjs";
 import { resolveConfig, check, FLAG_SCALE, DEFAULT_CONFIGS } from "./rateLimiter.mjs";
 import { Graduation } from "./protocolConstants.mjs";
 import { calcLiquidityAmounts, canGraduate } from "./graduation.mjs";
+import { calculateDynamicFeeBps, previewTransfer } from "./humanTotemFees.mjs";
+import { calculateLevel, calculateBadge, applyDecay, calculatePenalty, getFraudDelay } from "./totemSync.mjs";
+import { previewSplit } from "./feeRouter.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as pathResolve } from "node:path";
@@ -528,6 +531,185 @@ export function e2ePipelineOrder() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #16: HumanTotem fee parity (C8) — tabla de score → feeBps debe
+// coincidir con _calculateDynamicFee + previewTransfer aplica fórmula exacta.
+// ════════════════════════════════════════════════════════════════════════════
+
+export function humanTotemFeeParity() {
+  // Boundary table: score → feeBps (baseFeeBps default = 0)
+  const cases = [
+    [0n,    HT_CONST.FEE_BPS_CRITICAL],   // critical
+    [1999n, HT_CONST.FEE_BPS_CRITICAL],   // boundary
+    [2000n, HT_CONST.FEE_BPS_LOW],        // boundary (>=2000 → low, <4000)
+    [3999n, HT_CONST.FEE_BPS_LOW],
+    [4000n, HT_CONST.FEE_BPS_DEFAULT],    // boundary (>=4000 → 0)
+    [10000n, HT_CONST.FEE_BPS_DEFAULT],
+  ];
+  for (const [s, expected] of cases) {
+    const got = calculateDynamicFeeBps(s);
+    if (got !== expected) {
+      return { ok: false, invariant: "humanTotemFeeParity",
+               detail: `feeBps(score=${s})=${got} expected ${expected}` };
+    }
+  }
+  // Fórmula: fee = (amount * feeBps) / FEE_BPS_DENOMINATOR
+  // amount=1000, score=1500 → feeBps=2000 → fee=200, net=800
+  const r = previewTransfer({ amount: 1000n, score: 1500n });
+  if (!r.ok || r.fee !== 200n || r.net !== 800n) {
+    return { ok: false, invariant: "humanTotemFeeParity",
+             detail: `previewTransfer fee=${r.fee} net=${r.net}` };
+  }
+  // Owner exempt: fee=0 incluso con score crítico
+  const re = previewTransfer({ amount: 1000n, score: 0n, fromOwner: true });
+  if (!re.ok || re.fee !== 0n || !re.exempted) {
+    return { ok: false, invariant: "humanTotemFeeParity",
+             detail: "owner_exempt no aplicado" };
+  }
+  // Locked → revert HumanFraudDetected
+  const rl = previewTransfer({ amount: 1000n, score: 9000n, locked: true });
+  if (rl.ok || rl.reason !== "HumanFraudDetected") {
+    return { ok: false, invariant: "humanTotemFeeParity",
+             detail: "locked no produce HumanFraudDetected" };
+  }
+  // Stale > 10min → revert StaleScore
+  const rs = previewTransfer({ amount: 1000n, score: 9000n, scoreAgeSec: HT_CONST.MAX_SCORE_STALENESS_SEC + 1n });
+  if (rs.ok || rs.reason !== "StaleScore") {
+    return { ok: false, invariant: "humanTotemFeeParity",
+             detail: "stale no produce StaleScore" };
+  }
+  return { ok: true, invariant: "humanTotemFeeParity" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #17: Tótem level/badge boundary parity (C9)
+// calculateLevel: 1M/500K/100K/10K thresholds (>); calculateBadge: neg>50, score>8000/5000.
+// Decay y penalty math con casos conocidos.
+// ════════════════════════════════════════════════════════════════════════════
+
+export function totemLevelBadgeParity() {
+  // Level boundaries (strict >)
+  const levelCases = [
+    [0n,            1n],
+    [10_000n,       1n],   // == 10K → level 1 (no >)
+    [10_001n,       2n],
+    [100_000n,      2n],
+    [100_001n,      3n],
+    [500_000n,      3n],
+    [500_001n,      4n],
+    [1_000_000n,    4n],
+    [1_000_001n,    5n],
+    [TS_CONST.MAX_ACCUMULATED_SCORE, 5n],
+  ];
+  for (const [t, expected] of levelCases) {
+    const got = calculateLevel(t);
+    if (got !== expected) {
+      return { ok: false, invariant: "totemLevelBadgeParity",
+               detail: `calculateLevel(${t})=${got} expected ${expected}` };
+    }
+  }
+  // Badge boundaries
+  const badgeCases = [
+    [0n,    0n,  1n],
+    [5000n, 0n,  1n],   // == 5000 → 1 (no >)
+    [5001n, 0n,  2n],
+    [8000n, 0n,  2n],   // == 8000 → 2 (no >)
+    [8001n, 0n,  3n],
+    [9999n, 50n, 3n],   // neg == 50 → no es > 50, sigue regla score
+    [9999n, 51n, 0n],   // neg > 50 → 0
+  ];
+  for (const [s, n, expected] of badgeCases) {
+    const got = calculateBadge(s, n);
+    if (got !== expected) {
+      return { ok: false, invariant: "totemLevelBadgeParity",
+               detail: `calculateBadge(${s},${n})=${got} expected ${expected}` };
+    }
+  }
+  // Decay: 100K * 86400 / 86400 / 100 = 1000, total → 99000
+  const d1 = applyDecay({ totalAccumulated: 100_000n, nowSec: 86_400n, lastUpdateSec: 0n });
+  if (d1 !== 99_000n) {
+    return { ok: false, invariant: "totemLevelBadgeParity",
+             detail: `decay(100K, dt=1day)=${d1} expected 99000` };
+  }
+  // Decay total a 0 si dt enorme
+  const d2 = applyDecay({ totalAccumulated: 100n, nowSec: 86_400n * 10_000n, lastUpdateSec: 0n });
+  if (d2 !== 0n) {
+    return { ok: false, invariant: "totemLevelBadgeParity",
+             detail: `decay full → ${d2} expected 0` };
+  }
+  // Penalty: (5000-2000)/3 = 1000, cap total/2 = 5000 → 1000
+  const p1 = calculatePenalty({ lastScore: 5000n, currentScore: 2000n, totalAccumulated: 10_000n });
+  if (p1 !== 1000n) {
+    return { ok: false, invariant: "totemLevelBadgeParity",
+             detail: `penalty=${p1} expected 1000` };
+  }
+  // Penalty cap: (10000-0)/3 = 3333, total/2 = 1000 → 1000
+  const p2 = calculatePenalty({ lastScore: 10_000n, currentScore: 0n, totalAccumulated: 2_000n });
+  if (p2 !== 1000n) {
+    return { ok: false, invariant: "totemLevelBadgeParity",
+             detail: `penalty capped=${p2} expected 1000` };
+  }
+  // Fraud delay: level 5 + price 1 ETH → max(6h, 6h) = 21600s
+  const fd1 = getFraudDelay({ level: 5n, priceWei: 10n ** 18n });
+  if (fd1 !== 21_600n) {
+    return { ok: false, invariant: "totemLevelBadgeParity",
+             detail: `fraudDelay L5/1ETH=${fd1} expected 21600` };
+  }
+  // Fraud delay: level 1 + price 0 → max(5min, 5min) = 300s
+  const fd2 = getFraudDelay({ level: 1n, priceWei: 0n });
+  if (fd2 !== 300n) {
+    return { ok: false, invariant: "totemLevelBadgeParity",
+             detail: `fraudDelay L1/0=${fd2} expected 300` };
+  }
+  // Fraud delay: manual override
+  const fd3 = getFraudDelay({ level: 5n, priceWei: 10n ** 18n, manualFraudDelay: 42n });
+  if (fd3 !== 42n) {
+    return { ok: false, invariant: "totemLevelBadgeParity",
+             detail: `fraudDelay manual=${fd3} expected 42` };
+  }
+  return { ok: true, invariant: "totemLevelBadgeParity" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #18: FeeRouter split conservation (C15)
+// treasury + buyback + reward === balance EXACTO para todo balance > 0.
+// El reward se calcula por RESTA (no por *20/100), por lo cual la suma debe
+// ser invariante incluso con truncation.
+// ════════════════════════════════════════════════════════════════════════════
+
+export function feeRouterSplitConservation() {
+  const balances = [1n, 7n, 100n, 999n, 1_000n, 12_345n, 10n ** 18n, 10n ** 18n + 7n];
+  for (const b of balances) {
+    const r = previewSplit(b);
+    if (!r.ok) {
+      return { ok: false, invariant: "feeRouterSplitConservation",
+               detail: `previewSplit(${b}) failed unexpectedly` };
+    }
+    if (r.treasury + r.buyback + r.reward !== b) {
+      return { ok: false, invariant: "feeRouterSplitConservation",
+               detail: `sum(t=${r.treasury},b=${r.buyback},r=${r.reward}) != ${b}` };
+    }
+    // Cada share debe ser <= balance
+    if (r.treasury > b || r.buyback > b || r.reward > b) {
+      return { ok: false, invariant: "feeRouterSplitConservation",
+               detail: `share > balance en ${b}` };
+    }
+    // Treasury y buyback deben ser exactamente (b * 40) / 100
+    const expectedT = (b * FR_CONST.TREASURY_PCT) / FR_CONST.PCT_DENOMINATOR;
+    if (r.treasury !== expectedT) {
+      return { ok: false, invariant: "feeRouterSplitConservation",
+               detail: `treasury(${b})=${r.treasury} expected ${expectedT}` };
+    }
+  }
+  // balance = 0 → ok=false
+  const r0 = previewSplit(0n);
+  if (r0.ok) {
+    return { ok: false, invariant: "feeRouterSplitConservation",
+             detail: "balance=0 should fail with 'no fees'" };
+  }
+  return { ok: true, invariant: "feeRouterSplitConservation" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // RUNNER — corre todos los invariants y reporta
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -548,6 +730,9 @@ export function runAllInvariants() {
     graduationThresholdsCoherent(),
     liquidityMathConsistent(),
     e2ePipelineOrder(),
+    humanTotemFeeParity(),
+    totemLevelBadgeParity(),
+    feeRouterSplitConservation(),
   ];
   const failures = results.filter(r => !r.ok);
   return {
