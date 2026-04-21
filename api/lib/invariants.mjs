@@ -17,9 +17,10 @@
  */
 
 import * as Curve from "./curve.mjs";
-import { BondingCurve, Oracle, Stability, PROTOCOL_VERSION } from "./protocolConstants.mjs";
+import { BondingCurve, Oracle, Stability, AntiManip, PROTOCOL_VERSION } from "./protocolConstants.mjs";
 import { SCORE_UNIT_ORACLE, INFLUENCE_UNIT_ORACLE, mapEngineToOracleScore } from "./units.mjs";
 import { calculateStress, getBuybackRate, repRisk } from "./stability.mjs";
+import { updateEma } from "./antiManipulation.mjs";
 
 // ════════════════════════════════════════════════════════════════════════════
 // INVARIANT #1: Curve monotonicity
@@ -185,6 +186,62 @@ export function stressBounded() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #9: AntiManip EMA bounded — el smoothing nunca produce un valor
+// fuera del intervalo [min(prev, new), max(prev, new)].
+// ════════════════════════════════════════════════════════════════════════════
+
+export function emaBounded() {
+  const cases = [
+    { prev: 1000n, newValue: 2000n },
+    { prev: 5000n, newValue: 1000n },
+    { prev: 100n,  newValue: 100n  },
+    { prev: 1n,    newValue: 10n ** 18n },
+  ];
+  for (const c of cases) {
+    const ema = updateEma(c);
+    const lo = c.prev < c.newValue ? c.prev : c.newValue;
+    const hi = c.prev > c.newValue ? c.prev : c.newValue;
+    if (ema < lo || ema > hi) {
+      return { ok: false, invariant: "emaBounded",
+               detail: `updateEma(prev=${c.prev}, new=${c.newValue})=${ema} fuera de [${lo}, ${hi}]` };
+    }
+  }
+  // Stable point: prev === newValue → ema === prev
+  if (updateEma({ prev: 777n, newValue: 777n }) !== 777n) {
+    return { ok: false, invariant: "emaBounded", detail: "stable point falla" };
+  }
+  // Init point: prev === 0 → ema === newValue
+  if (updateEma({ prev: 0n, newValue: 555n }) !== 555n) {
+    return { ok: false, invariant: "emaBounded", detail: "init point (prev=0) falla" };
+  }
+  return { ok: true, invariant: "emaBounded" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #10: AntiManip alpha sanity — α ≤ denominator, no overflow.
+// ════════════════════════════════════════════════════════════════════════════
+
+export function antiManipAlphaSanity() {
+  if (AntiManip.ALPHA > AntiManip.ALPHA_DENOMINATOR) {
+    return { ok: false, invariant: "antiManipAlphaSanity",
+             detail: `α=${AntiManip.ALPHA} > denom=${AntiManip.ALPHA_DENOMINATOR}` };
+  }
+  if (AntiManip.ALPHA <= 0n) {
+    return { ok: false, invariant: "antiManipAlphaSanity",
+             detail: `α=${AntiManip.ALPHA} debe ser > 0 (sin smoothing efectivo)` };
+  }
+  if (AntiManip.ALPHA_DENOMINATOR !== 100n) {
+    return { ok: false, invariant: "antiManipAlphaSanity",
+             detail: `denom=${AntiManip.ALPHA_DENOMINATOR} != 100 (mirror contrato)` };
+  }
+  if (AntiManip.MIN_INTERVAL_SEC !== 900n) {
+    return { ok: false, invariant: "antiManipAlphaSanity",
+             detail: `MIN_INTERVAL=${AntiManip.MIN_INTERVAL_SEC} != 900s (15min)` };
+  }
+  return { ok: true, invariant: "antiManipAlphaSanity" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // RUNNER — corre todos los invariants y reporta
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -198,6 +255,8 @@ export function runAllInvariants() {
     positionCapsCoherent(),
     stabilityPiecewiseParity(),
     stressBounded(),
+    emaBounded(),
+    antiManipAlphaSanity(),
   ];
   const failures = results.filter(r => !r.ok);
   return {

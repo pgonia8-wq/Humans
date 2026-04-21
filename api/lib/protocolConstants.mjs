@@ -77,6 +77,20 @@ export const Oracle = Object.freeze({
 export const OracleInfluence = INFLUENCE_UNIT_ORACLE;
 
 // ════════════════════════════════════════════════════════════════════════════
+// AntiManipulation — TotemAntiManipulationLayer.sol
+// ════════════════════════════════════════════════════════════════════════════
+//
+// IMPORTANTE: el contrato SOLO implementa EMA smoothing + cooldown.
+// NO tiene: wash detection, sandwich detection, velocity, ML heuristics.
+// Cualquier extensión "inteligente" off-chain crearía desync con on-chain.
+//
+export const AntiManip = Object.freeze({
+  ALPHA:                20n,        // smoothing factor (mutable on-chain via owner, default 20)
+  ALPHA_DENOMINATOR:    100n,       // ema = (prev*(100-α) + new*α) / 100
+  MIN_INTERVAL_SEC:     15n * 60n,  // 15 minutes between updateOracle calls
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // Stability — TotemStabilityModule.sol
 // ════════════════════════════════════════════════════════════════════════════
 
