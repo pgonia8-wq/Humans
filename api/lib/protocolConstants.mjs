@@ -77,6 +77,36 @@ export const Oracle = Object.freeze({
 export const OracleInfluence = INFLUENCE_UNIT_ORACLE;
 
 // ════════════════════════════════════════════════════════════════════════════
+// Graduation — TotemGraduationManager.sol
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Reglas REALES del contrato (NO inventar):
+//   minLevel     = 4           (level del Registry, escala [1,5])
+//   minSupply    = 10_000      (raw, no wei — comparado contra curve.getSupply)
+//   minVolume    = 15_000 ether (15_000 * 1e18, comparado contra verifiedVolume)
+//   minAge       = 45 days     (45 * 86_400 segundos)
+//   liquidityBps = 1000        (10% del supply va al pool inicial AMM)
+//
+// Volumen usado para gating: SOLO verifiedVolume (rawVolume queda fuera del
+// criterio anti-wash). Si verifiedVolume == 0 → volume = 0.
+//
+// Liquidity math (al graduar):
+//   amountToken    = (supply * liquidityBps) / BPS_DENOMINATOR
+//   amountTokenWei = amountToken * 1e18
+//   amountWLD      = (amountTokenWei * price) / 1e18
+//
+export const Graduation = Object.freeze({
+  MIN_LEVEL:              4n,
+  MIN_SUPPLY:             10_000n,
+  MIN_VOLUME_WEI:         15_000n * (10n ** 18n),
+  MIN_AGE_SEC:            45n * 86_400n,
+  LIQUIDITY_BPS:          1_000n,
+  BPS_DENOMINATOR:        10_000n,
+  TOKEN_DECIMALS:         18n,
+  WEI_PER_TOKEN:          10n ** 18n,
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // RateLimiter — TotemRateLimiter.sol
 // ════════════════════════════════════════════════════════════════════════════
 //

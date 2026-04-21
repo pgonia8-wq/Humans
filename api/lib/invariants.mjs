@@ -22,6 +22,11 @@ import { SCORE_UNIT_ORACLE, INFLUENCE_UNIT_ORACLE, mapEngineToOracleScore } from
 import { calculateStress, getBuybackRate, repRisk } from "./stability.mjs";
 import { updateEma } from "./antiManipulation.mjs";
 import { resolveConfig, check, FLAG_SCALE, DEFAULT_CONFIGS } from "./rateLimiter.mjs";
+import { Graduation } from "./protocolConstants.mjs";
+import { calcLiquidityAmounts, canGraduate } from "./graduation.mjs";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve as pathResolve } from "node:path";
 
 // ════════════════════════════════════════════════════════════════════════════
 // INVARIANT #1: Curve monotonicity
@@ -304,6 +309,165 @@ export function rateLimiterActionAsymmetry() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #13: Graduation thresholds coherent.
+// Verifica que las constantes de graduación sean consistentes con el resto del
+// protocolo (level dentro del rango LEVEL_MIN..LEVEL_MAX del rateLimiter, etc.)
+// ════════════════════════════════════════════════════════════════════════════
+
+export function graduationThresholdsCoherent() {
+  const G = Graduation;
+  if (G.MIN_LEVEL < 1n || G.MIN_LEVEL > 5n) {
+    return { ok: false, invariant: "graduationThresholdsCoherent",
+             detail: `MIN_LEVEL=${G.MIN_LEVEL} fuera de [1,5]` };
+  }
+  if (G.MIN_SUPPLY <= 0n) {
+    return { ok: false, invariant: "graduationThresholdsCoherent",
+             detail: `MIN_SUPPLY=${G.MIN_SUPPLY} debe ser > 0` };
+  }
+  if (G.MIN_VOLUME_WEI <= 0n) {
+    return { ok: false, invariant: "graduationThresholdsCoherent",
+             detail: `MIN_VOLUME_WEI=${G.MIN_VOLUME_WEI} debe ser > 0` };
+  }
+  if (G.MIN_AGE_SEC <= 0n) {
+    return { ok: false, invariant: "graduationThresholdsCoherent",
+             detail: `MIN_AGE_SEC=${G.MIN_AGE_SEC} debe ser > 0` };
+  }
+  if (G.LIQUIDITY_BPS <= 0n || G.LIQUIDITY_BPS > G.BPS_DENOMINATOR) {
+    return { ok: false, invariant: "graduationThresholdsCoherent",
+             detail: `LIQUIDITY_BPS=${G.LIQUIDITY_BPS} fuera de (0, ${G.BPS_DENOMINATOR}]` };
+  }
+  if (G.BPS_DENOMINATOR !== 10_000n) {
+    return { ok: false, invariant: "graduationThresholdsCoherent",
+             detail: `BPS_DENOMINATOR=${G.BPS_DENOMINATOR} != 10000` };
+  }
+  if (G.WEI_PER_TOKEN !== 10n ** G.TOKEN_DECIMALS) {
+    return { ok: false, invariant: "graduationThresholdsCoherent",
+             detail: `WEI_PER_TOKEN no coincide con 10^TOKEN_DECIMALS` };
+  }
+  return { ok: true, invariant: "graduationThresholdsCoherent" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #14: Liquidity math determinista.
+// Caso conocido: supply=10_000, price=1e18, bps=1_000 → amountToken=1_000,
+// amountTokenWei=1_000e18, amountWLD=1_000e18.
+// Si esto cambia, el módulo divergió del contrato.
+// ════════════════════════════════════════════════════════════════════════════
+
+export function liquidityMathConsistent() {
+  const supply = 10_000n;
+  const price = 10n ** 18n;
+  const r = calcLiquidityAmounts({ supply, price });
+  const expectedToken = 1_000n;
+  const expectedWei   = 1_000n * 10n ** 18n;
+  if (r.amountToken !== expectedToken) {
+    return { ok: false, invariant: "liquidityMathConsistent",
+             detail: `amountToken=${r.amountToken} expected ${expectedToken}` };
+  }
+  if (r.amountTokenWei !== expectedWei) {
+    return { ok: false, invariant: "liquidityMathConsistent",
+             detail: `amountTokenWei=${r.amountTokenWei} expected ${expectedWei}` };
+  }
+  if (r.amountWLD !== expectedWei) {
+    return { ok: false, invariant: "liquidityMathConsistent",
+             detail: `amountWLD=${r.amountWLD} expected ${expectedWei}` };
+  }
+  // Sanity: con bps al máximo, amountToken == supply
+  const full = calcLiquidityAmounts({ supply, price, liquidityBps: Graduation.BPS_DENOMINATOR });
+  if (full.amountToken !== supply) {
+    return { ok: false, invariant: "liquidityMathConsistent",
+             detail: `bps=10000 amountToken=${full.amountToken} expected ${supply}` };
+  }
+  return { ok: true, invariant: "liquidityMathConsistent" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #15: E2E_PIPELINE_ORDER — scan estático anti-regresión
+// Verifica que los endpoints económicos NO reimplementen math del contrato
+// inline (constantes de la curva, fees, sell-window) y que SÍ importen del
+// mirror canonical. Defensa contra regresiones tipo F8.
+// ════════════════════════════════════════════════════════════════════════════
+
+const __dirInv = dirname(fileURLToPath(import.meta.url));
+
+// Endpoint → checks. `mustImport` = todos requeridos. `mustNotMatch` = ninguno
+// debe aparecer fuera de comentario (heurística: línea sin `//` ni `*`).
+const E2E_ENDPOINT_RULES = [
+  {
+    file: "../market/execute.mjs",
+    mustImport: ["lib/curve.mjs"],
+    mustNotMatch: [
+      /INITIAL_PRICE_WEI\s*=/,
+      /\bCURVE_K\s*=\s*\d/,
+      /function\s+estimatePriceFromSupply/,
+      /\b5\.5e8\b/,
+    ],
+  },
+  {
+    file: "../market/buy.mjs",
+    mustImport: ["lib/curve.mjs"],
+    mustNotMatch: [/INITIAL_PRICE_WEI/, /\bCURVE_K\s*=/, /\b5\.5e8\b/],
+  },
+  {
+    file: "../market/sellPreview.mjs",
+    mustImport: ["lib/curve.mjs", "lib/protocolConstants.mjs"],
+    mustNotMatch: [/SELL_DAILY_LIMIT\s*=\s*0\.45\b/, /=\s*4500\b(?!_)/],
+  },
+  {
+    file: "../market/tradeLimits.mjs",
+    mustImport: ["lib/protocolConstants.mjs"],
+    mustNotMatch: [/SELL_DAILY_LIMIT\s*=\s*0\.45\b/, /=\s*4500\b(?!_)/],
+  },
+  {
+    file: "../system/stability.mjs",
+    mustImport: ["lib/stability.mjs", "lib/protocolConstants.mjs"],
+    mustNotMatch: [
+      /baseBuybackRate\s*=\s*40\b/,
+      /maxBuybackRate\s*=\s*85\b/,
+      /=\s*REP_RISK_HIGH/i,  // no recalcular repRisk inline
+    ],
+  },
+];
+
+function stripCommentLines(src) {
+  // Quita líneas que son sólo comentarios y bloques /* */
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+    .join("\n");
+}
+
+export function e2ePipelineOrder() {
+  const failures = [];
+  for (const rule of E2E_ENDPOINT_RULES) {
+    let src;
+    try {
+      src = readFileSync(pathResolve(__dirInv, rule.file), "utf8");
+    } catch (e) {
+      failures.push(`${rule.file}: cannot read (${e.code ?? e.message})`);
+      continue;
+    }
+    const code = stripCommentLines(src);
+
+    for (const needle of rule.mustImport) {
+      if (!src.includes(needle)) {
+        failures.push(`${rule.file}: missing import "${needle}"`);
+      }
+    }
+    for (const re of rule.mustNotMatch) {
+      if (re.test(code)) {
+        failures.push(`${rule.file}: forbidden pattern matched ${re}`);
+      }
+    }
+  }
+  if (failures.length > 0) {
+    return { ok: false, invariant: "e2ePipelineOrder", detail: failures.join(" | ") };
+  }
+  return { ok: true, invariant: "e2ePipelineOrder" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // RUNNER — corre todos los invariants y reporta
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -321,6 +485,9 @@ export function runAllInvariants() {
     antiManipAlphaSanity(),
     rateLimiterCapacityRespected(),
     rateLimiterActionAsymmetry(),
+    graduationThresholdsCoherent(),
+    liquidityMathConsistent(),
+    e2ePipelineOrder(),
   ];
   const failures = results.filter(r => !r.ok);
   return {
