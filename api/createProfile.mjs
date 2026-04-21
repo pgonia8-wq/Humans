@@ -21,7 +21,7 @@ import { requireOrb } from "../token/api/_orbGuard.mjs";
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
-import { rateLimit } from "./_rateLimit.mjs";
+import { rateLimit } from "./lib/rateLimiter.adapter.mjs";
 
 if (!process.env.SUPABASE_URL) {
   console.error("[CREATE_PROFILE] ERROR: SUPABASE_URL no configurada");

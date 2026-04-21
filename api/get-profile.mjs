@@ -14,7 +14,7 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
-import { rateLimit } from "./_rateLimit.mjs";
+import { rateLimit } from "./lib/rateLimiter.adapter.mjs";
 
 // [G2] Validar variables de entorno al inicio
 if (!process.env.SUPABASE_URL) {

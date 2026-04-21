@@ -8,7 +8,7 @@ import { supabase, cors } from "./_supabase.mjs";
   } from "./_curve.mjs";
   import { trackRequest, trackTrade, trackOccConflict, trackPartialPayout, trackFailedTrade, triggerAlert, isTradingPaused, isTokenFrozen } from "../../api/_metrics.mjs";
   import { canTrade, shouldThrottle } from "../../api/_infra.mjs";
-  import { smartRateLimit, detectTradingLoop } from "../../api/_smartRate.mjs";
+  import { smartRateLimit, detectTradingLoop } from "../../api/lib/rateLimiter.adapter.mjs";
   import { createTrace, startSpan, endSpan, failSpan, finishTrace, log, SPANS, LOG_TYPES } from "../../api/_tracer.mjs";
 
   export default async function handler(req, res) {

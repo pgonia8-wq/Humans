@@ -3,7 +3,7 @@ import { getMetrics, checkAlerts } from "./_metrics.mjs";
 import { getSystemState, evaluateState } from "./_infra.mjs";
 import { getQueueStats } from "./_queue.mjs";
 import { getBufferStats } from "./_tracer.mjs";
-import { getRateLimitStats } from "./_smartRate.mjs";
+import { getRateLimitStats } from "./lib/rateLimiter.adapter.mjs";
 
 const supabase = createClient(
   process.env.SUPABASE_URL ?? "",

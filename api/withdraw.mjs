@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { ethers } from "ethers";
 import { verifySiweMessage } from "@worldcoin/minikit-js";
-import { rateLimit } from "./_rateLimit.mjs";
+import { rateLimit } from "./lib/rateLimiter.adapter.mjs";
 
 if (!process.env.SUPABASE_URL) {
   console.error("[WITHDRAW] ERROR: SUPABASE_URL no configurada");

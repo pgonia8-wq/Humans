@@ -5,7 +5,7 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
-import { rateLimit } from "./_rateLimit.mjs";
+import { rateLimit } from "./lib/rateLimiter.adapter.mjs";
 import { verifySiweMessage } from "@worldcoin/minikit-js";
 import { issueSessionToken } from "./_session.mjs";
 

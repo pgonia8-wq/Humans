@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { rateLimit } from "./_rateLimit.mjs";
+import { rateLimit } from "./lib/rateLimiter.adapter.mjs";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

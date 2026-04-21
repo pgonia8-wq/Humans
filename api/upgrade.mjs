@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { nanoid } from "nanoid";
 import crypto from "node:crypto";
-import { rateLimit } from "./_rateLimit.mjs";
+import { rateLimit } from "./lib/rateLimiter.adapter.mjs";
 
 const supabase = createClient(
   process.env.SUPABASE_URL ?? "",

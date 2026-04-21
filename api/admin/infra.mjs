@@ -3,7 +3,7 @@ import { verifyAdmin } from "./_auth.mjs";
 import { getSystemState, forceState, enableAutoState, updateConfig, evaluateState, STATES, getGPI, getUxHints } from "../_infra.mjs";
 import { getQueueStats, startWorker, stopWorker, drainQueue, getEstimatedQueueSize } from "../_queue.mjs";
 import { queryLogs, forceFlush, getBufferStats } from "../_tracer.mjs";
-import { getRateLimitStats } from "../_smartRate.mjs";
+import { getRateLimitStats } from "../lib/rateLimiter.adapter.mjs";
 import { getMetrics } from "../_metrics.mjs";
 import { getBreakerStatus, resetBreaker, SUBSYSTEMS } from "../_circuitBreaker.mjs";
 

@@ -5,7 +5,7 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 import crypto from "node:crypto";
-import { rateLimit } from "./_rateLimit.mjs";
+import { rateLimit } from "./lib/rateLimiter.adapter.mjs";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(

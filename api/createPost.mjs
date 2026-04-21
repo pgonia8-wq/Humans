@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { rateLimitPersistent } from "./_rateLimit.mjs";
+import { rateLimitPersistent, smartRateLimit } from "./lib/rateLimiter.adapter.mjs";
 import { canSocialWrite, shouldQueueSocial, shouldThrottle } from "./_infra.mjs";
-import { smartRateLimit } from "./_smartRate.mjs";
 import { createTrace, startSpan, finishTrace, log, SPANS, LOG_TYPES } from "./_tracer.mjs";
 import { enqueue, OP_TYPES } from "./_queue.mjs";
 import { trackRequest, trackPost, isReadOnlyMode } from "./_metrics.mjs";
