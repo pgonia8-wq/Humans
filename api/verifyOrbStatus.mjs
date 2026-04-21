@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit } from "./_rateLimit.mjs";
+import { requireSession } from "./_session.mjs";
 
 if (!process.env.SUPABASE_URL) {
   console.error("[VERIFY_ORB] ERROR: SUPABASE_URL not configured");
@@ -31,12 +32,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
-  const body = req.body || {};
-  const { userId, proof } = body;
-
-  if (!userId || typeof userId !== "string") {
-    return res.status(400).json({ success: false, error: "userId is required" });
+  // Identidad probada server-side via HMAC. Se IGNORA cualquier userId del
+  // body: un proof Orb sólo puede vincularse al userId real de la sesión.
+  const session = requireSession(req);
+  if (!session.ok) {
+    return res.status(session.status).json({ success: false, error: session.error, code: session.code });
   }
+  const userId = session.user.userId;
+
+  const body = req.body || {};
+  const { proof } = body;
 
   if (
     !proof ||
@@ -87,6 +92,11 @@ export default async function handler(req, res) {
 
   let worldcoinVerified = false;
   try {
+    // CRÍTICO: enviamos `signal: userId` (el del TOKEN, no del body) para que
+    // Worldcoin valide criptográficamente que el proof se generó originalmente
+    // con ese signal. Bloquea cross-binding: un proof Orb generado con signal=A
+    // no puede reusarse en una sesión cuyo token tiene uid=B — Worldcoin lo
+    // rechazará porque el ZK-proof no encajará con otro signal.
     const verifyResponse = await fetch(
       `https://developer.worldcoin.org/api/v2/verify/${APP_ID}`,
       {
@@ -98,6 +108,7 @@ export default async function handler(req, res) {
           proof: proof.proof,
           nullifier_hash: proof.nullifier_hash,
           verification_level: proof.verification_level,
+          signal: userId,
         }),
       }
     );
@@ -129,6 +140,17 @@ export default async function handler(req, res) {
       .eq("id", userId);
 
     if (dbErr) {
+      // 23505 = unique_violation (PostgreSQL). Garantizado por
+      // CONSTRAINT unique_nullifier en profiles(nullifier_hash). Anti-replay
+      // atómico: dos cuentas distintas NUNCA pueden quedar con el mismo
+      // nullifier, ni siquiera bajo race condition.
+      if (dbErr.code === "23505" || /duplicate|unique/i.test(dbErr.message || "")) {
+        return res.status(403).json({
+          success: false,
+          error: "Esta verificación Orb ya está vinculada a otra cuenta",
+          code: "ORB_ALREADY_LINKED",
+        });
+      }
       console.error("[VERIFY_ORB] DB error:", dbErr.message);
       return res.status(500).json({ success: false, error: "Database error" });
     }

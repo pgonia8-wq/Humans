@@ -56,6 +56,10 @@ interface HomePageProps {
   setUserId: (id: string | null) => void;
   verifyUser: () => void;
   verifyOrb: () => Promise<{ success: boolean; proof?: any }>;
+  /** Single source of truth desde App: profile.verification_level === "orb" */
+  isOrbVerified: boolean;
+  /** Callback para sincronizar el estado global tras verificación exitosa */
+  onOrbVerifiedChange: (ok: boolean) => void;
 }
 
 interface Notification {
@@ -95,6 +99,8 @@ const HomePage: React.FC<HomePageProps> = ({
   setUserId,
   verifyUser,
   verifyOrb,
+  isOrbVerified,
+  onOrbVerifiedChange,
 }) => {
   // ── Post modal ──
   const [optimisticPosts, setOptimisticPosts] = useState<any[]>([]);
@@ -1159,6 +1165,9 @@ const HomePage: React.FC<HomePageProps> = ({
             onClose={() => setShowTradeCenter(false)}
             userId={userId ?? ""}
             walletAddress={wallet}
+            verifyOrb={verifyOrb}
+            isOrbVerified={isOrbVerified}
+            onOrbVerifiedChange={onOrbVerifiedChange}
           />
         </Suspense>
       </div>

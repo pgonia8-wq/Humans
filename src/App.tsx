@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import { useTheme } from "./lib/ThemeContext";
 import HomePage from "./pages/HomePage";
+import { setSessionToken, clearSessionToken } from "./lib/tradeApi";
 
 // Sincronizar con las variables de entorno para evitar errores de paridad
 const WORLDCOIN_ACTION = import.meta.env.VITE_WORLDCOIN_ACTION_ID || "verify-user";
@@ -16,6 +17,10 @@ const App = () => {
   const [orbVerifying, setOrbVerifying] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
+  // ── Estado global de verificación Orb (single source of truth) ────────────
+  // Se hidrata desde /api/get-profile y se mantiene sincronizado tras
+  // verificación Orb exitosa (vía setIsOrbVerified pasado al TradeCenter).
+  const [isOrbVerified, setIsOrbVerified] = useState(false);
   const walletLoading = useRef(false);
 
   const { setUsername: setGlobalUsername } = useTheme();
@@ -40,8 +45,12 @@ const App = () => {
             if (profile?.verified) {
               setVerified(true);
             }
+            // Single source of truth para Orb. Se propaga via prop al
+            // TradeCenter — sin hooks duplicados, sin fetches paralelos.
+            setIsOrbVerified(profile?.verification_level === "orb");
           } else {
             localStorage.removeItem("userId");
+            clearSessionToken();
             setUserId(null);
           }
         } catch (e) {
@@ -83,6 +92,10 @@ const App = () => {
           if (vData.success) {
             setWallet(vData.address);
             localStorage.setItem("wallet", vData.address);
+            // Persistir session token HMAC firmado por el backend tras SIWE.
+            // Es la única identidad criptográfica que aceptan los endpoints
+            // sensibles (create totem, execute trade) vía Authorization Bearer.
+            if (vData.sessionToken) setSessionToken(vData.sessionToken);
           }
         }
       } catch (err) {
@@ -156,6 +169,12 @@ const App = () => {
     }
   };
 
+  // Setter expuesto al TradeCenter: tras verificación Orb exitosa actualiza
+  // el estado global → toda la UI reacciona sin refresh.
+  const handleOrbVerifiedChange = useCallback((ok: boolean) => {
+    setIsOrbVerified(ok);
+  }, []);
+
   return (
     <HomePage
       userId={userId}
@@ -168,6 +187,8 @@ const App = () => {
       verifying={verifying}
       setUserId={setUserId}
       verifyOrb={verifyOrb}
+      isOrbVerified={isOrbVerified}
+      onOrbVerifiedChange={handleOrbVerifiedChange}
     />
   );
 };

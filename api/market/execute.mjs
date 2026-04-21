@@ -21,6 +21,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { requireOrbSession } from "../_orbGuard.mjs";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -53,13 +54,24 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Método no permitido" });
   }
 
+  // ── 1. Sesión + Orb (identidad probada server-side via HMAC) ────────────
+  // Se IGNORAN userId/walletAddress del body. La identidad sale del session
+  // token (Authorization: Bearer ...) emitido por walletVerify tras SIWE.
+  // Forjar identidad requiere romper HMAC con SESSION_SECRET.
+  const guard = await requireOrbSession(supabase, req);
+  if (!guard.ok) {
+    return res.status(guard.status).json({ error: guard.error, code: guard.code });
+  }
+  const userId        = guard.user.userId;
+  const walletAddress = guard.user.walletAddress;
+
+  // ── 2. Validación de inputs ────────────────────────────────────────────────
   const {
-    txHash, type, totemAddress, userId, walletAddress,
+    txHash, type, totemAddress,
     // Estimados del preview (requeridos en modo dev, advisory en producción)
     estimatedWld, estimatedTokens,
   } = req.body ?? {};
 
-  // ── 1. Validación de inputs ────────────────────────────────────────────────
   if (!txHash || typeof txHash !== "string" || txHash.length < 8) {
     return res.status(400).json({ error: "txHash inválido" });
   }
@@ -69,16 +81,10 @@ export default async function handler(req, res) {
   if (!totemAddress || !/^0x[0-9a-fA-F]{40}$/.test(totemAddress)) {
     return res.status(400).json({ error: "totemAddress inválido" });
   }
-  if (!userId) {
-    return res.status(400).json({ error: "userId requerido" });
-  }
-  if (!walletAddress || !/^0x[0-9a-fA-F]{40}$/.test(walletAddress)) {
-    return res.status(400).json({ error: "walletAddress inválido" });
-  }
 
   const totemLower = totemAddress.toLowerCase();
 
-  // ── 2. Leer estado actual del totem (necesario en ambos modos) ────────────
+  // ── 3. Leer estado actual del totem (necesario en ambos modos) ────────────
   const { data: totem } = await supabase
     .from("totems")
     .select("supply, price, volume_24h, score")
@@ -89,7 +95,7 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: "Totem no encontrado en DB" });
   }
 
-  // ── 3. Obtener wldAmount y tokenAmount según modo ─────────────────────────
+  // ── 4. Obtener wldAmount y tokenAmount según modo ─────────────────────────
   let wldAmount, tokenAmount;
 
   if (IS_PRODUCTION) {
@@ -112,13 +118,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // C2: Validación mínima — no se acepta basura en la DB
-    if (!userId || !totemAddress) {
-      return res.status(400).json({ error: "userId y totemAddress son requeridos" });
-    }
-    if (!["buy", "sell"].includes(type)) {
-      return res.status(400).json({ error: "type debe ser 'buy' o 'sell'" });
-    }
+    // C2: Validación mínima de estimados (userId/totem ya validados arriba)
     const _wld    = Number(estimatedWld);
     const _tokens = Number(estimatedTokens);
     if (!Number.isFinite(_wld) || _wld <= 0) {
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
     tokenAmount = Math.floor(_tokens);
   }
 
-  // ── 4. Anti-replay: tx_hash UNIQUE ────────────────────────────────────────
+  // ── 5. Anti-replay: tx_hash UNIQUE ────────────────────────────────────────
   const { error: insertErr } = await supabase.from("trades").insert({
     user:      userId,
     totem:     totemLower,
@@ -150,7 +150,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Error al guardar trade", detail: insertErr.message });
   }
 
-  // ── 5. Actualizar métricas de caché del Totem ─────────────────────────────
+  // ── 6. Actualizar métricas de caché del Totem ─────────────────────────────
   const newSupply = type === "buy"
     ? (totem.supply ?? 0) + tokenAmount
     : Math.max(0, (totem.supply ?? 0) - tokenAmount);
@@ -164,7 +164,7 @@ export default async function handler(req, res) {
     volume_24h: newVolume24h,
   }).eq("address", totemLower);
 
-  // ── 6. Snapshot de precio para chart ──────────────────────────────────────
+  // ── 7. Snapshot de precio para chart ──────────────────────────────────────
   await supabase.from("totem_history").insert({
     totem: totemLower,
     price: newPrice,

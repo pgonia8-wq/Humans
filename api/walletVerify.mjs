@@ -7,6 +7,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit } from "./_rateLimit.mjs";
 import { verifySiweMessage } from "@worldcoin/minikit-js";
+import { issueSessionToken } from "./_session.mjs";
 
 if (!process.env.SUPABASE_URL) {
   console.error("[WALLET_VERIFY] ERROR: SUPABASE_URL no configurada");
@@ -97,8 +98,22 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── Emisión de session token HMAC (única vía de auth para endpoints sensibles)
+  // Se firma SOLO tras verificar criptográficamente la firma SIWE de la wallet.
+  // El cliente debe enviarlo en `Authorization: Bearer <token>` para crear
+  // tótems o ejecutar trades. Sin token válido, esos endpoints rechazan 401.
+  let sessionToken = null;
+  if (userId && process.env.SESSION_SECRET) {
+    try {
+      sessionToken = issueSessionToken({ userId, walletAddress: verifiedAddress });
+    } catch (err) {
+      console.error("[WALLET_VERIFY] Issue token failed:", err.message);
+    }
+  }
+
   return res.status(200).json({
     success: true,
     address: verifiedAddress,
+    sessionToken,
   });
 }

@@ -10,6 +10,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { spotPrice }    from "../lib/curve.mjs";
+import { requireOrbSession } from "../_orbGuard.mjs";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -22,7 +23,17 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: "Método no permitido" });
     }
 
-    const { address, name, userId } = req.body ?? {};
+    // ── 1. Sesión + Orb (identidad probada server-side via HMAC) ──────────
+    // Se IGNORA cualquier userId del body. La identidad sale del session
+    // token (Authorization: Bearer ...) emitido por walletVerify tras SIWE.
+    const guard = await requireOrbSession(supabase, req);
+    if (!guard.ok) {
+      return res.status(guard.status).json({ error: guard.error, code: guard.code });
+    }
+    const userId = guard.user.userId;
+
+    // ── 2. Validación de inputs ───────────────────────────────────────────
+    const { address, name } = req.body ?? {};
 
     if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
       return res.status(400).json({ error: "address inválida" });
@@ -30,16 +41,14 @@ export default async function handler(req, res) {
     if (!name || typeof name !== "string" || name.trim().length < 2) {
       return res.status(400).json({ error: "name requerido (mín. 2 caracteres)" });
     }
-    if (!userId) {
-      return res.status(400).json({ error: "userId requerido" });
-    }
 
-    const lower = address.toLowerCase();
+    const lower      = address.toLowerCase();
+    const cleanName  = name.trim();
 
-    // Idempotencia: si ya existe, devolver el existente
+    // Idempotencia por address: si ya existe → devolver el existente con isOwner correcto
     const { data: existing, error: selErr } = await supabase
       .from("totems")
-      .select("address, name, score, influence, level, badge, price, supply, volume_24h, created_at")
+      .select("address, name, owner, score, influence, level, badge, price, supply, volume_24h, created_at")
       .eq("address", lower)
       .maybeSingle();
 
@@ -59,7 +68,25 @@ export default async function handler(req, res) {
         supply:     Number(existing.supply     ?? 0),
         volume_24h: Number(existing.volume_24h ?? 0),
         created_at: existing.created_at  ?? new Date().toISOString(),
+        owner_id:   existing.owner       ?? null,
+        isOwner:    existing.owner       === userId,
       });
+    }
+
+    // Unicidad de NOMBRE (case-insensitive). Bloquea colisiones de identidad.
+    const { data: nameClash, error: nameErr } = await supabase
+      .from("totems")
+      .select("address")
+      .ilike("name", cleanName)
+      .limit(1)
+      .maybeSingle();
+
+    if (nameErr) {
+      console.error("[/api/totem/create] name-check error:", nameErr.message);
+      return res.status(500).json({ error: nameErr.message });
+    }
+    if (nameClash) {
+      return res.status(409).json({ error: `El nombre "${cleanName}" ya está en uso. Elige otro.` });
     }
 
     const initialPrice = spotPrice(0);
@@ -68,7 +95,7 @@ export default async function handler(req, res) {
       .from("totems")
       .insert({
         address:    lower,
-        name:       name.trim(),
+        name:       cleanName,
         owner:      userId,
         score:      0,
         influence:  0,
@@ -78,10 +105,14 @@ export default async function handler(req, res) {
         supply:     0,
         volume_24h: 0,
       })
-      .select("address, name, score, influence, level, badge, price, supply, volume_24h, created_at")
+      .select("address, name, owner, score, influence, level, badge, price, supply, volume_24h, created_at")
       .single();
 
     if (error) {
+      // Manejo elegante de race condition contra UNIQUE constraint en BD
+      if (error.code === "23505" || /duplicate|unique/i.test(error.message)) {
+        return res.status(409).json({ error: `El nombre "${cleanName}" ya está en uso. Elige otro.` });
+      }
       console.error("[/api/totem/create] insert error:", error.message);
       return res.status(500).json({ error: error.message });
     }
@@ -97,6 +128,8 @@ export default async function handler(req, res) {
       supply:     Number(data.supply     ?? 0),
       volume_24h: Number(data.volume_24h ?? 0),
       created_at: data.created_at  ?? new Date().toISOString(),
+      owner_id:   data.owner       ?? userId,
+      isOwner:    true,
     });
   } catch (err) {
     console.error("[/api/totem/create] unhandled:", err);

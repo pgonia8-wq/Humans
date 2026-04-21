@@ -21,7 +21,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MiniKit } from "@worldcoin/minikit-js";
-import { ArrowDownToLine, ArrowUpFromLine, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, CheckCircle2, AlertCircle, Loader2, ShieldCheck } from "lucide-react";
 import {
   buyPreview, sellPreview, executeTrade,
   type BuyPreview, type SellPreviewResult,
@@ -62,6 +62,9 @@ interface Props {
   walletAddress?:  string | null;
   userBalanceWld?: number;
   onTradeSuccess:  (type: "buy" | "sell", newPrice: number, newSupply: number) => void;
+  /** Gate Orb: false → modo lectura, botones de ejecución reemplazados por CTA de verificación. */
+  canTrade?:        boolean;
+  onRequestVerify?: () => void;
 }
 
 type Tab     = "buy" | "sell";
@@ -86,6 +89,8 @@ function fmtWld(n: number): string {
 export default function TradePanel({
   totemAddress, totemName, userId, isDark, walletAddress, userBalanceWld,
   onTradeSuccess,
+  canTrade = true,
+  onRequestVerify,
 }: Props) {
   const [tab,         setTab]         = useState<Tab>("buy");
   const [amount,      setAmount]      = useState("");
@@ -157,6 +162,7 @@ export default function TradePanel({
 
   // ── Validaciones previas a ejecutar ───────────────────────────────────
   function validateBeforeExecute(): string | null {
+    if (!canTrade) return "Verifícate con Orb para poder operar";
     if (!MiniKit.isInstalled()) return "Abre la app dentro de World App";
     if (tab === "buy") {
       const wld = parseFloat(amount);
@@ -208,9 +214,9 @@ export default function TradePanel({
         txHash = devTxHash();
       }
 
+      // identidad va en el session token (Authorization Bearer), no en el body
       const result = await executeTrade({
-        txHash, type: "buy", totemAddress, userId,
-        walletAddress:    walletAddress ?? "",
+        txHash, type: "buy", totemAddress,
         estimatedWld:     wld,
         estimatedTokens:  buyPrev!.tokensOut,
       });
@@ -254,9 +260,9 @@ export default function TradePanel({
         txHash = devTxHash();
       }
 
+      // identidad va en el session token (Authorization Bearer), no en el body
       const result = await executeTrade({
-        txHash, type: "sell", totemAddress, userId,
-        walletAddress:   walletAddress!,
+        txHash, type: "sell", totemAddress,
         estimatedWld:    sellPrev!.wldOut,
         estimatedTokens: tokensIn,
       });
@@ -519,28 +525,46 @@ export default function TradePanel({
       </div>
 
       {/* ── BOTÓN EJECUTAR ────────────────────────────────────────────── */}
-      <button
-        onClick={isBuy ? handleBuy : handleSell}
-        disabled={btnDisabled}
-        style={{
-          width: "100%", padding: "14px 0",
-          borderRadius: 14, border: "none",
-          cursor: btnDisabled ? (submitting ? "wait" : "not-allowed") : "pointer",
-          color: "#fff", fontWeight: 900, fontSize: 14, letterSpacing: -0.2,
-          background: btnBg as string,
-          boxShadow: btnFx === "idle" && !btnDisabled
-            ? `0 8px 24px ${accentBg20}, inset 0 1px 0 rgba(255,255,255,0.22)`
-            : "none",
-          opacity: btnDisabled && btnFx === "idle" ? 0.45 : 1,
-          transition: "all 220ms cubic-bezier(0.4, 0, 0.2, 1)",
-          display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-        }}
-      >
-        {btnFx === "loading" && <Loader2 size={15} className="tp-spin" />}
-        {btnFx === "success" && <CheckCircle2 size={15} />}
-        {btnFx === "error"   && <AlertCircle size={15} />}
-        {btnLabel}
-      </button>
+      {canTrade ? (
+        <button
+          onClick={isBuy ? handleBuy : handleSell}
+          disabled={btnDisabled}
+          style={{
+            width: "100%", padding: "14px 0",
+            borderRadius: 14, border: "none",
+            cursor: btnDisabled ? (submitting ? "wait" : "not-allowed") : "pointer",
+            color: "#fff", fontWeight: 900, fontSize: 14, letterSpacing: -0.2,
+            background: btnBg as string,
+            boxShadow: btnFx === "idle" && !btnDisabled
+              ? `0 8px 24px ${accentBg20}, inset 0 1px 0 rgba(255,255,255,0.22)`
+              : "none",
+            opacity: btnDisabled && btnFx === "idle" ? 0.45 : 1,
+            transition: "all 220ms cubic-bezier(0.4, 0, 0.2, 1)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}
+        >
+          {btnFx === "loading" && <Loader2 size={15} className="tp-spin" />}
+          {btnFx === "success" && <CheckCircle2 size={15} />}
+          {btnFx === "error"   && <AlertCircle size={15} />}
+          {btnLabel}
+        </button>
+      ) : (
+        <button
+          onClick={() => onRequestVerify?.()}
+          style={{
+            width: "100%", padding: "14px 0",
+            borderRadius: 14, border: "none", cursor: "pointer",
+            color: "#fff", fontWeight: 900, fontSize: 14, letterSpacing: -0.2,
+            background: "linear-gradient(135deg, #6366f1, #a855f7)",
+            boxShadow: "0 8px 24px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.22)",
+            transition: "all 220ms cubic-bezier(0.4, 0, 0.2, 1)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}
+        >
+          <ShieldCheck size={15} strokeWidth={2.6} />
+          Verifícate con Orb para operar
+        </button>
+      )}
 
       {/* ── INDICADOR DE MODO ─────────────────────────────────────────── */}
       <div style={{
@@ -551,6 +575,58 @@ export default function TradePanel({
           ? <>● Producción · {BONDING_CURVE_ADDRESS.slice(0,6)}…{BONDING_CURVE_ADDRESS.slice(-4)} · World Chain</>
           : <>● Simulación · configura VITE_BONDING_CURVE_ADDRESS</>}
       </div>
+
+      {/* ── SUCCESS OVERLAY (cubre el panel ~1.4s tras éxito) ─────────── */}
+      {btnFx === "success" && (
+        <div
+          aria-live="polite"
+          style={{
+            position: "absolute", inset: 0, zIndex: 40,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            background: isDark
+              ? "linear-gradient(160deg, rgba(20,40,28,0.96), rgba(10,20,14,0.98))"
+              : "linear-gradient(160deg, rgba(220,252,231,0.97), rgba(187,247,208,0.98))",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            borderRadius: 24,
+            animation: "tpSuccessIn 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
+          }}
+        >
+          {/* halo */}
+          <div style={{
+            position: "absolute", width: 220, height: 220, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(34,197,94,0.45), transparent 65%)",
+            filter: "blur(28px)",
+            animation: "tpSuccessHalo 1.4s ease-out both",
+          }} />
+          <div style={{
+            position: "relative",
+            width: 76, height: 76, borderRadius: 22,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "linear-gradient(135deg, #22c55e, #16a34a)",
+            boxShadow: "0 14px 44px rgba(34,197,94,0.55), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -2px 0 rgba(0,0,0,0.18)",
+            border: "1px solid rgba(255,255,255,0.22)",
+            animation: "tpSuccessCheck 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
+          }}>
+            <CheckCircle2 size={42} color="#fff" strokeWidth={2.6} />
+          </div>
+          <div style={{
+            marginTop: 16,
+            fontSize: 17, fontWeight: 900, letterSpacing: -0.4,
+            color: isDark ? "#ffffff" : "#14532d",
+          }}>
+            {isBuy ? "¡Compra ejecutada!" : "¡Venta ejecutada!"}
+          </div>
+          <div style={{
+            marginTop: 4, fontSize: 11.5, fontWeight: 700,
+            color: isDark ? "rgba(255,255,255,0.65)" : "rgba(20,83,45,0.75)",
+            letterSpacing: 0.2,
+          }}>
+            {totemName} · confirmada on-chain
+          </div>
+        </div>
+      )}
 
       {/* ── TOAST PREMIUM (overlay flotante en bottom) ────────────────── */}
       {toast && (
@@ -621,4 +697,18 @@ const TP_KEYFRAMES = `
   }
   @keyframes tpSpin { to { transform: rotate(360deg); } }
   .tp-spin { animation: tpSpin 0.9s linear infinite; }
+  @keyframes tpSuccessIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes tpSuccessCheck {
+    0%   { transform: scale(0.4); opacity: 0; }
+    60%  { transform: scale(1.12); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes tpSuccessHalo {
+    0%   { opacity: 0; transform: scale(0.6); }
+    50%  { opacity: 1; transform: scale(1.1); }
+    100% { opacity: 0.4; transform: scale(1.2); }
+  }
 `;

@@ -12,6 +12,40 @@
 const API = "/api";
 
 // ════════════════════════════════════════════════════════
+// SESSION TOKEN (HMAC server-side)
+// ════════════════════════════════════════════════════════
+//
+// Token emitido por /api/walletVerify tras validar firma SIWE de la wallet
+// World App. Es la ÚNICA prueba criptográfica de identidad aceptada por
+// endpoints sensibles (create totem, execute trade). Vive en localStorage
+// junto con `wallet`/`userId`. Se envía en cada request en el header
+// `Authorization: Bearer <token>`. Sin token válido → 401.
+//
+const SESSION_KEY = "h_session_token";
+
+export function setSessionToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(SESSION_KEY, token);
+    else       localStorage.removeItem(SESSION_KEY);
+  } catch { /* localStorage bloqueado: sin sesión persistente */ }
+}
+
+export function getSessionToken(): string | null {
+  try { return localStorage.getItem(SESSION_KEY); } catch { return null; }
+}
+
+export function clearSessionToken(): void {
+  setSessionToken(null);
+}
+
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const t = getSessionToken();
+  const base: Record<string, string> = { "Content-Type": "application/json" };
+  if (t) base.Authorization = `Bearer ${t}`;
+  return { ...base, ...(extra as Record<string, string> | undefined) };
+}
+
+// ════════════════════════════════════════════════════════
 // TIPOS
 // ════════════════════════════════════════════════════════
 
@@ -26,6 +60,9 @@ export interface TotemProfile {
   supply:     number;
   volume_24h: number;
   created_at: string;
+  // Ownership server-derived (no se confía nunca en estado en memoria del cliente)
+  owner_id?:  string | null;
+  isOwner?:   boolean;
 }
 
 export interface TotemHistory {
@@ -58,13 +95,12 @@ export interface SellPreviewResult {
   warningMsg:        string | null;
 }
 
-/** Parámetros que envía el frontend al backend tras ejecutar sendTransaction */
+/** Parámetros que envía el frontend al backend tras ejecutar sendTransaction.
+ *  La identidad (userId, walletAddress) sale del session token, NO del body. */
 export interface ExecuteTradeParams {
   txHash:           string;   // Hash de la tx on-chain emitida por MiniKit
   type:             "buy" | "sell";
   totemAddress:     string;
-  userId:           string;
-  walletAddress:    string;
   // Estimados del preview (requeridos en modo simulación, advisory en producción)
   estimatedWld?:    number;
   estimatedTokens?: number;
@@ -100,7 +136,13 @@ export interface SystemMetrics {
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${API}${path}`;
-  const res = await fetch(url, init);
+  // Inyecta Authorization: Bearer <token> automáticamente cuando hay sesión.
+  // Endpoints públicos lo ignoran; sensibles (create/execute) lo exigen.
+  const finalInit: RequestInit = {
+    ...init,
+    headers: authHeaders(init?.headers),
+  };
+  const res = await fetch(url, finalInit);
 
   // Lectura defensiva: text() primero (nunca rompe en body vacío)
   const text = await res.text();
@@ -139,9 +181,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function buyPreview(totemAddress: string, wldIn: number): Promise<BuyPreview> {
   return apiFetch("/market/buy", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ totem: totemAddress, wldIn }),
+    method: "POST",
+    body:   JSON.stringify({ totem: totemAddress, wldIn }),
   });
 }
 
@@ -152,9 +193,8 @@ export async function sellPreview(
   userId:        string,
 ): Promise<SellPreviewResult> {
   return apiFetch("/market/sellPreview", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ totem: totemAddress, tokensToSell, walletAddress, userId }),
+    method: "POST",
+    body:   JSON.stringify({ totem: totemAddress, tokensToSell, walletAddress, userId }),
   });
 }
 
@@ -164,9 +204,8 @@ export async function sellPreview(
 
 export async function executeTrade(params: ExecuteTradeParams): Promise<ExecuteTradeResult> {
   return apiFetch("/market/execute", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify(params),
+    method: "POST",
+    body:   JSON.stringify(params),
   });
 }
 
@@ -174,8 +213,12 @@ export async function executeTrade(params: ExecuteTradeParams): Promise<ExecuteT
 // TOTEM
 // ════════════════════════════════════════════════════════
 
-export async function getTotemProfile(address: string): Promise<TotemProfile> {
-  return apiFetch(`/totem/profile?address=${encodeURIComponent(address)}`);
+export async function getTotemProfile(
+  address: string,
+  userId?: string,
+): Promise<TotemProfile> {
+  const u = userId ? `&userId=${encodeURIComponent(userId)}` : "";
+  return apiFetch(`/totem/profile?address=${encodeURIComponent(address)}${u}`);
 }
 
 export async function getTotemHistory(address: string, limit = 48): Promise<TotemHistory[]> {
@@ -185,12 +228,12 @@ export async function getTotemHistory(address: string, limit = 48): Promise<Tote
 export async function createTotem(
   address: string,
   name:    string,
-  userId:  string,
 ): Promise<TotemProfile> {
+  // userId/walletAddress NO se envían: el backend los deriva del session token
+  // (Authorization: Bearer ...) firmado tras SIWE en walletVerify.
   return apiFetch("/totem/create", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ address, name, userId }),
+    method: "POST",
+    body:   JSON.stringify({ address, name }),
   });
 }
 
@@ -204,9 +247,8 @@ export async function getTradeLimits(
   userId:        string,
 ): Promise<TradeLimit> {
   return apiFetch("/market/tradeLimits", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ totem: totemAddress, walletAddress, userId }),
+    method: "POST",
+    body:   JSON.stringify({ totem: totemAddress, walletAddress, userId }),
   });
 }
 
@@ -219,10 +261,12 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
 }
 
 export async function getAllTotems(
-  sort:  "price" | "volume" | "score" | "supply" = "volume",
-  limit = 50,
+  sort:    "price" | "volume" | "score" | "supply" = "volume",
+  limit  = 50,
+  userId?: string,
 ): Promise<TotemProfile[]> {
-  return apiFetch(`/system/all?sort=${sort}&limit=${limit}`);
+  const u = userId ? `&userId=${encodeURIComponent(userId)}` : "";
+  return apiFetch(`/system/all?sort=${sort}&limit=${limit}${u}`);
 }
 
 export async function searchTotems(query: string): Promise<TotemProfile[]> {
