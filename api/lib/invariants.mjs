@@ -474,6 +474,19 @@ const E2E_ENDPOINT_RULES = [
       /15_?000n\s*\*/,
     ],
   },
+  {
+    // F10: antiManip-preview es calculator-pure sobre lib/antiManipulation.mjs
+    // Veta cualquier reimplementación de EMA o cooldown inline.
+    file: "../system/antiManip-preview.mjs",
+    mustImport: ["lib/antiManipulation.mjs", "lib/protocolConstants.mjs"],
+    mustNotMatch: [
+      /ALPHA\s*=\s*20n/,                 // no hardcodear alpha
+      /ALPHA_DENOMINATOR\s*=\s*100n/,    // no hardcodear denominador
+      /MIN_INTERVAL_SEC\s*=\s*900n/,     // no hardcodear cooldown
+      /15n?\s*\*\s*60n/,                 // no recalcular 15 min inline
+      /prev\s*\*\s*\(\s*100n?\s*-/,      // no reimplementar la fórmula EMA
+    ],
+  },
 ];
 
 function stripCommentLines(src) {
