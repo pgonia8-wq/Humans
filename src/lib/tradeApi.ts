@@ -278,3 +278,39 @@ export async function getStabilityStatus(): Promise<{
 }> {
   return apiFetch("/system/stability");
 }
+
+// ════════════════════════════════════════════════════════
+// TRADES & HOLDERS (lectura, derivados de tabla `trades`)
+// ════════════════════════════════════════════════════════
+
+export interface TotemTrade {
+  id:        string;
+  type:      "buy" | "sell";
+  user:      string;
+  totem:     string;
+  amount:    number; // WLD
+  tokens:    number;
+  tx_hash:   string;
+  timestamp: string;
+}
+
+export interface TotemHolder {
+  user_id:    string;
+  tokens:     number;
+  share_pct:  number;
+  last_trade: string | null;
+}
+
+export interface TotemHoldersResult {
+  total_holders:        number;
+  total_supply_derived: number;
+  holders:              TotemHolder[];
+}
+
+export async function getTotemTrades(address: string, limit = 50): Promise<TotemTrade[]> {
+  return apiFetch(`/totem/trades?address=${encodeURIComponent(address)}&limit=${limit}`);
+}
+
+export async function getTotemHolders(address: string, limit = 20): Promise<TotemHoldersResult> {
+  return apiFetch(`/totem/holders?address=${encodeURIComponent(address)}&limit=${limit}`);
+}
