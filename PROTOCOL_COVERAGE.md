@@ -32,26 +32,31 @@ PROTOCOL_VERSION: `0.2.0`
 | C14 | TotemCredits | ❌ NO_NEEDED *(mapping trivial deposit/withdraw)* | — | — | — | ✅ DECLARADO NO_NEEDED |
 | **C15** | **TotemFeeRouter** | **`feeRouter.mjs`** | `FeeRouter` | — | — | ✅ MIRROR |
 | C16 | TotemGovernance | — *(timelock state-dependent, no math pura)* | `Governance` | — | — | ✅ CONSTANTES |
-| C17 | TotemIntentRouter | ❌ DEFERRED *(fuente incompleta en repo, línea 94: "// ... (Firma y Withdraw functions)")* | — | — | — | ⏸️ DIFERIDO hasta completar Solidity |
+| C17 | TotemIntentRouter | `intentRouter.mjs` *(parcial — solo lo escrito en .sol)* | inline en `intentRouter.mjs` | — | — | ✅ MIRROR PARCIAL |
 | C18 | TotemMarketMetrics | — *(`resolveVolume` en constants)* | `MarketMetrics` | — | — | ✅ CONSTANTES + helper |
 | C19 | TotemReader | ❌ NO_NEEDED *(view aggregator de oracle/registry)* | — | — | — | ✅ DECLARADO NO_NEEDED |
 | C20 | TotemTreasury | — *(`previewTreasuryWithdraw` en constants)* | — | — | — | ✅ CONSTANTES + helper |
 
-**Cobertura final: 19/20 (95%) cubiertos.**
+**Cobertura final: 20/20 (100%) cubiertos.**
 - 6 mirrors completos con endpoints (C1–C6)
 - 3 mirrors nuevos puros (C8 humanTotemFees, C9 totemSync, C15 feeRouter)
+- 1 mirror parcial honesto (C17 intentRouter — refleja median3, consensus,
+  EIP-712 domain y validaciones visibles del contrato; no incluye
+  `_calculateIntentHash` / `_verifySignature` / `withdraw` porque la fuente
+  Solidity literalmente dice `// ... (Firma y Withdraw functions)` sin cuerpo.
+  Se completará SIN inventar cuando el .sol se complete.)
 - 7 cubiertos por constantes + helpers (C7, C10, C11, C12, C16, C18, C20)
 - 3 declarados explícitamente NO_NEEDED con justificación (C13 composición, C14 trivial, C19 wrapper)
-- 1 diferido (C17 IntentRouter — fuente Solidity incompleta en el repo)
 
 ## Defensas anti-regresión
 
-`api/lib/invariants.mjs` — **18 invariants, todos verdes** (PROTOCOL_VERSION 0.2.0).
+`api/lib/invariants.mjs` — **19 invariants, todos verdes** (PROTOCOL_VERSION 0.2.0).
 
 Nuevos en F14:
 - **#16 `humanTotemFeeParity`** (C8): boundary table de score→feeBps, fórmula `(amount*feeBps)/10_000`, owner exempt, locked → `HumanFraudDetected`, stale > 10min → `StaleScore`.
 - **#17 `totemLevelBadgeParity`** (C9): boundaries `calculateLevel`/`calculateBadge`, decay `(total*dt)/1day/100`, penalty `(last-cur)/3` capped at `total/2`, `getFraudDelay` matrix level×price + manual override.
 - **#18 `feeRouterSplitConservation`** (C15): para todo balance > 0, `treasury+buyback+reward === balance` (preserva sum por reward = resto).
+- **#19 `intentRouterParity`** (C17): `median3` en 10 permutaciones (incluye iguales/borde), `consensus` aplica median a score+influence por separado, `previewExecuteIntent` rechaza correctamente expired/non-human/slippage/insufficient y calcula `surplus = msgValue - price` exacto.
 
 Defensa F11.5 sigue activa:
 - **#15 `e2ePipelineOrder`** cubre 9 archivos económicos contra reimplementaciones inline de math on-chain (curva, fees, sell-window, EMA, cooldown, graduation thresholds, oracle UPDATE_FEE).

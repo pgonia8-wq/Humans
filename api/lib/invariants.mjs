@@ -27,6 +27,7 @@ import { calcLiquidityAmounts, canGraduate } from "./graduation.mjs";
 import { calculateDynamicFeeBps, previewTransfer } from "./humanTotemFees.mjs";
 import { calculateLevel, calculateBadge, applyDecay, calculatePenalty, getFraudDelay } from "./totemSync.mjs";
 import { previewSplit } from "./feeRouter.mjs";
+import { median3, consensus, previewExecuteIntent, ORACLE_COUNT } from "./intentRouter.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as pathResolve } from "node:path";
@@ -710,6 +711,93 @@ export function feeRouterSplitConservation() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// INVARIANT #19: IntentRouter median + intent validations parity (C17)
+// _median(a,b,c) debe coincidir con definición; previewExecuteIntent debe
+// rechazar deadline expirado / no-human / slippage / pago insuficiente.
+// ════════════════════════════════════════════════════════════════════════════
+
+export function intentRouterParity() {
+  if (ORACLE_COUNT !== 3) {
+    return { ok: false, invariant: "intentRouterParity",
+             detail: `ORACLE_COUNT=${ORACLE_COUNT} expected 3` };
+  }
+  // Mediana de 3: el del medio gana en cualquier permutación
+  const perms = [
+    [10n, 20n, 30n, 20n],
+    [30n, 20n, 10n, 20n],
+    [20n, 10n, 30n, 20n],
+    [20n, 30n, 10n, 20n],
+    [10n, 30n, 20n, 20n],
+    [30n, 10n, 20n, 20n],
+    // Iguales / borde
+    [5n, 5n, 5n, 5n],
+    [5n, 5n, 99n, 5n],
+    [99n, 5n, 5n, 5n],
+    [0n, 0n, 0n, 0n],
+  ];
+  for (const [a, b, c, expected] of perms) {
+    const got = median3(a, b, c);
+    if (got !== expected) {
+      return { ok: false, invariant: "intentRouterParity",
+               detail: `median3(${a},${b},${c})=${got} expected ${expected}` };
+    }
+  }
+  // Consensus: median aplicado a (score, influence) por separado
+  const cons = consensus([
+    { score: 100n, influence: 1n, timestamp: 0n },
+    { score: 200n, influence: 5n, timestamp: 0n },
+    { score: 150n, influence: 3n, timestamp: 0n },
+  ]);
+  if (cons.score !== 150n || cons.influence !== 3n) {
+    return { ok: false, invariant: "intentRouterParity",
+             detail: `consensus.score=${cons.score} influence=${cons.influence}` };
+  }
+  // Intent: deadline expirado
+  const r1 = previewExecuteIntent({ nowSec: 100n, deadline: 99n, isHuman: true,
+                                    price: 1n, maxPrice: 10n, msgValue: 1n });
+  if (r1.ok || r1.reason !== "Intent Expired") {
+    return { ok: false, invariant: "intentRouterParity",
+             detail: `expired no detectado: ${JSON.stringify(r1)}` };
+  }
+  // Intent: no human
+  const r2 = previewExecuteIntent({ nowSec: 100n, deadline: 200n, isHuman: false,
+                                    price: 1n, maxPrice: 10n, msgValue: 1n });
+  if (r2.ok || r2.reason !== "Not a verified human") {
+    return { ok: false, invariant: "intentRouterParity",
+             detail: `not-human no detectado: ${JSON.stringify(r2)}` };
+  }
+  // Intent: slippage (price > maxPrice)
+  const r3 = previewExecuteIntent({ nowSec: 100n, deadline: 200n, isHuman: true,
+                                    price: 100n, maxPrice: 50n, msgValue: 100n });
+  if (r3.ok || !r3.reason.includes("Slippage")) {
+    return { ok: false, invariant: "intentRouterParity",
+             detail: `slippage no detectado: ${JSON.stringify(r3)}` };
+  }
+  // Intent: pago insuficiente
+  const r4 = previewExecuteIntent({ nowSec: 100n, deadline: 200n, isHuman: true,
+                                    price: 100n, maxPrice: 200n, msgValue: 50n });
+  if (r4.ok || !r4.reason.includes("Insufficient")) {
+    return { ok: false, invariant: "intentRouterParity",
+             detail: `insufficient pago no detectado: ${JSON.stringify(r4)}` };
+  }
+  // Intent: surplus calculado correctamente (msg.value - price)
+  const r5 = previewExecuteIntent({ nowSec: 100n, deadline: 200n, isHuman: true,
+                                    price: 100n, maxPrice: 200n, msgValue: 175n });
+  if (!r5.ok || r5.surplus !== 75n) {
+    return { ok: false, invariant: "intentRouterParity",
+             detail: `surplus=${r5.surplus} expected 75` };
+  }
+  // Intent: pago exacto → surplus = 0
+  const r6 = previewExecuteIntent({ nowSec: 100n, deadline: 200n, isHuman: true,
+                                    price: 100n, maxPrice: 200n, msgValue: 100n });
+  if (!r6.ok || r6.surplus !== 0n) {
+    return { ok: false, invariant: "intentRouterParity",
+             detail: `exact pay surplus=${r6.surplus} expected 0` };
+  }
+  return { ok: true, invariant: "intentRouterParity" };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // RUNNER — corre todos los invariants y reporta
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -733,6 +821,7 @@ export function runAllInvariants() {
     humanTotemFeeParity(),
     totemLevelBadgeParity(),
     feeRouterSplitConservation(),
+    intentRouterParity(),
   ];
   const failures = results.filter(r => !r.ok);
   return {
