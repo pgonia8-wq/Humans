@@ -216,21 +216,21 @@ function RiskLayer({ vm }: { vm: TotemViewModel }) {
       {/* Risk subdomain */}
       {r && (
         <div className="relative z-10 flex flex-col gap-2.5">
-          {r.trustLevelBps.value != null && (
+          {r.trustLevelBps?.value != null && (
             <BarRow
               label="Nivel de confianza"
-              bps={r.trustLevelBps.value}
+              bps={r.trustLevelBps!.value as number}
               gradient={trustGradient()}
             />
           )}
-          {r.manipulationRiskBps.value != null && (
+          {r.manipulationRiskBps?.value != null && (
             <BarRow
               label="Riesgo de manipulación"
-              bps={r.manipulationRiskBps.value}
+              bps={r.manipulationRiskBps!.value as number}
               gradient={riskGradient()}
             />
           )}
-          {r.negativeEvents.value != null && Number(r.negativeEvents.value) > 0 && (
+          {r.negativeEvents?.value != null && Number(r.negativeEvents.value) > 0 && (
             <div className="flex items-center justify-between text-[11px]">
               <span style={{ color: "rgba(255,255,255,0.62)" }}>Eventos negativos</span>
               <span className="tabular-nums" style={{ color: "#ef4444", fontWeight: 700 }}>

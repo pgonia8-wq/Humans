@@ -84,7 +84,7 @@
       progression: { _v:"progression_v1", level:F(m.level), badge:F(m.badge), totalScoreAccumulated:F(m.score * 4), negativeEvents:F(0), levelProgress:F({ nextThreshold: m.level + 1, progressBps: 6_500 }), graduation:F({ gates, bottleneckGate:"supply", overallBps, eligible:false }), _sla:slaOk },
       userContext: { _v:"userContext_v1", balance:F(0), sellWindowUsed:F(0), credits:F("0"), _sla:slaOk },
       trading:     { _v:"trading_v1", buyFeeBps:F(100), sellFeeBps:F(100), ownerCapBps:F(2_000), userCapBps:F(500), humanTotemFeeBps:F(50), rateLimit:F(null), _sla:slaOk },
-      risk:        { _v:"risk_v1", trustLevelBps:F(7_500), _sla:slaOk },
+      risk:        { _v:"risk_v1", trustLevelBps:F(7_500), manipulationRiskBps:F(1_200), negativeEvents:F(0), _sla:slaOk },
       _meta:       { generatedAt: NOW, isMock: true },
     };
   }
