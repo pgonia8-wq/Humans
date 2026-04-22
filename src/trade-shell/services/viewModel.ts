@@ -2,7 +2,8 @@
  * viewModel.ts — Cliente tipado del endpoint /api/totem/viewModel.
  *
  * Ley P1: frontend SOLO renderiza. Cero lógica derivada.
- * Todo campo llega con { value, source, stale } pre-cocinado.
+ * Todo campo llega con { value, source, stale } pre-cocinado por
+ * viewModelBuilder.mjs (+ extendViewModel patch).
  */
 
 const API = "/api";
@@ -42,6 +43,9 @@ export interface VMStatus {
   _sla:          VMSubdomainSLA;
 }
 
+export type OracleNarrative =
+  | "ASCENDENTE" | "FUERTE" | "ESTABLE" | "DEBIL" | "CRITICO";
+
 export interface VMOracle {
   _v:             "oracle_v1";
   score:          VMField<number | null>;
@@ -49,20 +53,28 @@ export interface VMOracle {
   signedAt:       VMField<number | null>;
   scoreDelta:     VMField<number | null>;
   influenceDelta: VMField<number | null>;
+  /** Etiqueta semántica determinista. Backend-only, frontend solo lee. */
+  narrative?:     VMField<OracleNarrative | null>;
+  /** Segundos desde la última firma. Pre-cocinado por backend (Ley P1). */
+  signedAgeSec?:  VMField<number | null>;
   _sla:           VMSubdomainSLA;
 }
 
 export interface VMMarket {
-  _v:             "market_v1";
-  price:          VMField<number | string | null>;
-  supply:         VMField<number | null>;
-  rawVolume:      VMField<number | null>;
-  verifiedVolume: VMField<number | string | null>;
-  volumeShown:    VMField<number | string | null>;
-  createdAt:      VMField<number | null>;
-  lastTradeAt:    VMField<number | null>;
-  ageSec:         VMField<number>;
-  _sla:           VMSubdomainSLA;
+  _v:                "market_v1";
+  price:             VMField<number | string | null>;
+  supply:            VMField<number | null>;
+  rawVolume:         VMField<number | null>;
+  verifiedVolume:    VMField<number | string | null>;
+  volumeShown:       VMField<number | string | null>;
+  createdAt:         VMField<number | null>;
+  lastTradeAt:       VMField<number | null>;
+  ageSec:            VMField<number>;
+  /** Cercanía al próximo gate de supply (0..10000 bps). Backend-derivado. */
+  curveTensionBps?:  VMField<number | null>;
+  /** Segundos desde el último trade. Pre-cocinado por backend (Ley P1). */
+  lastTradeAgeSec?:  VMField<number | null>;
+  _sla:              VMSubdomainSLA;
 }
 
 export interface VMGraduationGates {
@@ -102,6 +114,15 @@ export interface VMTrading {
   _sla:             VMSubdomainSLA;
 }
 
+/** Subdominio nuevo: riesgo y confianza. Todos los valores son backend-derived. */
+export interface VMRisk {
+  _v:                  "risk_v1";
+  trustLevelBps:       VMField<number | null>;
+  manipulationRiskBps: VMField<number | null>;
+  negativeEvents:      VMField<number | null>;
+  _sla:                VMSubdomainSLA;
+}
+
 export interface TotemViewModel {
   address:         string;
   protocolVersion: string;
@@ -113,6 +134,8 @@ export interface TotemViewModel {
   progression:     VMProgression;
   userContext:     VMUserContext;
   trading:         VMTrading;
+  /** Presente si el backend aplicó extendViewModel(). */
+  risk?:           VMRisk;
 }
 
 export async function getTotemViewModel(address: string, userId?: string): Promise<TotemViewModel> {
@@ -186,4 +209,12 @@ export const STATUS_LABELS: Record<VMStatus["overall"], string> = {
   GRADUATED:    "Graduado → LP",
   EMERGENCY:    "Emergencia",
   OK:           "Activo",
+};
+
+export const NARRATIVE_COLORS: Record<OracleNarrative, string> = {
+  ASCENDENTE: "#22c55e",
+  FUERTE:     "#a78bfa",
+  ESTABLE:    "#60a5fa",
+  DEBIL:      "#f59e0b",
+  CRITICO:    "#ef4444",
 };

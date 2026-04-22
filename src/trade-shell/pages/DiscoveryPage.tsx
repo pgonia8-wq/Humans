@@ -1,6 +1,6 @@
 /**
- * DiscoveryPage — Feed del mercado, clonado de token/DiscoveryPage pero
- * cableado a getAllTotems/searchTotems y getSystemMetrics reales.
+ * DiscoveryPage — Feed del mercado.
+ * Cableado a getAllTotems/searchTotems y getSystemMetrics reales.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
@@ -10,6 +10,7 @@ import type { TotemProfile, SystemMetrics } from "../../lib/tradeApi";
 import { enrich, formatUsd, formatWld } from "../services/derive";
 import TokenRow from "../components/TokenRow";
 import { useShell } from "../context/ShellContext";
+import MarketPhysicsPanel from "../components/MarketPhysicsPanel";
 
 type Sort = "volume" | "price" | "score" | "supply";
 
@@ -48,15 +49,20 @@ export default function DiscoveryPage() {
 
   return (
     <div className="h-full w-full overflow-y-auto pb-28 scrollbar-hide">
-      {/* ── Header + metrics ───────────────────────────────────────────── */}
+      {/* Header + metrics */}
       <div className="px-4 pt-4">
         <h1 className="text-2xl font-bold text-white">H · Mercado</h1>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
-          {metrics ? `${metrics.totalTotems} tótems · ${formatWld(metrics.totalVolume, 2)} 24h` : "Cargando métricas…"}
+          {metrics
+            ? `${metrics.totalTotems} tótems · ${formatWld(metrics.totalVolume, 2)} 24h · ${metrics.totalHumans} humanos`
+            : "Cargando métricas…"}
         </p>
       </div>
 
-      {/* ── Hero top totem ─────────────────────────────────────────────── */}
+      {/* Market Physics Panel — consume /api/system/physics directamente */}
+      <MarketPhysicsPanel />
+
+      {/* Hero top totem */}
       {top && (
         <motion.button
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -91,7 +97,7 @@ export default function DiscoveryPage() {
         </motion.button>
       )}
 
-      {/* ── Search ─────────────────────────────────────────────────────── */}
+      {/* Search */}
       <div className="px-4 mt-4">
         <div className="relative">
           <Search size={16}
@@ -106,7 +112,7 @@ export default function DiscoveryPage() {
         </div>
       </div>
 
-      {/* ── Sort chips ─────────────────────────────────────────────────── */}
+      {/* Sort chips */}
       {!q.trim() && (
         <div className="px-4 mt-3 flex gap-2 overflow-x-auto scrollbar-hide">
           {SORTS.map(({ id, label, Icon }) => {
@@ -130,7 +136,7 @@ export default function DiscoveryPage() {
         </div>
       )}
 
-      {/* ── Lista ──────────────────────────────────────────────────────── */}
+      {/* Lista */}
       <div className="px-4 mt-4 flex flex-col gap-2">
         {loading && (
           <div className="text-center text-sm py-8" style={{ color: "rgba(255,255,255,0.45)" }}>
@@ -147,7 +153,7 @@ export default function DiscoveryPage() {
         ))}
         {!loading && !err && enriched.length === 0 && (
           <div className="text-center text-sm py-10" style={{ color: "rgba(255,255,255,0.45)" }}>
-            No hay tótems todavía. Sé el primero en crear uno.
+            No hay totems todavia. Se el primero en crear uno.
           </div>
         )}
       </div>

@@ -1,10 +1,13 @@
 /**
- * TokenPage — Bloomberg fullscreen de un tótem.
- * Render PURO del viewModel canónico (Ley P1). Cero derivación aquí.
- * Todo número/color/texto viene pre-cocinado por /api/totem/viewModel.
+ * TokenPage — Bloomberg fullscreen de un totem.
+ * Render PURO del viewModel canonico (Ley P1). Cero derivacion aqui.
+ * Incluye 3 capas visuales nuevas:
+ *   A. Oracle Narrative Panel
+ *   B. Curve Reaction Indicator
+ *   C. Risk / Trust Field
  */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ShoppingCart, DollarSign, Users, Clock } from "lucide-react";
 import {
   getTotemHistory, getTotemTrades, getTotemHolders,
@@ -22,6 +25,7 @@ import Sparkline from "../components/Sparkline";
 import Stat from "../components/Stat";
 import { useShell } from "../context/ShellContext";
 import OrbGateModal from "../components/OrbGateModal";
+import TokenInsightsPanel from "../components/TokenInsightsPanel";
 
 const BuySellFullscreen = lazy(() => import("../../pages/trade/components/BuySellFullscreen"));
 
@@ -54,7 +58,7 @@ export default function TokenPage() {
       ]);
       setVm(v); setHistory(h); setTrades(tr); setHolders(ho);
     } catch (e: any) {
-      setErr(e?.message ?? "No se pudo cargar el tótem.");
+      setErr(e?.message ?? "No se pudo cargar el totem.");
     } finally { setLoading(false); }
   }, [selectedAddress, userId]);
 
@@ -66,17 +70,17 @@ export default function TokenPage() {
 
   function requestTrade(s: "buy" | "sell") {
     if (!isOrbVerified) { setOrbGate(true); return; }
-    if (vm?.status.overall !== "OK") return; // backend ya decidió que no se puede
+    if (vm?.status.overall !== "OK") return;
     setSide(s);
   }
 
-  const canTrade = vm?.status.overall === "OK";
-  const price    = vm ? Number(vm.market.price.value ?? 0) : 0;
-  const name     = vm?.identity.name.value ?? "…";
-  const symbol   = vm?.identity.symbol.value ?? "";
+  const canTrade   = vm?.status.overall === "OK";
+  const price      = vm ? Number(vm.market.price.value ?? 0) : 0;
+  const name       = vm?.identity.name.value ?? "…";
+  const symbol     = vm?.identity.symbol.value ?? "";
   const statusColor = vm ? STATUS_COLORS[vm.status.overall] : "#666";
   const statusLabel = vm ? STATUS_LABELS[vm.status.overall] : "";
-  const grad     = vm?.progression.graduation.value;
+  const grad       = vm?.progression.graduation.value;
   const scoreDelta = vm?.oracle.scoreDelta.value;
   const infDelta   = vm?.oracle.influenceDelta.value;
 
@@ -104,7 +108,7 @@ export default function TokenPage() {
       <div className="flex-1 overflow-y-auto pb-32 scrollbar-hide">
         {loading && (
           <div className="text-center text-sm py-10" style={{ color: "rgba(255,255,255,0.50)" }}>
-            Cargando tótem…
+            Cargando totem…
           </div>
         )}
         {err && (
@@ -143,25 +147,28 @@ export default function TokenPage() {
               <Sparkline data={history} height={150} width={340} />
             </div>
 
-            {/* Stats grid — todo pre-cocinado */}
+            {/* === Oracle + Curve + Risk (render-only, datos del backend) === */}
+            <TokenInsightsPanel vm={vm} />
+
+            {/* Stats grid */}
             <div className="px-4 mt-4 grid grid-cols-2 gap-2">
-              <Stat label="Supply"    value={fmtCount(Number(vm.market.supply.value ?? 0))}
-                    hint={grad ? `${(grad.overallBps / 100).toFixed(1)}% a graduación` : undefined} color="#22c55e" />
+              <Stat label="Supply" value={fmtCount(Number(vm.market.supply.value ?? 0))}
+                    hint={grad ? `${(grad.overallBps / 100).toFixed(1)}% a graduacion` : undefined} color="#22c55e" />
               <Stat label="Vol 24h (verif.)" value={fmtWld(Number(vm.market.volumeShown.value ?? 0), 2)}
                     hint={vm.market.verifiedVolume.stale ? "raw (indexer)" : "on-chain verified"} />
-              <Stat label="Score Δ"   value={fmtDelta(scoreDelta)} color={Number(scoreDelta ?? 0) >= 0 ? "#22c55e" : "#f87171"} />
-              <Stat label="Influence Δ" value={fmtDelta(infDelta)} />
-              <Stat label="Holders"   value={holders ? fmtCount(holders.total_holders) : "—"} />
-              <Stat label="Edad"      value={fmtAge(vm.market.ageSec.value)} />
+              <Stat label="Score delta"    value={fmtDelta(scoreDelta)} color={Number(scoreDelta ?? 0) >= 0 ? "#22c55e" : "#f87171"} />
+              <Stat label="Influence delta" value={fmtDelta(infDelta)} />
+              <Stat label="Holders"        value={holders ? fmtCount(holders.total_holders) : "—"} />
+              <Stat label="Edad"           value={fmtAge(vm.market.ageSec.value)} />
             </div>
 
-            {/* Graduation progress — 4 gates del viewModel */}
+            {/* Graduation progress */}
             {grad && (
               <div className="mx-4 mt-4 rounded-2xl p-3"
                 style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.50)" }}>
-                    Camino a graduación
+                    Camino a graduacion
                   </span>
                   <span className="text-xs font-semibold tabular-nums" style={{ color: "#22c55e" }}>
                     {(grad.overallBps / 100).toFixed(1)}%
@@ -169,14 +176,19 @@ export default function TokenPage() {
                 </div>
                 {[
                   { k: "level",  label: "Nivel",      r: grad.gates.level.ratioBps  },
-                  { k: "supply", label: "Supply",     r: grad.gates.supply.ratioBps },
-                  { k: "volume", label: "Vol verif.", r: grad.gates.volume.ratioBps },
-                  { k: "age",    label: "Edad",       r: grad.gates.age.ratioBps    },
+                  { k: "supply", label: "Supply",      r: grad.gates.supply.ratioBps },
+                  { k: "volume", label: "Vol verif.",  r: grad.gates.volume.ratioBps },
+                  { k: "age",    label: "Edad",        r: grad.gates.age.ratioBps    },
                 ].map(g => (
                   <div key={g.k} className="flex items-center gap-2 mb-1">
                     <span className="text-[10px] w-20" style={{ color: "rgba(255,255,255,0.55)" }}>{g.label}</span>
                     <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-                      <div style={{ width: `${Math.min(100, g.r / 100)}%`, height: "100%", background: grad.bottleneckGate === g.k ? "#f59e0b" : "#22c55e" }} />
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(100, g.r / 100)}%` }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                        style={{ height: "100%", background: grad.bottleneckGate === g.k ? "#f59e0b" : "#22c55e" }}
+                      />
                     </div>
                     <span className="text-[10px] w-10 text-right tabular-nums" style={{ color: "rgba(255,255,255,0.50)" }}>
                       {(g.r / 100).toFixed(0)}%
@@ -184,7 +196,7 @@ export default function TokenPage() {
                   </div>
                 ))}
                 <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.40)" }}>
-                  Cuello de botella: <span style={{ color: "#f59e0b" }}>{grad.bottleneckGate}</span>
+                  Cuello: <span style={{ color: "#f59e0b" }}>{grad.bottleneckGate}</span>
                 </div>
               </div>
             )}
@@ -223,7 +235,7 @@ export default function TokenPage() {
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
               {tab === "trades" && (
                 trades.length === 0
-                  ? <div className="text-center text-xs py-6" style={{ color: "rgba(255,255,255,0.40)" }}>Sin trades aún.</div>
+                  ? <div className="text-center text-xs py-6" style={{ color: "rgba(255,255,255,0.40)" }}>Sin trades aun.</div>
                   : trades.slice(0, 20).map((t) => (
                       <div key={t.id} className="flex items-center justify-between px-3 py-2 text-xs"
                         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
@@ -245,7 +257,7 @@ export default function TokenPage() {
               )}
               {tab === "holders" && (
                 !holders || holders.holders.length === 0
-                  ? <div className="text-center text-xs py-6" style={{ color: "rgba(255,255,255,0.40)" }}>Sin holders aún.</div>
+                  ? <div className="text-center text-xs py-6" style={{ color: "rgba(255,255,255,0.40)" }}>Sin holders aun.</div>
                   : holders.holders.map((h) => (
                       <div key={h.user_id} className="flex items-center justify-between px-3 py-2 text-xs"
                         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>

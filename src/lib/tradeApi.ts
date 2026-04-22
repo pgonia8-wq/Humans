@@ -368,3 +368,43 @@ export async function getTotemTrades(address: string, limit = 50): Promise<Totem
 export async function getTotemHolders(address: string, limit = 20): Promise<TotemHoldersResult> {
   return apiFetch(`/totem/holders?address=${encodeURIComponent(address)}&limit=${limit}`);
 }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SYSTEM PHYSICS — endpoint /api/system/physics (TOTEM premium 2026)
+  // Backend-derivado. Frontend SOLO renderiza (Ley P1).
+  // ════════════════════════════════════════════════════════════════════════════
+
+  export interface PhysicsMetric {
+    value:     number;
+    available: boolean;
+    windowSec: number;
+  }
+
+  export interface OracleHealth {
+    state:            "FRESH" | "STALE" | "UNKNOWN";
+    lastSignedAgeSec: number | null;
+  }
+
+  export interface NetworkHealth {
+    state: "OK" | "DEGRADED";
+  }
+
+  export interface SystemPhysics {
+    fetchedAt:        number;
+    totalTotems:      number;
+    totalVolume:      number;
+    avgPrice:         number;
+    topTotem:         TotemProfile | null;
+    curvePressureBps: PhysicsMetric;
+    buyMomentumBps:   PhysicsMetric;
+    priceDriftAvg:    PhysicsMetric;
+    volatilityBps:    PhysicsMetric;
+    systemBias:       "BULL" | "NEUTRAL" | "BEAR";
+    oracleStatus:     OracleHealth;
+    networkStatus:    NetworkHealth;
+  }
+
+  export async function getSystemPhysics(): Promise<SystemPhysics> {
+    return apiFetch("/system/physics");
+  }
+  
