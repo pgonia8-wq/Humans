@@ -65,15 +65,38 @@ export function shortAddr(a: string): string {
  * en viewModel.progression.graduation.
  */
 export interface Enriched extends TotemProfile {
-  emoji:  string;
-  symbol: string;
-}
-export type Decorated = Enriched;
+    emoji:   string;
+    symbol:  string;
+    /** Decorativos opcionales: level/badge/score llegan del backend o de mocks. */
+    level?:  number;
+    badge?:  string;
+    score?:  number;
+    /** Avatar custom subido por el creador (data URL en localStorage). */
+    avatar?: string | null;
+  }
+  export type Decorated = Enriched;
 
-export function enrich(t: TotemProfile): Enriched {
-  return {
-    ...t,
-    emoji:  deriveEmoji(t.address),
-    symbol: deriveSymbol(t.name),
-  };
-}
+  export function enrich(t: TotemProfile): Enriched {
+    const any_t: any = t;
+    return {
+      ...t,
+      emoji:  deriveEmoji(t.address),
+      symbol: any_t.symbol || deriveSymbol(t.name),
+      level:  typeof any_t.level === "number" ? any_t.level : undefined,
+      badge:  typeof any_t.badge === "string" ? any_t.badge : undefined,
+      score:  typeof any_t.score === "number" ? any_t.score : undefined,
+      avatar: loadTotemImage(t.address),
+    };
+  }
+
+  /** Avatar custom (data URL) guardado por el creador, persistido en localStorage. */
+  const IMG_KEY = (a: string) => "totem:image:" + (a || "").toLowerCase();
+  export function loadTotemImage(address: string): string | null {
+    if (typeof window === "undefined" || !address) return null;
+    try { return window.localStorage.getItem(IMG_KEY(address)); } catch { return null; }
+  }
+  export function saveTotemImage(address: string, dataUrl: string): void {
+    if (typeof window === "undefined" || !address) return;
+    try { window.localStorage.setItem(IMG_KEY(address), dataUrl); } catch {}
+  }
+  

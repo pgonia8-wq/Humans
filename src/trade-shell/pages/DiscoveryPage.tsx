@@ -8,7 +8,7 @@ import { Search, TrendingUp, Activity, Trophy } from "lucide-react";
 import { getAllTotems, searchTotems, getSystemMetrics } from "../../lib/tradeApi";
 import type { TotemProfile, SystemMetrics } from "../../lib/tradeApi";
 import { enrich, formatUsd, formatWld } from "../services/derive";
-import { MOCK_TOTEMS } from "../services/mockTotems";
+import { sortMockTotems } from "../services/mockTotems";
 import TokenRow from "../components/TokenRow";
 import { useShell } from "../context/ShellContext";
 import MarketPhysicsPanel from "../components/MarketPhysicsPanel";
@@ -47,22 +47,51 @@ export default function DiscoveryPage() {
 
   const sourceItems = useMemo(() => {
       if (items.length === 0 && !loading && !err) {
+        const mocks = sortMockTotems(sort);
         return q.trim()
-          ? MOCK_TOTEMS.filter(t => t.name.toLowerCase().includes(q.trim().toLowerCase()))
-          : MOCK_TOTEMS;
+          ? mocks.filter(t => t.name.toLowerCase().includes(q.trim().toLowerCase()))
+          : mocks;
       }
       return items;
-    }, [items, loading, err, q]);
+    }, [items, loading, err, q, sort]);
     const enriched = useMemo(() => sourceItems.map(enrich), [sourceItems]);
-  const top      = enriched[0];
+    const top      = enriched[0];
 
   return (
     <div className="h-full w-full overflow-y-auto pb-28 scrollbar-hide">
       {/* Header + metrics */}
       <div className="px-4 pt-4">
-        <h1 className="text-2xl font-bold text-white" style={{ letterSpacing: "-0.02em" }}>
-              H <span style={{ color: "rgba(255,255,255,0.50)", fontWeight: 400 }}>by humans</span> Market
-            </h1>
+        <h1
+            className="text-white"
+            style={{
+              fontWeight: 800,
+              fontSize: "1.65rem",
+              lineHeight: 1,
+              letterSpacing: "-0.025em",
+              textShadow:
+                "0 1px 0 rgba(255,255,255,0.06), 0 2px 0 rgba(0,0,0,0.20), 0 3px 0 rgba(0,0,0,0.30), 0 4px 0 rgba(0,0,0,0.35), 0 6px 8px rgba(0,0,0,0.50), 0 14px 28px rgba(0,0,0,0.45)",
+            }}
+          >
+            H{" "}
+            <span
+              style={{
+                fontFamily: '"Snell Roundhand","Brush Script MT","Lucida Handwriting","Apple Chancery",cursive',
+                fontStyle: "italic",
+                fontWeight: 500,
+                fontSize: "0.78em",
+                background: "linear-gradient(180deg,#e9e0ff 0%,#a78bfa 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                color: "transparent",
+                textShadow: "0 2px 6px rgba(167,139,250,0.35)",
+                margin: "0 0.04em",
+              }}
+            >
+              by humans
+            </span>{" "}
+            Market
+          </h1>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
           {metrics
             ? `${metrics.totalTotems} tótems · ${formatWld(metrics.totalVolume, 2)} 24h`
@@ -78,18 +107,29 @@ export default function DiscoveryPage() {
         <motion.button
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           onClick={() => openToken(top.address)}
-          className="mx-4 mt-4 w-[calc(100%-2rem)] rounded-2xl p-4 text-left"
-          style={{
-            background: "linear-gradient(135deg, rgba(34,197,94,0.18) 0%, rgba(167,139,250,0.18) 100%)",
-            border: "1px solid rgba(255,255,255,0.10)",
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
-              style={{ background: "rgba(0,0,0,0.30)" }}>
-              {top.emoji}
-            </div>
-            <div className="flex-1 min-w-0">
+          className="mx-4 mt-4 w-[calc(100%-2rem)] rounded-2xl p-4 text-left relative overflow-hidden"
+            style={{
+              background:
+                "radial-gradient(120% 80% at 0% 0%, rgba(167,139,250,0.30) 0%, rgba(34,197,94,0.20) 45%, rgba(0,0,0,0) 80%), linear-gradient(180deg, rgba(20,20,28,0.85) 0%, rgba(10,10,14,0.85) 100%)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              backdropFilter: "blur(16px) saturate(160%)",
+              WebkitBackdropFilter: "blur(16px) saturate(160%)",
+              boxShadow:
+                "0 28px 60px -28px rgba(167,139,250,0.40), 0 12px 24px -12px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.30)",
+            }}
+          >
+            <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl overflow-hidden"
+                style={{
+                  background: "rgba(0,0,0,0.30)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 16px -8px rgba(0,0,0,0.55)",
+                }}>
+                {top.avatar
+                  ? <img src={top.avatar} alt={top.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <span>{top.emoji}</span>}
+              </div>
+              <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.55)" }}>
                 Top del mercado
               </div>

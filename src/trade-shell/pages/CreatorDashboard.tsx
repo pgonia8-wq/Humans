@@ -3,12 +3,12 @@
  * Adaptado: el contrato deriva address/emoji/symbol; aquí solo pedimos nombre.
  * POST /api/totem/create requiere session token (Orb-verified wallet).
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Sparkles, ShieldCheck, Check } from "lucide-react";
+import { ArrowLeft, Sparkles, ShieldCheck, Check, Camera, Upload } from "lucide-react";
 import { createTotem } from "../../lib/tradeApi";
 import type { TotemProfile } from "../../lib/tradeApi";
-import { deriveEmoji, deriveSymbol, formatUsd } from "../services/derive";
+import { deriveEmoji, deriveSymbol, saveTotemImage } from "../services/derive";
 import { useShell } from "../context/ShellContext";
 import OrbGateModal from "../components/OrbGateModal";
 
@@ -37,7 +37,23 @@ export default function CreatorDashboard() {
   const [busy, setBusy] = useState(false);
   const [err,  setErr]  = useState<string | null>(null);
   const [orbGate, setOrbGate] = useState(false);
-  const [created, setCreated] = useState<TotemProfile | null>(null);
+    const [created, setCreated] = useState<TotemProfile | null>(null);
+    // Avatar custom (data URL) — el creador puede subir su propia imagen.
+    const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+    const fileRef = useRef<HTMLInputElement | null>(null);
+    function onPickImage() { fileRef.current?.click(); }
+    function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!/^image\//.test(file.type))         { setErr("Solo imágenes."); return; }
+      if (file.size > 5 * 1024 * 1024)          { setErr("Máximo 5 MB."); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const url = String(reader.result || "");
+        if (url.startsWith("data:image/")) { setImageDataUrl(url); setErr(null); }
+      };
+      reader.readAsDataURL(file);
+    }
 
   const validName = name.trim().length >= 2 && name.trim().length <= 32;
   const derivedAddr = useMemo(
@@ -138,10 +154,65 @@ export default function CreatorDashboard() {
           {step === "name" && (
             <motion.div key="name" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <h2 className="text-xl font-bold text-white">Nombra tu tótem</h2>
-              <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>
-                Entre 2 y 32 caracteres. Es permanente on-chain.
-              </p>
-              <input
+                <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  Sube tu propia imagen y elige un nombre permanente.
+                </p>
+
+                {/* Avatar uploader — toma una foto o elige de la galería */}
+                <div className="mt-5 flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={onPickImage}
+                    className="relative w-24 h-24 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 active:scale-95 transition"
+                    style={{
+                      background: imageDataUrl
+                        ? "transparent"
+                        : "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(167,139,250,0.18))",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.10), 0 16px 32px -16px rgba(0,0,0,0.55)",
+                    }}
+                  >
+                    {imageDataUrl ? (
+                      <img src={imageDataUrl} alt="avatar"
+                           style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1" style={{ color: "rgba(255,255,255,0.65)" }}>
+                        <Camera size={22} />
+                        <span className="text-[10px] uppercase tracking-wider">Foto</span>
+                      </div>
+                    )}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: "rgba(255,255,255,0.55)" }}>
+                      Avatar del tótem
+                    </div>
+                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.50)" }}>
+                      Toca para tomar una foto o elegir una imagen. Opcional. Máx 5 MB.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onPickImage}
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md"
+                      style={{
+                        background: "rgba(167,139,250,0.10)",
+                        border: "1px solid rgba(167,139,250,0.30)",
+                        color: "#c4b5fd",
+                      }}
+                    >
+                      <Upload size={12} /> {imageDataUrl ? "Cambiar imagen" : "Subir imagen"}
+                    </button>
+                  </div>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={onFileChange}
+                  />
+                </div>
+
+                              <input
                 value={name}
                 onChange={(e) => setName(e.target.value.slice(0, 32))}
                 placeholder="p. ej. Guardián del Agua"
@@ -171,24 +242,42 @@ export default function CreatorDashboard() {
               </p>
 
               <div className="mt-5 rounded-2xl p-5 text-center"
-                style={{
-                  background: "linear-gradient(135deg, rgba(34,197,94,0.15) 0%, rgba(167,139,250,0.15) 100%)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                }}>
-                <div className="text-6xl mb-3">{emoji}</div>
-                <div className="text-white font-bold text-lg">{name}</div>
-                <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
-                  {symbol} · {derivedAddr.slice(0, 10)}…{derivedAddr.slice(-6)}
+                  style={{
+                    background:
+                      "radial-gradient(120% 90% at 50% 0%, rgba(167,139,250,0.20) 0%, rgba(0,0,0,0) 75%), linear-gradient(180deg, rgba(20,20,28,0.85) 0%, rgba(10,10,14,0.85) 100%)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    backdropFilter: "blur(14px) saturate(140%)",
+                    WebkitBackdropFilter: "blur(14px) saturate(140%)",
+                    boxShadow: "0 24px 60px -28px rgba(167,139,250,0.30), inset 0 1px 0 rgba(255,255,255,0.08)",
+                  }}>
+                  <div className="mx-auto w-24 h-24 rounded-2xl flex items-center justify-center text-6xl mb-3 overflow-hidden"
+                    style={{
+                      background: imageDataUrl ? "transparent" : "rgba(0,0,0,0.30)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 24px -12px rgba(0,0,0,0.55)",
+                    }}>
+                    {imageDataUrl
+                      ? <img src={imageDataUrl} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <span>{emoji}</span>}
+                  </div>
+                  <div className="text-white font-bold text-lg">{name}</div>
+                  <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    {symbol} · {derivedAddr.slice(0, 10)}…{derivedAddr.slice(-6)}
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-4 rounded-xl p-3 text-xs"
+                <div className="mt-4 rounded-xl p-3 text-xs"
                 style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.60)" }}>
                 <div className="flex items-center gap-2 mb-1" style={{ color: "#22c55e" }}>
-                  <Sparkles size={12} /> <span className="font-semibold">Precio inicial</span>
+                  <Sparkles size={12} /> <span className="font-semibold">Reglas de graduación</span>
+                  </div>
+                  <div className="space-y-1">
+                    <div>· <b className="text-white">Score nivel 4</b> alcanzado.</div>
+                    <div>· <b className="text-white">45 días</b> de permanencia.</div>
+                    <div>· <b className="text-white">15.000 WLD</b> equivalentes en supply.</div>
+                    <div>· Curva bonding <b className="text-white">cúbica</b> (precio sube con el cubo del supply).</div>
+                  </div>
                 </div>
-                Curva bonding: inicia en {formatUsd(0.0001, 6)}. Precio sube cuadráticamente con el supply hasta graduación a 1M tokens.
-              </div>
 
               <div className="mt-5 flex gap-2">
                 <button onClick={() => setStep("name")}
@@ -258,8 +347,17 @@ export default function CreatorDashboard() {
 
           {step === "done" && created && (
             <motion.div key="done" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center pt-8">
-              <div className="text-7xl mb-4">{deriveEmoji(created.address)}</div>
-              <h2 className="text-2xl font-bold text-white">¡Tótem creado!</h2>
+                <div className="mx-auto w-24 h-24 rounded-2xl flex items-center justify-center text-6xl mb-4 overflow-hidden"
+                  style={{
+                    background: imageDataUrl ? "transparent" : "rgba(0,0,0,0.30)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 32px -16px rgba(0,0,0,0.55)",
+                  }}>
+                  {imageDataUrl
+                    ? <img src={imageDataUrl} alt={created.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <span>{deriveEmoji(created.address)}</span>}
+                </div>
+                <h2 className="text-2xl font-bold text-white">¡Tótem creado!</h2>
               <div className="text-white font-semibold mt-1">{created.name}</div>
               <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.50)" }}>
                 {created.address.slice(0, 10)}…{created.address.slice(-6)}

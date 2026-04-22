@@ -20,7 +20,8 @@ import {
   shortAddr, STATUS_COLORS, STATUS_LABELS,
 } from "../services/viewModel";
 import type { TotemViewModel } from "../services/viewModel";
-import { deriveEmoji } from "../services/derive";
+import { deriveEmoji, loadTotemImage } from "../services/derive";
+import { isMockAddress, buildMockViewModel } from "../services/mockTotems";
 import Sparkline from "../components/Sparkline";
 import Stat from "../components/Stat";
 import { useShell } from "../context/ShellContext";
@@ -50,14 +51,26 @@ export default function TokenPage() {
     if (!selectedAddress) return;
     setLoading(true); setErr(null);
     try {
-      const [v, h, tr, ho] = await Promise.all([
-        getTotemViewModel(selectedAddress, userId || undefined),
-        getTotemHistory(selectedAddress, 48).catch(() => []),
-        getTotemTrades(selectedAddress, 40).catch(() => []),
-        getTotemHolders(selectedAddress, 20).catch(() => null),
-      ]);
-      setVm(v); setHistory(h); setTrades(tr); setHolders(ho);
-    } catch (e: any) {
+        const [v, h, tr, ho] = await Promise.all([
+          getTotemViewModel(selectedAddress, userId || undefined),
+          getTotemHistory(selectedAddress, 48).catch(() => []),
+          getTotemTrades(selectedAddress, 40).catch(() => []),
+          getTotemHolders(selectedAddress, 20).catch(() => null),
+        ]);
+        setVm(v); setHistory(h); setTrades(tr); setHolders(ho);
+      } catch (e: any) {
+        // Fallback: tótem demo (mock) — mostramos VM sintético, sin tradear.
+        if (isMockAddress(selectedAddress)) {
+          const mockVm = buildMockViewModel(selectedAddress);
+          if (mockVm) {
+            setVm(mockVm);
+            setHistory([]); setTrades([]); setHolders(null);
+            setErr(null);
+            return;
+          }
+        }
+        setErr(e?.message ?? "No se pudo cargar el totem.");
+      } catch (e: any) {
       setErr(e?.message ?? "No se pudo cargar el totem.");
     } finally { setLoading(false); }
   }, [selectedAddress, userId]);
@@ -123,14 +136,20 @@ export default function TokenPage() {
             {/* Hero price */}
             <div className="px-4 mt-2">
               <div className="flex items-center gap-3">
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl"
-                  style={{
-                    background: "linear-gradient(135deg, rgba(34,197,94,0.22), rgba(167,139,250,0.22))",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                  }}>
-                  {emoji}
-                </div>
-                <div className="flex-1">
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl overflow-hidden"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(34,197,94,0.22), rgba(167,139,250,0.22))",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.10), 0 12px 24px -12px rgba(0,0,0,0.55)",
+                    }}>
+                    {(() => {
+                      const av = loadTotemImage(selectedAddress);
+                      return av
+                        ? <img src={av} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : <span>{emoji}</span>;
+                    })()}
+                  </div>
+                  <div className="flex-1">
                   <div className="text-[11px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.50)" }}>
                     {symbol} · L{vm.progression.level.value ?? "—"} · Badge {vm.progression.badge.value ?? "—"}
                   </div>
