@@ -8,6 +8,7 @@ import { Search, TrendingUp, Activity, Trophy } from "lucide-react";
 import { getAllTotems, searchTotems, getSystemMetrics } from "../../lib/tradeApi";
 import type { TotemProfile, SystemMetrics } from "../../lib/tradeApi";
 import { enrich, formatUsd, formatWld } from "../services/derive";
+import { MOCK_TOTEMS } from "../services/mockTotems";
 import TokenRow from "../components/TokenRow";
 import { useShell } from "../context/ShellContext";
 import MarketPhysicsPanel from "../components/MarketPhysicsPanel";
@@ -44,17 +45,27 @@ export default function DiscoveryPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const enriched = useMemo(() => items.map(enrich), [items]);
+  const sourceItems = useMemo(() => {
+      if (items.length === 0 && !loading && !err) {
+        return q.trim()
+          ? MOCK_TOTEMS.filter(t => t.name.toLowerCase().includes(q.trim().toLowerCase()))
+          : MOCK_TOTEMS;
+      }
+      return items;
+    }, [items, loading, err, q]);
+    const enriched = useMemo(() => sourceItems.map(enrich), [sourceItems]);
   const top      = enriched[0];
 
   return (
     <div className="h-full w-full overflow-y-auto pb-28 scrollbar-hide">
       {/* Header + metrics */}
       <div className="px-4 pt-4">
-        <h1 className="text-2xl font-bold text-white">H · Mercado</h1>
+        <h1 className="text-2xl font-bold text-white" style={{ letterSpacing: "-0.02em" }}>
+              H <span style={{ color: "rgba(255,255,255,0.50)", fontWeight: 400 }}>by humans</span> Market
+            </h1>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
           {metrics
-            ? `${metrics.totalTotems} tótems · ${formatWld(metrics.totalVolume, 2)} 24h · ${metrics.totalHumans} humanos`
+            ? `${metrics.totalTotems} tótems · ${formatWld(metrics.totalVolume, 2)} 24h`
             : "Cargando métricas…"}
         </p>
       </div>

@@ -90,7 +90,7 @@ export default function SystemOverlay({ open, onClose }: Props) {
           <motion.div
             initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={reduce ? { duration: 0 } : { duration: 0.18 }}
-            className="fixed inset-0 z-[10000]"
+            className="absolute inset-0 z-[10000]"
             style={{
               background: "rgba(4,4,8,0.62)",
               backdropFilter: "blur(14px) saturate(120%)",
@@ -107,9 +107,9 @@ export default function SystemOverlay({ open, onClose }: Props) {
             animate={{ opacity: 1, y: 0,  scale: 1    }}
             exit={{    opacity: 0, y: 12, scale: 0.97 }}
             transition={reduce ? { duration: 0 } : SPRING}
-            className="fixed left-1/2 top-1/2 z-[10001] w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2"
+            className="absolute inset-0 z-[10001] flex items-center justify-center p-4"
           >
-            <GlassCard tint={biasColor} intensity={1.2} className="p-5" style={{ maxHeight: "84vh", overflowY: "auto" }}>
+            <GlassCard tint={biasColor} intensity={1.2} className="p-5 w-full" style={{ maxHeight: "92%", overflowY: "auto" }}>
               <BiasHalo color={biasColor} opacity={0.22} />
 
               <header className="relative z-10 mb-4 flex items-center justify-between">

@@ -71,7 +71,47 @@ export default function CreatorDashboard() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-28 scrollbar-hide">
-        {/* Stepper */}
+          {/* Hero banner premium 2026 */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            className="relative overflow-hidden rounded-2xl p-5 mb-5"
+            style={{
+              background: "radial-gradient(120% 90% at 0% 0%, rgba(167,139,250,0.22) 0%, rgba(34,197,94,0.10) 45%, rgba(0,0,0,0) 80%), linear-gradient(180deg, rgba(20,20,28,0.85) 0%, rgba(10,10,14,0.85) 100%)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              boxShadow: "0 24px 60px -32px rgba(167,139,250,0.30), inset 0 1px 0 rgba(255,255,255,0.05)",
+            }}
+          >
+            <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full"
+                 style={{ background: "radial-gradient(circle, rgba(167,139,250,0.20) 0%, rgba(0,0,0,0) 70%)", filter: "blur(8px)" }} />
+            <div className="relative flex items-start gap-4">
+              <motion.div
+                key={emoji}
+                initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.25 }}
+                className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl shrink-0"
+                style={{
+                  background: "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(167,139,250,0.18))",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+                }}
+              >
+                {validName ? emoji : "✨"}
+              </motion.div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "rgba(167,139,250,0.85)" }}>
+                  Crea tu tótem · 2026
+                </div>
+                <div className="text-white font-bold text-lg mt-0.5 truncate">
+                  {validName ? name : "Tu nombre, tu símbolo"}
+                </div>
+                <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  Curva bonding pura · Un humano, un creador · Onchain wins
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Stepper */}
         <div className="flex items-center gap-2 mb-6">
           {(["name", "preview", "confirm"] as Step[]).map((s, i) => {
             const active = step === s || (step === "done" && s === "confirm");

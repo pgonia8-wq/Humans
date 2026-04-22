@@ -14,7 +14,29 @@ import Stat from "../components/Stat";
 import { useShell } from "../context/ShellContext";
 
 export default function ProfilePage() {
-  const { userId, walletAddress, isOrbVerified, openToken, onClose } = useShell();
+    const { userId, walletAddress, isOrbVerified, openToken, onClose } = useShell();
+    // World App username (lazy fetch via MiniKit). Si no se puede resolver,
+    // mostramos la dirección abreviada — nunca el nullifier crudo.
+    const [username, setUsername] = useState<string | null>(null);
+    useEffect(() => {
+      if (!walletAddress) return;
+      let alive = true;
+      (async () => {
+        try {
+          const mod: any = await import("@worldcoin/minikit-js");
+          const mk = mod?.MiniKit;
+          if (mk?.user?.username && alive) { setUsername(mk.user.username); return; }
+          if (typeof mk?.getUserByAddress === "function") {
+            const u = await mk.getUserByAddress(walletAddress);
+            if (u?.username && alive) setUsername(u.username);
+          }
+        } catch { /* MiniKit no disponible — fallback a address corta */ }
+      })();
+      return () => { alive = false; };
+    }, [walletAddress]);
+    const displayName = username
+      ? "@" + username
+      : (walletAddress ? shortAddr(walletAddress) : "Anónimo");
   const [items, setItems] = useState<TotemProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,7 +77,7 @@ export default function ProfilePage() {
             <User size={24} color="#ffffff" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-white font-semibold truncate">{userId || "Anónimo"}</div>
+            <div className="text-white font-semibold truncate text-base">{displayName}</div>
             <div className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.65)" }}>
               <Wallet size={12} /> {walletAddress ? shortAddr(walletAddress) : "sin wallet"}
             </div>
