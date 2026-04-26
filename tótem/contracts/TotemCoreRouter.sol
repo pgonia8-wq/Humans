@@ -73,7 +73,7 @@ contract TotemCoreRouter is Ownable2Step {
         address _oracle,
         address _curve,
         address _limiter
-    ) {
+    ) Ownable(msg.sender) { // [COMPILE FIX] OZ v5 requiere initialOwner explícito
         registry = IRegistry(_registry);
         attestation = IAttestation(_attestation);
         oracle = IOracle(_oracle);
