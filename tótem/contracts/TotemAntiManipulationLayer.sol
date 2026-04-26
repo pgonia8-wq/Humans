@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 contract TotemAntiManipulationLayer is Ownable2Step {
 
+    // [COMPILE FIX] OZ v5 requiere initialOwner explícito.
+    constructor() Ownable(msg.sender) {}
+
     mapping(address => uint256) public lastOracleUpdate;
     mapping(address => uint256) public emaPrice;
 
