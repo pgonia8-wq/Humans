@@ -31,6 +31,7 @@ import AntiManipWidget from "./AntiManipWidget";
 // ── Env vars ────────────────────────────────────────────────────────────────
 const BONDING_CURVE_ADDRESS = import.meta.env.VITE_BONDING_CURVE_ADDRESS || "";
 const WLD_ADDRESS           = "0x2cFc85d8E48F8EaB294be644d9E25C3030863003";
+const ORACLE_CLAIM_ENDPOINT = import.meta.env.VITE_ORACLE_ENDPOINT || "/api/oracle/claim";
 
 // ── ABIs mínimos ────────────────────────────────────────────────────────────
 const WLD_ABI = [
@@ -45,12 +46,22 @@ const CURVE_ABI = [
       { name: "totem",        type: "address" },
       { name: "amountWldIn",  type: "uint256" },
       { name: "minTokensOut", type: "uint256" },
+      { name: "score",        type: "uint256" },
+      { name: "influence",    type: "uint256" },
+      { name: "nonce",        type: "uint256" },
+      { name: "deadline",     type: "uint256" },
+      { name: "signature",    type: "bytes"   },
     ], outputs: [] },
   { name: "sell", type: "function", stateMutability: "nonpayable",
     inputs: [
       { name: "totem",     type: "address" },
       { name: "tokensIn",  type: "uint256" },
       { name: "minWldOut", type: "uint256" },
+      { name: "score",     type: "uint256" },
+      { name: "influence", type: "uint256" },
+      { name: "nonce",     type: "uint256" },
+      { name: "deadline",  type: "uint256" },
+      { name: "signature", type: "bytes"   },
     ], outputs: [] },
 ] as const;
 
@@ -110,6 +121,7 @@ export default function TradePanel({
   const [prevLoading, setPrevLoading] = useState(false);
   const [btnFx,       setBtnFx]       = useState<BtnFx>("idle");
   const [submitting,  setSubmitting]  = useState(false);
+  const [isValidatingHumanity, setIsValidatingHumanity] = useState(false);
   const [toast,       setToast]       = useState<Toast | null>(null);
   const reqIdRef = useRef(0);
 
@@ -207,12 +219,50 @@ export default function TradePanel({
       if (BONDING_CURVE_ADDRESS) {
         const wldWei       = toWei(wld);
         const minTokensOut = withSlippage(BigInt(Math.floor(buyPrev!.tokensOut)), 0.05);
+
+        // ── TAREA 2: Fusion Engine — validación de reputación ──────────
+        setIsValidatingHumanity(true);
+        let oraclePayload: {
+          score: number; influence: number;
+          nonce: number; deadline: number; signature: string;
+        };
+        try {
+          const oracleRes = await fetch(ORACLE_CLAIM_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              totem_address:  totemAddress,
+              caller_address: walletAddress,
+            }),
+          });
+          const oracleData = await oracleRes.json();
+          if (!oracleRes.ok || !oracleData.ok) throw new Error();
+          oraclePayload = oracleData.payload;
+        } catch {
+          setIsValidatingHumanity(false);
+          fireToast("err", "Validación de reputación fallida");
+          setBtnFx("error"); setTimeout(() => setBtnFx("idle"), 1400);
+          setSubmitting(false);
+          return;
+        }
+        setIsValidatingHumanity(false);
+        // ────────────────────────────────────────────────────────────────
+
         const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
           transaction: [
             { address: WLD_ADDRESS,            abi: WLD_ABI,   functionName: "approve",
               args: [BONDING_CURVE_ADDRESS, wldWei.toString()] },
             { address: BONDING_CURVE_ADDRESS,  abi: CURVE_ABI, functionName: "buy",
-              args: [totemAddress, wldWei.toString(), minTokensOut.toString()] },
+              args: [
+                totemAddress,
+                wldWei.toString(),
+                minTokensOut.toString(),
+                oraclePayload.score.toString(),
+                oraclePayload.influence.toString(),
+                oraclePayload.nonce.toString(),
+                oraclePayload.deadline.toString(),
+                oraclePayload.signature,
+              ] },
           ],
         });
         if (!finalPayload || finalPayload.status !== "success") {
@@ -255,10 +305,48 @@ export default function TradePanel({
 
       if (BONDING_CURVE_ADDRESS) {
         const minWldOut = withSlippage(toWei(sellPrev!.wldOut), 0.05);
+
+        // ── TAREA 2: Fusion Engine — validación de reputación ──────────
+        setIsValidatingHumanity(true);
+        let oraclePayload: {
+          score: number; influence: number;
+          nonce: number; deadline: number; signature: string;
+        };
+        try {
+          const oracleRes = await fetch(ORACLE_CLAIM_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              totem_address:  totemAddress,
+              caller_address: walletAddress,
+            }),
+          });
+          const oracleData = await oracleRes.json();
+          if (!oracleRes.ok || !oracleData.ok) throw new Error();
+          oraclePayload = oracleData.payload;
+        } catch {
+          setIsValidatingHumanity(false);
+          fireToast("err", "Validación de reputación fallida");
+          setBtnFx("error"); setTimeout(() => setBtnFx("idle"), 1400);
+          setSubmitting(false);
+          return;
+        }
+        setIsValidatingHumanity(false);
+        // ────────────────────────────────────────────────────────────────
+
         const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
           transaction: [
             { address: BONDING_CURVE_ADDRESS, abi: CURVE_ABI, functionName: "sell",
-              args: [totemAddress, tokensIn.toString(), minWldOut.toString()] },
+              args: [
+                totemAddress,
+                tokensIn.toString(),
+                minWldOut.toString(),
+                oraclePayload.score.toString(),
+                oraclePayload.influence.toString(),
+                oraclePayload.nonce.toString(),
+                oraclePayload.deadline.toString(),
+                oraclePayload.signature,
+              ] },
           ],
         });
         if (!finalPayload || finalPayload.status !== "success") {
@@ -308,19 +396,21 @@ export default function TradePanel({
 
   // ── Botón principal: estados visuales ────────────────────────────────
   const btnLabel =
-    btnFx === "loading" ? "Procesando…"
-  : btnFx === "success" ? "✓ Confirmado"
-  : btnFx === "error"   ? "Reintenta"
-  : isBuy               ? "Comprar"
-  :                       "Vender";
+    isValidatingHumanity  ? "Validando humanidad…"
+  : btnFx === "loading"   ? "Procesando…"
+  : btnFx === "success"   ? "✓ Confirmado"
+  : btnFx === "error"     ? "Reintenta"
+  : isBuy                 ? "Comprar"
+  :                         "Vender";
 
   const btnBg =
-    btnFx === "loading" ? "rgba(255,255,255,0.10)"
-  : btnFx === "success" ? "linear-gradient(135deg, #22c55e, #16a34a)"
-  : btnFx === "error"   ? "linear-gradient(135deg, #f87171, #dc2626)"
-  :                       `linear-gradient(135deg, ${accent}, ${accentDeep})`;
+    isValidatingHumanity  ? "rgba(99,102,241,0.30)"
+  : btnFx === "loading"   ? "rgba(255,255,255,0.10)"
+  : btnFx === "success"   ? "linear-gradient(135deg, #22c55e, #16a34a)"
+  : btnFx === "error"     ? "linear-gradient(135deg, #f87171, #dc2626)"
+  :                         `linear-gradient(135deg, ${accent}, ${accentDeep})`;
 
-  const btnDisabled = submitting || (isBuy ? !buyPrev : !sellPrev);
+  const btnDisabled = submitting || isValidatingHumanity || (isBuy ? !buyPrev : !sellPrev);
 
   return (
     <div style={{
