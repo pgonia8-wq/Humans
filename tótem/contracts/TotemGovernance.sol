@@ -6,6 +6,9 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract TotemGovernance is Ownable2Step, ReentrancyGuard {
 
+    // [COMPILE FIX] OZ v5 requiere initialOwner explícito; constructor estaba implícito.
+    constructor() Ownable(msg.sender) {}
+
     // ========================= STRUCT =========================
     struct Proposal {
         uint256 id;
