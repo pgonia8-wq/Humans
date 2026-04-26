@@ -1,7 +1,7 @@
 import { BONDING_CURVE_CONFIG as C } from "../config/bondingCurve";
 
 const a = C.INITIAL_PRICE_WLD;
-const b = 1.72e-20;
+const b = 2.35e-20; // Alineado con TotemBondingCurve.sol: CURVE_K=235, SCALE=1e20 → K=2.35e-20
 
 export function spotPrice(supply: number): number {
   return a + b * supply * supply;
