@@ -1,5 +1,5 @@
 const INITIAL_PRICE_WLD = 0.00000055;
-const CURVE_K = 2.35e-20;
+const CURVE_K = 2.35e-20; // Alineado con TotemBondingCurve.sol: CURVE_K=235, SCALE=1e20
 const BUY_FEE = 0.02;
 const SELL_FEE = 0.03;
 const BASE_SELL_SLIPPAGE = 0.03;
