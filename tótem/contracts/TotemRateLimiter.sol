@@ -78,7 +78,7 @@ contract TotemRateLimiter is Ownable2Step {
     // 🔹 CONSTRUCTOR
     // =========================
 
-    constructor(address _registry) {
+    constructor(address _registry) Ownable(msg.sender) { // [COMPILE FIX] OZ v5 requiere initialOwner explícito
         registry = ITotemRegistry(_registry);
 
         // QUERY → escala con nivel
