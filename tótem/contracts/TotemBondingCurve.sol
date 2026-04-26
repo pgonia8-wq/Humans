@@ -71,6 +71,8 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
     error SellLimitExceeded();
     error FrozenError();
     error ZeroAddress();
+    // ★ FIX: el primer buy debe ser del creator
+    error NotCreatorFirstBuy();
 
     constructor(
         address _wld,
@@ -193,6 +195,9 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         uint256 newBalance = balances[totem][msg.sender] + tokensOut;
         uint256 supplyAfter = realSupply[totem] + tokensOut;
 
+        // ★ FIX BOOTSTRAP-CAPTURE: el primer buy DEBE ser del creator
+        if (realSupply[totem] == 0 && msg.sender != totem) revert NotCreatorFirstBuy();
+
         if (realSupply[totem] != 0) {
             uint256 maxBps = (msg.sender == totem) ? OWNER_MAX_BPS : USER_MAX_BPS;
             if (newBalance > (supplyAfter * maxBps) / 10000) revert MaxPositionExceeded();
@@ -257,6 +262,21 @@ contract TotemBondingCurve is ReentrancyGuard, Ownable {
         metrics.recordSell(totem, payout);
 
         emit Sell(totem, msg.sender, tokensIn, payout);
+    }
+
+    // ================= VIEW — [C-07 FIX] =================
+    // Expone getSupply/getPrice requeridos por TotemGraduationManager.
+
+    /// @notice Supply real de tokens del tótem en el bonding curve.
+    function getSupply(address totem) external view returns (uint256) {
+        return realSupply[totem];
+    }
+
+    /// @notice Precio marginal actual (WLD por token) basado en supply efectivo.
+    function getPrice(address totem) external view returns (uint256) {
+        uint256 score = _safeScore(totem);
+        uint256 sEff  = _effective(realSupply[totem], score);
+        return dV(sEff);
     }
 
     // ================= FREEZE =================
