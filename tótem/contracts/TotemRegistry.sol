@@ -105,6 +105,7 @@ contract TotemRegistry {
     error MigrationNotApproved();
     error InvalidMigration();
     error BlockedUserCannotMigrate();
+    error BlockedUserCannotReceive(); // [ALTO-4 FIX] destino bloqueado durante el delay
     // FIX ALTO-5: Explicit error for re-use of a migrated nullifier
     error NullifierWasMigrated();
 
@@ -149,7 +150,7 @@ contract TotemRegistry {
             GROUP_ID,
             signalHash,
             nullifierHash,
-            EXTERNAL_NULLIFIER,
+            uint256(EXTERNAL_NULLIFIER), // [COMPILE FIX] cast bytes32→uint256 explícito
             proof
         );
 
@@ -194,7 +195,7 @@ contract TotemRegistry {
             GROUP_ID,
             signalHash,
             newNullifierHash,
-            EXTERNAL_NULLIFIER,
+            uint256(EXTERNAL_NULLIFIER), // [COMPILE FIX] cast bytes32→uint256 explícito
             proof
         );
 
@@ -226,10 +227,14 @@ contract TotemRegistry {
     }
 
     function executeMigration(address newUser) external notPaused {
-        MigrationRequest memory req = migrationRequests[newUser];
+        // [ALTO-4 FIX] storage en lugar de memory — evita copia innecesaria del struct
+        MigrationRequest storage req = migrationRequests[newUser];
         if (req.requestedAt == 0) revert MigrationNotRequested();
         if (!req.approved) revert MigrationNotApproved();
         if (block.timestamp < req.requestedAt + MIGRATION_DELAY) revert MigrationDelayNotMet();
+        // [ALTO-4 FIX] simétrico al check de oldUser en requestMigration:
+        // si admin bloqueó al newUser durante el delay de 24h, abortar.
+        if (isBlocked[newUser]) revert BlockedUserCannotReceive();
 
         address oldUser = req.oldUser;
 
