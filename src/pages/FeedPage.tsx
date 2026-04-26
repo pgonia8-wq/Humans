@@ -5,6 +5,7 @@ import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { LanguageContext } from "../LanguageContext";
 import { ThemeContext } from "../lib/ThemeContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { useFeedIntelligence } from "../components/hooks/useFeedIntelligence";
 import {
   Star,
   Crown,
@@ -156,6 +157,13 @@ const FeedPage: React.FC<FeedPageProps> = ({
   // Ref del scroll para infinite scroll por tab
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // ── TAREA 1: Sensor Biométrico (Telemetría) ───────────────────────────
+  const { trackScroll } = useFeedIntelligence(
+    currentUserId ?? "",
+    "feed-session",
+    0,
+  );
+
   // ── Fetch: Siguiendo (cursor-based, escala a 1M+) ─────────────────────
   const fetchFollowing = useCallback(
     async (reset = false) => {
@@ -287,6 +295,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
         throttle = null;
         const scrolled = window.scrollY + window.innerHeight;
         const total = document.documentElement.scrollHeight;
+        trackScroll(window.scrollY, total);
         if (scrolled >= total - 300) {
           if (activeTab === "following") fetchFollowing();
           if (activeTab === "mine") fetchMine();
