@@ -11,7 +11,7 @@ const supabase = createClient(
 )
 
 // Conexión rápida al RPC para leer el nonce directo del contrato (Seguridad Anti-Replay)
-const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL_WORLDCHAIN)
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL_WORLDCHAIN)
 const ORACLE_ADDRESS = process.env.ORACLE_ADDRESS
 
 // ABI mínimo para leer el nonce (verificado según tu oracleSigner.mjs)
@@ -69,7 +69,7 @@ export async function POST(req) {
     // Rango Influence: 925 - 1075 (El rango de tu Smart Contract)
     // 1000 es el estado neutral. Baja si eres bot.
     const baseInfluence = 1000 - (75 * botPenalty)
-    const finalInfluence = Math.max(925, Math.min(1075, Math.floor(baseInfluence)))
+    const finalInfluence = Math.max(975, Math.min(1025, Math.floor(baseInfluence)))
 
     // --- CÁLCULO DE SCORE (Tu Red Social) ---
     // Tomamos el score real de interacciones, likes, tips (Rango 1 - 10000)
@@ -92,7 +92,7 @@ export async function POST(req) {
       caller: caller_address,
       score: finalScore,
       influence: finalInfluence,
-      nonce: currentNonce.toNumber(),
+      nonce: Number(currentNonce),
       deadline: deadline
     })
 
@@ -106,7 +106,7 @@ export async function POST(req) {
         caller: caller_address,
         score: finalScore,
         influence: finalInfluence,
-        nonce: currentNonce.toNumber(),
+        nonce: Number(currentNonce),
         deadline: deadline,
         signature: signature
       }
