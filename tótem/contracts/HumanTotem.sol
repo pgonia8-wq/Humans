@@ -44,8 +44,11 @@ contract HumanTotem is ERC20, Ownable, ReentrancyGuard {
 
     // ========================= CONFIG =========================
 
-    uint256 public constant SCORE_THRESHOLD_LOW = 4000;
-    uint256 public constant SCORE_THRESHOLD_CRITICAL = 2000;
+    // [C-04 FIX] Thresholds alineados al rango real del oracle [975, 1025].
+    // Mapeo lineal: rep = (oracleScore - 975) * 10_000 / 50
+    //   rep 4000 → oracle 995  |  rep 2000 → oracle 985
+    uint256 public constant SCORE_THRESHOLD_LOW = 995;
+    uint256 public constant SCORE_THRESHOLD_CRITICAL = 985;
     uint256 public constant MAX_SCORE_STALENESS = 10 minutes;
 
     uint256 public baseFeeBps = 0;
@@ -136,18 +139,27 @@ contract HumanTotem is ERC20, Ownable, ReentrancyGuard {
 
     // ========================= TRANSFER =========================
 
-    function _transfer(
+    // [COMPILE FIX OZ v5] _transfer ya no es virtual. Override movido a _update,
+    // que se invoca también en mint/burn. Guardia preserva el comportamiento original
+    // "fee solo en transfers" — mint y burn pasan sin penalización.
+    function _update(
         address from,
         address to,
-        uint256 amount
+        uint256 value
     ) internal override {
+
+        if (from == address(0) || to == address(0)) {
+            // mint (from=0) o burn (to=0) — sin fee, sin lock check
+            super._update(from, to, value);
+            return;
+        }
 
         (uint256 score, bool locked) = _getCachedStatus();
 
         // 1. Bloqueo total si fraude
         if (locked) revert HumanFraudDetected();
 
-        uint256 finalAmount = amount;
+        uint256 finalAmount = value;
 
         // 🔥 CRÍTICO: EXENCIÓN OWNER (AMM SAFE)
         if (from != owner()) {
@@ -157,11 +169,11 @@ contract HumanTotem is ERC20, Ownable, ReentrancyGuard {
                 uint256 feeBps = _calculateDynamicFee(score);
 
                 if (feeBps > 0) {
-                    uint256 fee = (amount * feeBps) / 10_000;
+                    uint256 fee = (value * feeBps) / 10_000;
 
                     if (fee > 0) {
-                        super._transfer(from, treasury, fee);
-                        finalAmount = amount - fee;
+                        super._update(from, treasury, fee);
+                        finalAmount = value - fee;
 
                         emit ReputationPenaltyApplied(from, fee, score);
                     }
@@ -169,7 +181,7 @@ contract HumanTotem is ERC20, Ownable, ReentrancyGuard {
             }
         }
 
-        super._transfer(from, to, finalAmount);
+        super._update(from, to, finalAmount);
     }
 
     // ========================= FEE LOGIC =========================
