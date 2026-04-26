@@ -32,6 +32,7 @@ import AntiManipWidget from "./AntiManipWidget";
 const BONDING_CURVE_ADDRESS = import.meta.env.VITE_BONDING_CURVE_ADDRESS || "";
 const WLD_ADDRESS           = "0x2cFc85d8E48F8EaB294be644d9E25C3030863003";
 const ORACLE_CLAIM_ENDPOINT = import.meta.env.VITE_ORACLE_ENDPOINT || "/api/oracle/claim";
+  const ORACLE_ADDRESS        = import.meta.env.VITE_ORACLE_ADDRESS  || "";
 
 // ── ABIs mínimos ────────────────────────────────────────────────────────────
 const WLD_ABI = [
@@ -40,30 +41,35 @@ const WLD_ABI = [
     outputs: [{ name: "", type: "bool" }] },
 ] as const;
 
-const CURVE_ABI = [
-  { name: "buy", type: "function", stateMutability: "nonpayable",
-    inputs: [
-      { name: "totem",        type: "address" },
-      { name: "amountWldIn",  type: "uint256" },
-      { name: "minTokensOut", type: "uint256" },
-      { name: "score",        type: "uint256" },
-      { name: "influence",    type: "uint256" },
-      { name: "nonce",        type: "uint256" },
-      { name: "deadline",     type: "uint256" },
-      { name: "signature",    type: "bytes"   },
-    ], outputs: [] },
-  { name: "sell", type: "function", stateMutability: "nonpayable",
-    inputs: [
-      { name: "totem",     type: "address" },
-      { name: "tokensIn",  type: "uint256" },
-      { name: "minWldOut", type: "uint256" },
-      { name: "score",     type: "uint256" },
-      { name: "influence", type: "uint256" },
-      { name: "nonce",     type: "uint256" },
-      { name: "deadline",  type: "uint256" },
-      { name: "signature", type: "bytes"   },
-    ], outputs: [] },
-] as const;
+// ABI mínimo de TotemOracle.sol → update() (7 params)
+  const ORACLE_ABI = [
+    { name: "update", type: "function", stateMutability: "payable",
+      inputs: [
+        { name: "totem",     type: "address" },
+        { name: "caller",    type: "address" },
+        { name: "score",     type: "uint256" },
+        { name: "influence", type: "uint256" },
+        { name: "nonce",     type: "uint256" },
+        { name: "deadline",  type: "uint256" },
+        { name: "signature", type: "bytes"   },
+      ], outputs: [] },
+  ] as const;
+
+  // ABI mínimo de TotemBondingCurve.sol → buy/sell con 3 params (score leído internamente)
+  const CURVE_ABI = [
+    { name: "buy", type: "function", stateMutability: "nonpayable",
+      inputs: [
+        { name: "totem",        type: "address" },
+        { name: "amountWldIn",  type: "uint256" },
+        { name: "minTokensOut", type: "uint256" },
+      ], outputs: [] },
+    { name: "sell", type: "function", stateMutability: "nonpayable",
+      inputs: [
+        { name: "totem",     type: "address" },
+        { name: "tokensIn",  type: "uint256" },
+        { name: "minWldOut", type: "uint256" },
+      ], outputs: [] },
+  ] as const;
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 interface Props {
@@ -249,22 +255,27 @@ export default function TradePanel({
         // ────────────────────────────────────────────────────────────────
 
         const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
-          transaction: [
-            { address: WLD_ADDRESS,            abi: WLD_ABI,   functionName: "approve",
-              args: [BONDING_CURVE_ADDRESS, wldWei.toString()] },
-            { address: BONDING_CURVE_ADDRESS,  abi: CURVE_ABI, functionName: "buy",
-              args: [
-                totemAddress,
-                wldWei.toString(),
-                minTokensOut.toString(),
-                oraclePayload.score.toString(),
-                oraclePayload.influence.toString(),
-                oraclePayload.nonce.toString(),
-                oraclePayload.deadline.toString(),
-                oraclePayload.signature,
-              ] },
-          ],
-        });
+            transaction: [
+              { address: WLD_ADDRESS,           abi: WLD_ABI,    functionName: "approve",
+                args: [BONDING_CURVE_ADDRESS, wldWei.toString()] },
+              { address: ORACLE_ADDRESS,        abi: ORACLE_ABI, functionName: "update",
+                args: [
+                  totemAddress,
+                  walletAddress,
+                  oraclePayload.score.toString(),
+                  oraclePayload.influence.toString(),
+                  oraclePayload.nonce.toString(),
+                  oraclePayload.deadline.toString(),
+                  oraclePayload.signature,
+                ] },
+              { address: BONDING_CURVE_ADDRESS, abi: CURVE_ABI,  functionName: "buy",
+                args: [
+                  totemAddress,
+                  wldWei.toString(),
+                  minTokensOut.toString(),
+                ] },
+            ],
+          });
         if (!finalPayload || finalPayload.status !== "success") {
           fireToast("err", "Transacción cancelada o fallida en World App");
           setBtnFx("error"); setTimeout(() => setBtnFx("idle"), 1400); return;
@@ -335,20 +346,25 @@ export default function TradePanel({
         // ────────────────────────────────────────────────────────────────
 
         const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
-          transaction: [
-            { address: BONDING_CURVE_ADDRESS, abi: CURVE_ABI, functionName: "sell",
-              args: [
-                totemAddress,
-                tokensIn.toString(),
-                minWldOut.toString(),
-                oraclePayload.score.toString(),
-                oraclePayload.influence.toString(),
-                oraclePayload.nonce.toString(),
-                oraclePayload.deadline.toString(),
-                oraclePayload.signature,
-              ] },
-          ],
-        });
+            transaction: [
+              { address: ORACLE_ADDRESS,        abi: ORACLE_ABI, functionName: "update",
+                args: [
+                  totemAddress,
+                  walletAddress,
+                  oraclePayload.score.toString(),
+                  oraclePayload.influence.toString(),
+                  oraclePayload.nonce.toString(),
+                  oraclePayload.deadline.toString(),
+                  oraclePayload.signature,
+                ] },
+              { address: BONDING_CURVE_ADDRESS, abi: CURVE_ABI,  functionName: "sell",
+                args: [
+                  totemAddress,
+                  tokensIn.toString(),
+                  minWldOut.toString(),
+                ] },
+            ],
+          });
         if (!finalPayload || finalPayload.status !== "success") {
           fireToast("err", "Transacción cancelada o fallida en World App");
           setBtnFx("error"); setTimeout(() => setBtnFx("idle"), 1400); return;
