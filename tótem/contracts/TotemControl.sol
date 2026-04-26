@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 contract TotemControl is Ownable2Step {
 
+    // [COMPILE FIX] OZ v5 requiere initialOwner explícito.
+    constructor() Ownable(msg.sender) {}
+
     // ========================= CONFIG =========================
     uint256 public fee = 0.01 ether;
 
