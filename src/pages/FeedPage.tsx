@@ -284,9 +284,12 @@ const FeedPage: React.FC<FeedPageProps> = ({
     if (activeTab === "global") onLoadMoreGlobal?.();
   }, [activeTab, currentUserId]);
 
-  // ── Infinite scroll por tab (window-level) ───────────────────────────
+  // ── Infinite scroll por tab (#root-level, compatible con fix iOS bounce) ────
   useEffect(() => {
     if (activeTab === "global") return;
+
+    const scrollEl = document.getElementById("root");
+    if (!scrollEl) return;
 
     let throttle: ReturnType<typeof setTimeout> | null = null;
 
@@ -294,9 +297,9 @@ const FeedPage: React.FC<FeedPageProps> = ({
       if (throttle) return;
       throttle = setTimeout(() => {
         throttle = null;
-        const scrolled = window.scrollY + window.innerHeight;
-        const total = document.documentElement.scrollHeight;
-        trackScroll(window.scrollY, total);
+        const scrolled = scrollEl.scrollTop + scrollEl.clientHeight;
+        const total = scrollEl.scrollHeight;
+        trackScroll(scrollEl.scrollTop, total);
         if (scrolled >= total - 300) {
           if (activeTab === "following") fetchFollowing();
           if (activeTab === "mine") fetchMine();
@@ -304,9 +307,9 @@ const FeedPage: React.FC<FeedPageProps> = ({
       }, 150);
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    scrollEl.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
-      window.removeEventListener("scroll", handleScroll);
+      scrollEl.removeEventListener("scroll", handleScroll);
       if (throttle) clearTimeout(throttle);
     };
   }, [activeTab, fetchFollowing, fetchMine]);
