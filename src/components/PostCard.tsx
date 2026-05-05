@@ -180,9 +180,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const [showWldAnimation, setShowWldAnimation] = useState(false);
 
-  // Body scroll lock para los modales fullscreen del PostCard (iOS bounce fix)
+  // Body scroll lock para los modales fullscreen del PostCard (iOS bounce fix).
+  // fullscreenImage se excluye deliberadamente: el overlay ya cubre toda la pantalla
+  // con position:fixed, por lo que no necesita bloquear #root. Incluirlo causaba
+  // que el scrollTop no se restaurara correctamente al cerrar la imagen en iOS.
   useBodyScrollLock(
-    fullscreenImage ||
     showGlobalChat ||
     showReportModal ||
     showOptionsMenu ||
@@ -672,29 +674,32 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  const openUserProfile = () => {
-    setProfileModalUserId(post.user_id);
-  };
-
-  // [E14] Corregido: trackClick se llama al hacer clic en contenido de anuncio
-  const handleAdClick = () => {
-    if (!isAd || !post?.id || hasClicked.current) return;
-    hasClicked.current = true;
-    trackClick({
-      postId: post.id,
-      campaignId: post.campaign_id,
-      userData,
-    });
-  };
-
   const isDark = theme === "dark";
 
-  // ── Blocked state ──────────────────────────────────────────────────
+  const handleAdClick = async () => {
+    if (!isAd || !post.campaign_id || hasClicked.current) return;
+    hasClicked.current = true;
+    const country = userData?.country || "DEFAULT";
+    const cpc = CPC_BY_COUNTRY[country] ?? CPC_BY_COUNTRY["DEFAULT"];
+    trackClick({ postId: post.id, campaignId: post.campaign_id, userData });
+    try {
+      await supabase.rpc("increment_ad_click", {
+        campaign_id_input: post.campaign_id,
+        cost_per_click: cpc.toString(),
+      });
+    } catch {}
+    if (post.ad_url) window.open(post.ad_url, "_blank", "noopener,noreferrer");
+  };
+
+  const openUserProfile = () => {
+    if (post.user_id) setProfileModalUserId(post.user_id);
+  };
+
   if (blocked) return (
-    <div className={`w-full px-6 py-3.5 border-b flex items-center justify-between gap-3 text-sm ${
-      isDark ? "bg-[#0a0a0a] border-white/[0.06]" : "bg-[#f8f9fa] border-gray-100"
+    <div className={`flex items-center justify-between px-4 py-3 rounded-2xl border text-sm ${
+      isDark ? "bg-white/[0.02] border-white/[0.06] text-gray-600" : "bg-gray-50 border-gray-100 text-gray-400"
     }`}>
-      <span className={isDark ? "text-gray-700" : "text-gray-400"}>
+      <span>
         Has bloqueado a este usuario.
       </span>
       <button
@@ -1151,11 +1156,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       </div>
 
-      {/* Fullscreen image overlay */}
+      {/* Fullscreen image overlay — sin useBodyScrollLock: el overlay cubre toda
+          la pantalla con position:fixed, por lo que bloquear #root no es necesario
+          y causaba que el scroll no se restaurara al cerrar la imagen en iOS. */}
       {fullscreenImage && post.image_url && (
         <div
           className="fixed inset-0 z-[99999] bg-black/97 flex items-center justify-center p-4"
-          style={{ backdropFilter: "blur(20px)" }}
+          style={{ backdropFilter: "blur(20px)", touchAction: "none", overscrollBehavior: "contain", cursor: "zoom-out" }}
           onClick={() => setFullscreenImage(false)}
         >
           <button
