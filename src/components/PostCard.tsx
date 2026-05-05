@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, lazy, Suspense } from "react";
+import ReactDOM from "react-dom";
 import useBodyScrollLock from "../lib/useBodyScrollLock";
 import { trackImpression, trackClick } from "../../dashboard/src/lib/tracking";
 import { supabase } from "../supabaseClient";
@@ -1156,30 +1157,68 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       </div>
 
-      {/* Fullscreen image overlay — sin useBodyScrollLock: el overlay cubre toda
-          la pantalla con position:fixed, por lo que bloquear #root no es necesario
-          y causaba que el scroll no se restaurara al cerrar la imagen en iOS. */}
-      {fullscreenImage && post.image_url && (
+      {/* Fullscreen image overlay — renderizado via Portal en document.body para
+          escapar el stacking context creado por backdrop-filter en el PostCard.
+          Sin Portal, position:fixed queda atrapado dentro del PostCard en iOS/WebKit
+          (backdrop-filter crea containing block para fixed según spec CSS).
+          Sin useBodyScrollLock: el overlay cubre toda la pantalla y su touchAction:none
+          ya bloquea el rubber-band; bloquear #root causaba que el scrollTop no se
+          restaurara al cerrar la imagen. */}
+      {fullscreenImage && post.image_url && ReactDOM.createPortal(
         <div
-          className="fixed inset-0 z-[99999] bg-black/97 flex items-center justify-center p-4"
-          style={{ backdropFilter: "blur(20px)", touchAction: "none", overscrollBehavior: "contain", cursor: "zoom-out" }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 99999,
+            background: "rgba(0,0,0,0.97)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            touchAction: "none",
+            overscrollBehavior: "contain",
+            cursor: "zoom-out",
+          }}
           onClick={() => setFullscreenImage(false)}
         >
           <button
-            onClick={() => setFullscreenImage(false)}
-            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition border border-white/10"
+            onClick={(e) => { e.stopPropagation(); setFullscreenImage(false); }}
+            style={{
+              position: "absolute",
+              top: "1rem",
+              right: "1rem",
+              zIndex: 10,
+              padding: "0.5rem",
+              borderRadius: "9999px",
+              background: "rgba(255,255,255,0.10)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: "#fff",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
           <img
             src={post.image_url}
             alt="post fullscreen"
-            className="max-w-full max-h-full object-contain rounded-3xl"
+            style={{
+              maxWidth: "100%",
+              maxHeight: "100%",
+              objectFit: "contain",
+              borderRadius: "1.5rem",
+              cursor: "default",
+            }}
             onClick={(e) => e.stopPropagation()}
           />
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Report modal */}
