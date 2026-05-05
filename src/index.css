@@ -82,6 +82,10 @@
     overflow-x: hidden;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
+    /* Promueve #root a su propia capa de compositing en la GPU.
+       Evita repaints de los PostCards al hacer scroll y elimina
+       el "lag" / jank causado por los backdrop-filter de las cards. */
+    will-change: scroll-position;
   }
 
   /* Bloquea scroll del background cuando un modal fullscreen está abierto. */
