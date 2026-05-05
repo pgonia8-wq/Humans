@@ -9,6 +9,7 @@ import React, {
   Suspense,
 } from "react";
 
+import useBodyScrollLock from "../lib/useBodyScrollLock";
 import { supabase } from "../supabaseClient";
 import { MiniKit, Tokens, tokenToDecimals, VerificationLevel } from "@worldcoin/minikit-js";
 import FeedPage from "./FeedPage";
@@ -624,26 +625,18 @@ const HomePage: React.FC<HomePageProps> = ({
           >
             <Mail size={17} />
           </motion.button>
-          <AnimatePresence>
-            {unreadTotal > 0 && (
-              <motion.span
-                key="mail-badge"
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 500, damping: 24 }}
-                className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1 leading-none shadow-md pointer-events-none"
-              >
-                {unreadTotal > 99 ? "99+" : unreadTotal}
-              </motion.span>
-            )}
-          </AnimatePresence>
+          {unreadMessages > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}>
+              {unreadMessages > 9 ? "9+" : unreadMessages}
+            </span>
+          )}
         </div>
 
-        {/* ── BOTÓN Bell ── */}
+        {/* ── BOTÓN Campana ── */}
         <div className="relative flex-1">
           <motion.button
-            onClick={() => setShowNotifications(true)}
+            onClick={() => { setShowNotifications(true); }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="w-full h-10 flex items-center justify-center rounded-xl"
@@ -654,36 +647,23 @@ const HomePage: React.FC<HomePageProps> = ({
               color: "#ffffff",
             }}
           >
-            <motion.div
-              animate={unreadNotifCount > 0 ? { rotate: [0, -12, 12, -8, 8, 0] } : {}}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <Bell size={17} />
-            </motion.div>
+            <Bell size={17} />
           </motion.button>
-          <AnimatePresence>
-            {unreadNotifCount > 0 && (
-              <motion.span
-                key="bell-badge"
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 500, damping: 24 }}
-                className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full bg-violet-500 text-white text-[9px] font-bold px-1 leading-none shadow-md pointer-events-none"
-              >
-                {unreadNotifCount}
-              </motion.span>
-            )}
-          </AnimatePresence>
+          {unreadNotifCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}>
+              {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
+            </span>
+          )}
         </div>
 
-        {/* ── BOTÓN Chat ── */}
+        {/* ── BOTÓN Chat global ── */}
         <motion.button
           onClick={handleHeaderChat}
-          disabled={headerChatLoading || checkingAccessHeader}
+          disabled={headerChatLoading}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="flex-1 h-10 flex items-center justify-center rounded-xl disabled:opacity-50"
+          className="flex-1 h-10 flex items-center justify-center rounded-xl"
           style={{
             background: "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
             border: "1px solid rgba(255,255,255,0.14)",
@@ -691,95 +671,55 @@ const HomePage: React.FC<HomePageProps> = ({
             color: "#ffffff",
           }}
         >
-          <MessageCircle size={17} />
+          {headerChatLoading
+            ? <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            : <MessageCircle size={17} />
+          }
         </motion.button>
 
-        {/* ── BOTÓN Trade Center ── */}
-          <motion.button
-            onClick={() => setShowTradeCenter(true)}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="flex-1 h-10 flex items-center justify-center rounded-xl"
-            style={{
-              background: "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              boxShadow: "0 4px 14px rgba(0,0,0,0.70), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.45)",
-              color: "#ffffff",
-            }}
-          >
-            <BarChart2 size={17} />
-          </motion.button>
+        {/* ── BOTÓN Trade ── */}
+        <motion.button
+          onClick={() => setShowTradeCenter(true)}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="flex-1 h-10 flex items-center justify-center rounded-xl"
+          style={{
+            background: "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.70), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.45)",
+            color: "#ffffff",
+          }}
+        >
+          <BarChart2 size={17} />
+        </motion.button>
 
-          {/* ── AVATAR (mismo tamaño y forma) ── */}
-        <motion.div
-          className="relative flex-1 h-10 cursor-pointer"
+        {/* ── AVATAR / Perfil ── */}
+        <motion.button
           onClick={() => setShowProfileModal(true)}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          className="flex-shrink-0 w-10 h-10 rounded-xl overflow-hidden"
+          style={{
+            border: "1px solid rgba(255,255,255,0.14)",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.70), inset 0 1px 0 rgba(255,255,255,0.22)",
+          }}
         >
-          <div
-            className="w-full h-full rounded-xl overflow-hidden"
-            style={{
-              background: "linear-gradient(160deg, #2c2c2c 0%, #1a1a1a 45%, #0f0f0f 100%)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              boxShadow: "0 4px 14px rgba(0,0,0,0.70), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.45)",
-            }}
-          >
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} className="block w-full h-full object-cover object-center" alt="Avatar" />
-            ) : (
-              <div
-                className="w-full h-full flex items-center justify-center text-sm font-bold"
-                style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)", color: "#fff" }}
-              >
-                {(username || "H")[0].toUpperCase()}
-              </div>
-            )}
-          </div>
-          <div
-            className="absolute bottom-0.5 right-0.5 w-[13px] h-[13px] rounded-full flex items-center justify-center shadow-md"
-            style={{ background: "#22c55e", border: isDark ? "1.5px solid #0a0a0a" : "1.5px solid #ffffff" }}
-          >
-            <span className="text-white font-extrabold leading-none" style={{ fontSize: 7 }}>W</span>
-          </div>
-        </motion.div>
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold"
+              style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}>
+              {(profile?.username || username || "H")[0].toUpperCase()}
+            </div>
+          )}
+        </motion.button>
       </header>
 
-      {/* ── BANNER CARRUSEL: Gana WLD ── */}
-      <div
-        className="fixed left-0 right-0 z-[28] overflow-hidden flex items-center"
-        style={{ top: "72px", height: "26px" }}
-      >
-        <div
-          className="flex items-center whitespace-nowrap"
-          style={{ animation: "carouselScroll 22s linear infinite" }}
-        >
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-10 px-10 text-[11.5px] font-black tracking-widest uppercase"
-              style={isDark ? {
-                color: "#00e5ff",
-                textShadow: "0 0 10px rgba(0,229,255,0.70), 0 0 22px rgba(0,255,200,0.35)",
-              } : {
-                color: "#111111",
-                textShadow: "0 1px 0 rgba(255,255,255,0.6)",
-              }}
-            >
-              <span>✦ Gana WLD publicando y conectando con humanos reales</span>
-              <span>✦ Posts que inspiran generan recompensas automáticas en WLD</span>
-              <span>✦ Conecta · Crea · Gana · H by Humans</span>
-            </span>
-          ))}
-        </div>
-      </div>
-
       {/* ── FEED ── */}
-      <main className="w-full px-2 pt-[100px] pb-6 flex justify-center">
+      <main className="pt-20 pb-8">
         <FeedPage
           posts={mergedPosts}
           loading={globalLoading}
-          error={error}
           currentUserId={userId}
           userTier={profile?.tier || "free"}
           onUpgradeSuccess={fetchOrUpsertProfile}
@@ -788,190 +728,165 @@ const HomePage: React.FC<HomePageProps> = ({
         />
       </main>
 
-      {/* ── MODALES ── */}
-
-      {showProfileModal && (
-        <Suspense fallback={null}>
-          <ProfileModal
-            currentUserId={userId}
-            onClose={() => setShowProfileModal(false)}
-            onProfileUpdated={handleProfileUpdated}
-          />
-        </Suspense>
-      )}
-
-      {/* Modal crear post */}
+      {/* ── MODAL NUEVO POST ── */}
       <AnimatePresence>
         {showNewPostModal && (
           <motion.div
-            key="create-post-overlay"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            key="new-post-overlay"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ backdropFilter: "blur(16px)", background: "rgba(0,0,0,0.82)" }}
-            onClick={() => setShowNewPostModal(false)}
+            transition={{ duration: 0.18 }}
+            style={{ backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.65)" }}
+            onClick={() => { setShowNewPostModal(false); setPostError(null); }}
           >
             <motion.div
-              key="create-post-modal"
-              className={`relative w-full max-w-md rounded-3xl shadow-2xl overflow-hidden ${
-                isDark ? "bg-[#111113] border border-white/[0.08]" : "bg-white border border-gray-100"
+              key="new-post-modal"
+              className={`relative w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col border ${
+                isDark ? "bg-[#111113] border-white/[0.08]" : "bg-white border-gray-100"
               }`}
-              initial={{ opacity: 0, scale: 0.92, y: 24 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 24 }}
-              transition={{ type: "spring", stiffness: 340, damping: 28 }}
+              initial={{ opacity: 0, y: 60, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 360, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Gradient top accent */}
-              <div className="absolute inset-x-0 top-0 h-1.5 rounded-t-3xl" style={{ background: "linear-gradient(90deg, #6366f1, #a855f7, #a78bfa)" }} />
+              {/* Gradient accent top */}
+              <div className="absolute inset-x-0 top-0 h-[2px]" style={{ background: "linear-gradient(90deg, #6366f1, #a855f7, #a78bfa)" }} />
 
               {/* Header */}
-              <div className="flex items-center justify-between px-6 pt-6 pb-4">
+              <div className={`flex items-center justify-between px-5 pt-5 pb-3 border-b ${isDark ? "border-white/[0.07]" : "border-gray-100"}`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}>
-                    <Send size={14} className="text-white -rotate-12" />
+                  <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}>
+                    <Send size={15} className="text-white" />
                   </div>
-                  <h2 className={`text-lg font-bold tracking-tight ${isDark ? "text-white" : "text-gray-900"}`}>
-                    {t("create_post")}
+                  <h2 className={`text-base font-bold leading-tight ${isDark ? "text-white" : "text-gray-900"}`}>
+                    {t("new_post") || "Nueva publicación"}
                   </h2>
                 </div>
                 <motion.button
                   whileHover={{ scale: 1.1, rotate: 90 }}
                   whileTap={{ scale: 0.9 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                  onClick={() => setShowNewPostModal(false)}
+                  onClick={() => { setShowNewPostModal(false); setPostError(null); }}
                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                     isDark ? "text-gray-500 hover:text-white hover:bg-white/10" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
                   }`}
                 >
-                  <X size={16} />
+                  <X size={15} />
                 </motion.button>
               </div>
 
-              {/* Textarea */}
-              <div className="px-6">
-                <div className={`relative rounded-2xl overflow-hidden transition-shadow ${
-                  isDark
-                    ? "bg-white/[0.04] ring-1 ring-white/[0.08] focus-within:ring-violet-500/60"
-                    : "bg-gray-50 ring-1 ring-gray-200 focus-within:ring-violet-400/60"
-                }`}>
-                  <textarea
-                    value={newPostContent}
-                    onChange={(e) => setNewPostContent(e.target.value)}
-                    className={`w-full h-32 p-4 resize-none focus:outline-none bg-transparent text-sm leading-relaxed ${
-                      isDark ? "text-white placeholder-gray-600" : "text-gray-900 placeholder-gray-400"
-                    }`}
-                    placeholder={t("whats_happening")}
-                    maxLength={maxChars}
-                    autoFocus
-                  />
-                  <div className={`absolute bottom-3 right-3 text-xs font-medium tabular-nums ${
-                    newPostContent.length > maxChars * 0.85 ? "text-red-400" : isDark ? "text-gray-600" : "text-gray-400"
-                  }`}>
+              {/* Body */}
+              <div className="px-5 pt-4 pb-3">
+                <textarea
+                  value={newPostContent}
+                  onChange={(e) => setNewPostContent(e.target.value)}
+                  maxLength={maxChars}
+                  placeholder={t("whats_on_mind") || "¿Qué está pasando?"}
+                  rows={4}
+                  className={`w-full resize-none text-sm leading-relaxed focus:outline-none bg-transparent ${
+                    isDark ? "text-white placeholder-gray-600" : "text-gray-900 placeholder-gray-400"
+                  }`}
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className={`text-xs ${newPostContent.length > maxChars * 0.9 ? "text-red-400" : isDark ? "text-gray-700" : "text-gray-300"}`}>
                     {newPostContent.length}/{maxChars}
-                  </div>
+                  </span>
                 </div>
-              </div>
 
-              {/* Image preview */}
-              <AnimatePresence>
+                {/* Image preview */}
                 {imagePreview && (
-                  <motion.div
-                    className="px-6 mt-4"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <div className="relative group rounded-2xl overflow-hidden shadow-lg max-h-60">
-                      <img src={imagePreview} alt="Preview" className="w-full object-cover max-h-60" />
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => { setNewPostImage(null); setImagePreview(null); }}
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-white/10"
-                      >
-                        <X size={12} className="text-white" />
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Error */}
-              <AnimatePresence>
-                {postError && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    className="mx-6 mt-3 px-4 py-2.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center justify-between gap-2"
-                  >
-                    <span className="truncate">⚠ {postError}</span>
-                    <button onClick={() => setPostError(null)} className="flex-shrink-0 text-red-400 hover:text-red-200 transition">
+                  <div className="relative mt-3 rounded-2xl overflow-hidden">
+                    <img src={imagePreview} alt="preview" className="w-full max-h-48 object-cover rounded-2xl" />
+                    <button
+                      onClick={() => { setNewPostImage(null); setImagePreview(null); }}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80 transition"
+                    >
                       <X size={13} />
                     </button>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
+
+                {postError && (
+                  <p className="text-xs text-red-400 mt-2 text-center">{postError}</p>
+                )}
+              </div>
 
               {/* Footer actions */}
-              <div className="flex items-center gap-3 px-6 py-5 mt-2">
-                <label className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
-                  isDark
-                    ? "text-gray-500 hover:text-violet-400 hover:bg-violet-500/10"
-                    : "text-gray-400 hover:text-violet-600 hover:bg-violet-50"
-                }`}>
+              <div className={`flex items-center justify-between px-5 py-3 border-t ${isDark ? "border-white/[0.07]" : "border-gray-100"}`}>
+                <label className={`cursor-pointer p-2 rounded-xl transition-colors ${isDark ? "text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}>
+                  <ImageIcon size={18} />
                   <input
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) {
-                        setNewPostImage(file);
-                        setImagePreview(URL.createObjectURL(file));
-                      }
-                      e.target.value = "";
+                      if (!file) return;
+                      setNewPostImage(file);
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+                      reader.readAsDataURL(file);
                     }}
                   />
-                  <ImageIcon size={16} />
-                  <span className="hidden sm:inline">{t("add_image") || "Imagen"}</span>
                 </label>
-                <div className="flex-1" />
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => setShowNewPostModal(false)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    isDark ? "text-gray-400 bg-white/[0.05] hover:bg-white/10" : "text-gray-600 bg-gray-100 hover:bg-gray-200"
-                  }`}
-                >
-                  {t("cancel")}
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
                   onClick={handleCreatePost}
-                  disabled={!newPostContent.trim() || isPosting}
-                  className="relative px-5 py-2.5 rounded-xl text-sm font-semibold text-white overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{
-                    background: "linear-gradient(135deg, #6366f1, #a855f7)",
-                    boxShadow: newPostContent.trim() ? "0 0 20px rgba(168,85,247,0.40)" : "none",
-                  }}
+                  disabled={isPosting || !newPostContent.trim()}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-white text-sm font-semibold disabled:opacity-40 transition"
+                  style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)", boxShadow: "0 4px 16px rgba(99,102,241,0.35)" }}
                 >
-                  <span className="relative flex items-center gap-2">
-                    {isPosting ? (
-                      <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                    ) : (
-                      <Send size={14} className="-rotate-12" />
-                    )}
-                    {t("publish")}
-                  </span>
+                  {isPosting ? (
+                    <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  ) : (
+                    <Send size={14} />
+                  )}
+                  {isPosting ? (t("publishing") || "Publicando...") : (t("publish") || "Publicar")}
                 </motion.button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Profile Modal */}
+      <AnimatePresence>
+        {showProfileModal && userId && (
+          <motion.div
+            key="profile-overlay"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            style={{ backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.65)" }}
+            onClick={() => setShowProfileModal(false)}
+          >
+            <motion.div
+              key="profile-modal"
+              className="relative w-full sm:max-w-sm"
+              initial={{ opacity: 0, y: 60, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 360, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Suspense fallback={
+                <div className="h-64 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#a855f7", borderRightColor: "#6366f1" }} />
+                </div>
+              }>
+                <ProfileModal
+                  userId={userId}
+                  onClose={() => setShowProfileModal(false)}
+                  onProfileUpdated={handleProfileUpdated}
+                  currentUserId={userId}
+                />
+              </Suspense>
             </motion.div>
           </motion.div>
         )}
@@ -981,21 +896,25 @@ const HomePage: React.FC<HomePageProps> = ({
       <AnimatePresence>
         {showInbox && (
           <motion.div
+            key="inbox-overlay"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ backdropFilter: "blur(16px)", background: "rgba(0,0,0,0.75)" }}
+            transition={{ duration: 0.18 }}
+            style={{ backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.65)" }}
             onClick={() => setShowInbox(false)}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 30 }}
-              transition={{ type: "spring", stiffness: 340, damping: 28 }}
-              className={`w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border ${
+              key="inbox-modal"
+              className={`relative w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col border ${
                 isDark ? "bg-[#111113] border-white/[0.08]" : "bg-white border-gray-100"
               }`}
+              style={{ maxHeight: "85vh" }}
+              initial={{ opacity: 0, y: 60, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 360, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
             >
               {userId && (
