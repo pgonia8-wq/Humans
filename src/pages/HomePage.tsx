@@ -58,7 +58,7 @@ interface HomePageProps {
   verifying: boolean;
   setUserId: (id: string | null) => void;
   verifyUser: () => void;
-  verifyOrb: () => Promise<{ success: boolean; proof?: any }>;
+  verifyOrb: () => Promise<void>;
   /** Single source of truth desde App: profile.verification_level === "orb" */
   isOrbVerified: boolean;
   /** Callback para sincronizar el estado global tras verificación exitosa */
