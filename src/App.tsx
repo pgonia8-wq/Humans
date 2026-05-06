@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import { useTheme } from "./lib/ThemeContext";
 import HomePage from "./pages/HomePage";
-import { setSessionToken, clearSessionToken } from "./lib/tradeApi";
+import { setSessionToken, clearSessionToken, getSessionToken } from "./lib/tradeApi";
 
 // Sincronizar con las variables de entorno para evitar errores de paridad
 const WORLDCOIN_ACTION = import.meta.env.VITE_WORLDCOIN_ACTION_ID || "verify-user";
@@ -149,8 +149,21 @@ const App = () => {
     }
   };
 
-  const verifyOrb = async (): Promise<{ success: boolean; proof?: any }> => {
-    if (!miniKitReady || orbVerifying) return { success: false };
+  // ── FIX BUG 2: verifyOrb ahora envía el proof al backend ─────────────────
+  //
+  // ANTES: solo llamaba a MiniKit y devolvía { success, proof } localmente,
+  // sin tocar la DB ni actualizar isOrbVerified. El _orbGuard del backend
+  // seguía viendo verification_level="device" → rechazaba el create totem.
+  //
+  // AHORA:
+  //  1. Valida que el proof sea realmente "orb" (lanza si no lo es).
+  //  2. POST /api/verifyOrbStatus — actualiza verification_level="orb" en DB.
+  //  3. Llama setIsOrbVerified(true) → TradeShell deja de mostrar el gate.
+  //
+  // La función lanza en caso de error → OrbGateModal muestra el mensaje y
+  // permanece abierto sin cerrar el modal prematuramente.
+  const verifyOrb = async (): Promise<void> => {
+    if (!miniKitReady || orbVerifying) return;
     setOrbVerifying(true);
     try {
       const verifyRes = await MiniKit.commandsAsync.verify({
@@ -159,11 +172,32 @@ const App = () => {
         verification_level: VerificationLevel.Orb,
       });
       const proof = verifyRes?.finalPayload;
-      
-      // Enviamos también la verificación de ORB al backend si es necesario
-      return { success: proof?.verification_level === "orb", proof };
-    } catch (err) {
-      return { success: false };
+
+      if (!proof || proof.status === "error") {
+        throw new Error("Verificación cancelada o fallida. Inténtalo de nuevo.");
+      }
+      if (proof.verification_level !== "orb") {
+        throw new Error("Se requiere verificación con el Orb de World ID.");
+      }
+
+      // Enviar proof al backend para actualizar la DB
+      const token = getSessionToken();
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (token) (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch("/api/verifyOrbStatus", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ proof }),
+      });
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Error al guardar la verificación Orb en el servidor.");
+      }
+
+      // Actualizar estado global → TradeShell quita el gate sin necesitar refresh
+      setIsOrbVerified(true);
     } finally {
       setOrbVerifying(false);
     }
