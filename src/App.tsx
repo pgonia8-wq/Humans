@@ -128,7 +128,7 @@ const App = () => {
       const res = await fetch("/api/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload: proof }),
+        body: JSON.stringify({ payload: proof, signal: userId ?? "" }),
       });
 
       const result = await res.json();
