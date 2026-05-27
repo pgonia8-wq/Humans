@@ -1,2 +1,2 @@
 # H
-H app Social Human
+H app Social Humans
