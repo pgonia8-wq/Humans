@@ -43,7 +43,29 @@ import { ReactNode, useEffect, useState } from "react";
       };
     }, []);
 
-    if (!ready) return null;
+    if (!ready) {
+      return (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#06060d",
+        }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "2px solid transparent",
+            borderTopColor: "#a855f7",
+            borderRightColor: "#6366f1",
+            animation: "spin 0.8s linear infinite",
+          }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      );
+    }
 
     return <>{children}</>;
   }
