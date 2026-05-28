@@ -1,23 +1,15 @@
-import { requireOrb } from "../token/api/_orbGuard.mjs";
 /* ─────────────────────────────────────────────────────────────────────────────
-   DESTINO: api/createProfile.mjs
+   api/createProfile.mjs
    BUGS CORREGIDOS:
 
-   [C1] Sin CORS headers — cualquier llamada desde el browser o World App
-        WebView falla antes de llegar al handler (el browser aborta con
-        "blocked by CORS policy"). Se añaden los headers estándar y el
-        handler OPTIONS para preflight.
-
-   [C2] createClient() sin null coalescing — si SUPABASE_URL o
-        SUPABASE_SERVICE_ROLE_KEY no están definidas en Vercel, el SDK
-        de Supabase lanza un error críptico ("supabaseUrl is required").
-        Se añade ?? "" y log de error al inicio para detectarlo rápido.
-
+   [C1] Sin CORS headers.
+   [C2] createClient() sin null coalescing.
    [C3] Llave de cierre de la función mal indentada.
-
-   [C4] requireOrb() se llamaba ANTES de validar el formato de userId:
-        un userId malformado alcanzaba Supabase sin sanitizar. Ahora la
-        validación de formato ocurre primero.
+   [C4] requireOrb() se llamaba ANTES de validar el formato de userId.
+   [C5] FIXED: import roto de "../token/api/_orbGuard.mjs" (carpeta obsoleta).
+        createProfile es el paso de onboarding — ocurre ANTES de cualquier
+        verificación orb. No necesita gate orb; la autenticación del usuario
+        ya fue validada por World ID en /api/verify antes de llegar aquí.
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { createClient } from "@supabase/supabase-js";
@@ -60,9 +52,6 @@ export default async function handler(req, res) {
     if (!/^0x[a-fA-F0-9]{10,}$/.test(userId)) {
       return res.status(400).json({ success: false, error: "Invalid userId format" });
     }
-
-    const orbOk = await requireOrb(userId, res);
-    if (!orbOk) return;
 
     const { data: existing, error: selectError } = await supabase
       .from("profiles")
