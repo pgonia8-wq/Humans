@@ -458,7 +458,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
   return (
     <div
       ref={scrollRef}
-      className={`flex flex-col w-full max-w-xl mx-auto px-0 overflow-y-auto ${
+      className={`flex flex-col w-full max-w-xl mx-auto px-0 ${
         isDark ? "text-white" : "text-gray-900"
       }`}
     >
