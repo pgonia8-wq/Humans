@@ -2,6 +2,11 @@
    api/nonce.mjs
    Genera nonce con crypto.randomUUID() y lo persiste en tabla nonces de
    Supabase con TTL de 5 minutos para prevenir replay attacks.
+
+   FIX [M1]: Verificar que el INSERT en Supabase tuvo éxito antes de devolver
+   el nonce al cliente. Si el insert falla, el nonce no existe en DB y
+   cualquier verificación posterior fallará con "nonce inválido" — error
+   confuso para el usuario. Ahora devolvemos 500 si el insert falla.
    ─────────────────────────────────────────────────────────────────────────── */
 
 import crypto from "node:crypto";
@@ -34,12 +39,19 @@ export default async function handler(req, res) {
   try {
     const nonce = crypto.randomUUID().replace(/-/g, "");
 
-    await supabase.from("nonces").insert({
+    // FIX [M1]: Check the insert result. If it fails the nonce doesn't exist
+    // in the DB and walletVerify/withdraw will reject it with a confusing error.
+    const { error: insertError } = await supabase.from("nonces").insert({
       nonce,
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       used: false,
     });
+
+    if (insertError) {
+      console.error("[NONCE] Error persisting nonce:", insertError.message);
+      return res.status(500).json({ error: "Error generando nonce. Intenta de nuevo." });
+    }
 
     return res.status(200).json({ nonce });
   } catch (err) {
