@@ -71,7 +71,10 @@ export default async function handler(req, res) {
   const userId = body.userId || body.user_id;
   const amount = body.amount;
   const wallet = body.wallet;
-  console.log("[WITHDRAW] INPUT:", { userId, amount, wallet });
+
+  // FIX [S3]: Do not log userId/amount/wallet — they are financial PII.
+  // Only log a sanitized request identifier for tracing.
+  console.info("[WITHDRAW] Request received:", { reqId: Math.random().toString(36).slice(2, 10) });
 
   if (!userId || typeof userId !== "string") {
     return res.status(400).json({ success: false, error: "userId es requerido" });
@@ -106,8 +109,32 @@ export default async function handler(req, res) {
     return res.status(401).json({ success: false, error: "Error verificando firma SIWE" });
   }
 
-  if (payload.address.toLowerCase() !== userId.toLowerCase()) {
-    return res.status(403).json({ success: false, error: "userId no coincide con la firma SIWE" });
+  // SECURITY FIX [C2]: userId is a World ID nullifier hash (hex, 66 chars),
+  // NOT an EVM wallet address. Comparing payload.address (SIWE wallet, 42 chars)
+  // directly to userId would always fail (different formats, different values).
+  //
+  // Correct approach: verify that the SIWE-authenticated wallet address matches
+  // the wallet_address registered in the user's profile in the database.
+  // This proves: (1) the signer controls the wallet, (2) the wallet belongs to userId.
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("wallet_address")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileErr) {
+    console.error("[WITHDRAW] Profile lookup error:", profileErr.message);
+    return res.status(500).json({ success: false, error: "Error al verificar perfil" });
+  }
+  if (!profile) {
+    return res.status(404).json({ success: false, error: "Perfil no encontrado para este userId" });
+  }
+  if (!profile.wallet_address ||
+      profile.wallet_address.toLowerCase() !== payload.address.toLowerCase()) {
+    return res.status(403).json({
+      success: false,
+      error: "La wallet autenticada no coincide con la registrada en tu perfil",
+    });
   }
 
   if (wallet.toLowerCase() !== payload.address.toLowerCase()) {
