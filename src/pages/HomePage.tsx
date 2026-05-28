@@ -516,7 +516,7 @@ const HomePage: React.FC<HomePageProps> = ({
 
   return (
     <div
-      className={`min-h-screen overflow-y-auto overflow-x-hidden ${isDark ? "text-white" : "text-black"}`}
+      className={`min-h-screen ${isDark ? "text-white" : "text-black"}`}
       style={isDark ? {
         background: [
           "radial-gradient(ellipse at 12% 18%, rgba(99,102,241,0.22) 0%, transparent 52%)",
