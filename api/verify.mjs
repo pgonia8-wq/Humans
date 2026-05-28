@@ -30,6 +30,15 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).json({ success: false, error: "Method not allowed" });
 
+  // SECURITY: APP_ID must come from the server environment, never from the client.
+  // Using payload.app_id would allow an attacker to verify credentials from a
+  // different Worldcoin app (app_id substitution attack). We fail explicitly
+  // if APP_ID is not configured rather than falling back to client-supplied value.
+  if (!APP_ID) {
+    console.error("[VERIFY] ERROR: APP_ID not configured in environment");
+    return res.status(500).json({ success: false, error: "Configuración del servidor incompleta." });
+  }
+
   const { payload } = req.body || {};
 
   if (!payload?.nullifier_hash || !payload?.proof || !payload?.merkle_root) {
@@ -59,10 +68,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const targetAppId = payload.app_id || APP_ID;
-
+    // SECURITY FIX [C3]: Always use APP_ID from server environment.
+    // Never trust payload.app_id from the client.
     const verifyResponse = await fetch(
-      `https://developer.worldcoin.org/api/v2/verify/${targetAppId}`,
+      `https://developer.worldcoin.org/api/v2/verify/${APP_ID}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -80,15 +89,8 @@ export default async function handler(req, res) {
     const verifyData = await verifyResponse.json();
 
     if (!verifyResponse.ok) {
-      // ── FIX BUG 1: capturar TODOS los códigos "ya verificado" ─────────────
-      // World ID puede devolver "max_verifications_reached" (además de
-      // "already_verified") cuando el nullifier ya fue usado para este action.
-      // En ambos casos el usuario ES legítimo → devolver 200 + upsert en DB
-      // para que el perfil quede marcado verified=true aunque la primera
-      // escritura haya fallado anteriormente.
+      // ── Capturar TODOS los códigos "ya verificado" ─────────────────────────
       if (ALREADY_VERIFIED_CODES.has(verifyData.code)) {
-        // Garantizar que el perfil existe y está marcado como verificado,
-        // aunque el upsert previo hubiera fallado por cualquier razón.
         try {
           await supabase
             .from("profiles")
