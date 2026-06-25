@@ -118,6 +118,25 @@ function ShellBody() {
             borderRight: "1px solid rgba(255,255,255,0.06)",
           }}
         >
+          {/* ── Botón volver al feed ── */}
+            <button
+              onClick={onClose}
+              aria-label="Volver al feed"
+              className="absolute top-3 left-3 z-[9100] flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold backdrop-blur-md transition active:scale-95"
+              style={{
+                letterSpacing: "0.06em",
+                color: "rgba(255,255,255,0.85)",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                boxShadow: "0 8px 24px -10px rgba(0,0,0,0.6)",
+              }}
+            >
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Volver
+            </button>
+
           {/* Floating "Sistema ⌘K" trigger */}
             <button
               onClick={() => setSysOpen(true)}
