@@ -1210,7 +1210,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             alt="post fullscreen"
             style={{
               maxWidth: "100%",
-              maxHeight: "100%",
+              maxHeight: "100dvh",
+              width: "100%",
               objectFit: "contain",
               borderRadius: "1.5rem",
               cursor: "default",
